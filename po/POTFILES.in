@@ -68,6 +68,7 @@ src/nautilus-shell-search-provider.c
 src/nautilus-sidebar.c
 src/nautilus-star-cell.c
 src/nautilus-tag-manager.c
+src/nautilus-terminal-widget.c
 src/nautilus-toolbar.c
 src/nautilus-ui-utilities.c
 src/nautilus-vfs-file.c

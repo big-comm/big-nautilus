@@ -263,6 +263,8 @@ libnautilus_sources = [
   'nautilus-view-item-filter.h',
   'nautilus-view-model.c',
   'nautilus-view-model.h',
+  'nautilus-terminal-widget.c',
+  'nautilus-terminal-widget.h',
   'nautilus-window.c',
   'nautilus-window.h',
   'nautilus-window-slot.c',
@@ -288,6 +290,7 @@ nautilus_deps = [
   nautilus_extension,
   selinux,
   tinysparql,
+  vte,
   xdp_gnome,
 ]
 

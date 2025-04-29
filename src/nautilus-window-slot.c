@@ -89,9 +89,13 @@ struct _NautilusWindowSlot
 
     gboolean active : 1;
     guint loading : 1;
+    gboolean terminal_visible : 1;
 
     GtkWidget *stack;
     GtkWidget *vbox;
+    GtkWidget *content_box;
+    GtkWidget *terminal_pane;
+    NautilusTerminalWidget *terminal_widget;
     AdwStatusPage *global_search_page;
 
     GtkWidget *extra_location_widgets;
@@ -187,6 +191,34 @@ static void nautilus_window_slot_set_viewed_file (NautilusWindowSlot *self,
 static void nautilus_window_slot_go_up (NautilusWindowSlot *self);
 static void nautilus_window_slot_go_down (NautilusWindowSlot *self);
 static void update_back_forward_actions (NautilusWindowSlot *self);
+static void on_terminal_change_directory (NautilusTerminalWidget *widget,
+                                          GFile                  *location,
+                                          NautilusWindowSlot     *self);
+static void on_slot_location_changed_for_terminal (NautilusWindowSlot *self,
+                                                   GParamSpec         *pspec,
+                                                   gpointer            user_data);
+static void on_terminal_toggle_visibility (NautilusTerminalWidget *widget,
+                                           gboolean                visible,
+                                           NautilusWindowSlot     *self);
+
+/* Handler for terminal pane visibility changes */
+static void
+on_terminal_pane_visibility_changed (GtkWidget          *widget,
+                                     GParamSpec         *pspec,
+                                     NautilusWindowSlot *self)
+{
+    /* If the terminal pane became visible */
+    if (gtk_widget_get_visible (widget) && self->terminal_widget)
+    {
+        /* Ensure the terminal gets focus */
+        nautilus_terminal_widget_ensure_terminal_focus (self->terminal_widget);
+    }
+    else
+    {
+        /* Return focus to the content view when terminal is hidden */
+        gtk_widget_grab_focus (GTK_WIDGET (self->content_view));
+    }
+}
 
 void
 free_navigation_state (gpointer data)
@@ -874,11 +906,27 @@ nautilus_window_slot_constructed (GObject *object)
 
     G_OBJECT_CLASS (nautilus_window_slot_parent_class)->constructed (object);
 
+    /* Create a vertical paned container to hold the content and terminal */
+    GtkWidget *paned = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
+    adw_bin_set_child (ADW_BIN (self), paned);
+
+    /* Create stack for main content and search page */
     self->stack = gtk_stack_new ();
-    adw_bin_set_child (ADW_BIN (self), self->stack);
+    gtk_paned_set_start_child (GTK_PANED (paned), self->stack);
+    gtk_widget_set_vexpand (self->stack, TRUE);
 
     self->vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     gtk_stack_add_child (GTK_STACK (self->stack), self->vbox);
+
+    /* The content_box is where we'll put the file view */
+    self->content_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_append (GTK_BOX (self->vbox), self->content_box);
+    gtk_widget_set_vexpand (self->content_box, TRUE);
+
+    /* Terminal pane will be added to the bottom pane and shown on demand with the F4 key */
+    self->terminal_pane = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+    gtk_paned_set_end_child (GTK_PANED (paned), self->terminal_pane);
+    gtk_widget_set_visible (self->terminal_pane, FALSE);
 
     extras_vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     self->extra_location_widgets = extras_vbox;
@@ -1235,6 +1283,93 @@ action_unstar_current_directory (GSimpleAction *action,
                                        &(GList){ .data = self->viewed_file }, NULL, NULL, NULL);
 }
 
+static void
+action_toggle_terminal (GSimpleAction *action,
+                        GVariant      *state,
+                        gpointer       user_data)
+{
+    NautilusWindowSlot *self = NAUTILUS_WINDOW_SLOT (user_data);
+    gboolean terminal_visible = g_variant_get_boolean (state);
+
+    g_simple_action_set_state (action, state);
+
+    self->terminal_visible = terminal_visible;
+
+    /* Create terminal widget if it doesn't exist yet */
+    if (terminal_visible && self->terminal_widget == NULL)
+    {
+        /* Use the constructor with location to ensure the terminal starts in the correct directory */
+        self->terminal_widget = nautilus_terminal_widget_new_with_location (self->location);
+        gtk_box_append (GTK_BOX (self->terminal_pane), GTK_WIDGET (self->terminal_widget));
+        gtk_widget_set_vexpand (GTK_WIDGET (self->terminal_widget), TRUE);
+        gtk_widget_set_hexpand (GTK_WIDGET (self->terminal_widget), TRUE);        /* Connect to the terminal's change-directory signal */
+        g_signal_connect (self->terminal_widget, "change-directory",
+                          G_CALLBACK (on_terminal_change_directory), self);
+
+        /* Connect to the terminal's visibility toggle signal */
+        g_signal_connect (self->terminal_widget, "toggle-visibility",
+                          G_CALLBACK (on_terminal_toggle_visibility), self);
+
+        /* Connect to the slot's location change signal */
+        g_signal_connect (self, "notify::location",
+                          G_CALLBACK (on_slot_location_changed_for_terminal), self);
+
+        /* Connect to visibility changes of the terminal pane to handle focus */
+        g_signal_connect (self->terminal_pane, "notify::visible",
+                          G_CALLBACK (on_terminal_pane_visibility_changed), self);
+    }
+
+    /* Show or hide the terminal */
+    gtk_widget_set_visible (self->terminal_pane, terminal_visible);
+
+    /* Set the initial position of the paned divider when showing the terminal */
+    if (terminal_visible && gtk_widget_get_visible (self->terminal_pane))
+    {
+        GtkWidget *parent = gtk_widget_get_parent (self->terminal_pane);
+
+        if (GTK_IS_PANED (parent))
+        {
+            gtk_paned_set_position (GTK_PANED (parent), -1); /* Let GTK handle initial position */
+        }
+        nautilus_terminal_widget_ensure_terminal_focus (self->terminal_widget);
+    }
+}
+
+static void
+on_terminal_change_directory (NautilusTerminalWidget *widget,
+                              GFile                  *location,
+                              NautilusWindowSlot     *self)
+{
+    gboolean terminal_had_focus = FALSE;
+
+    /* Check if terminal currently has focus before changing location */
+    if (widget)
+    {
+        terminal_had_focus = nautilus_terminal_widget_get_has_focus (widget);
+    }
+
+    /* Only change directory if it's different from the current one */
+    if (location != NULL && self->location != NULL && !g_file_equal (location, self->location))
+    {
+        /* If terminal had focus, make sure it keeps focus after directory change */
+        if (terminal_had_focus)
+        {
+            /* Ensure focus is maintained and will be restored after location change completes */
+            nautilus_terminal_widget_set_maintain_focus (widget, TRUE);
+
+            /* This schedules a focus grab after the location change completes */
+            nautilus_terminal_widget_ensure_terminal_focus (widget);
+        }
+        else
+        {
+            /* If terminal didn't have focus, don't steal it */
+            nautilus_terminal_widget_set_maintain_focus (widget, FALSE);
+        }
+
+        nautilus_window_slot_open_location_full (self, location, NULL);
+    }
+}
+
 const GActionEntry slot_entries[] =
 {
     { .name = "open-location", .activate = action_open_location, .parameter_type = "s" },
@@ -1259,6 +1394,7 @@ const GActionEntry slot_entries[] =
     { .name = "unbookmark-current-directory", .activate = action_unbookmark_current_directory },
     { .name = "star-current-directory", .activate = action_star_current_directory },
     { .name = "unstar-current-directory", .activate = action_unstar_current_directory },
+    { .name = "toggle-terminal", .state = "false", .change_state = action_toggle_terminal },
 };
 
 static void
@@ -1378,6 +1514,7 @@ nautilus_window_slot_init (NautilusWindowSlot *self)
     ADD_SHORTCUT_FOR_ACTION (self->shortcuts, "slot.up", "<alt>Up");
     ADD_SHORTCUT_FOR_ACTION (self->shortcuts, "slot.down", "<alt>Down");
     ADD_SHORTCUT_FOR_ACTION (self->shortcuts, "slot.bookmark-current-directory", "<control>d|AddFavorite");
+    ADD_SHORTCUT_FOR_ACTION (self->shortcuts, "slot.toggle-terminal", "F4");
 
 #undef ADD_SHORTCUT_FOR_ACTION
 #undef ADD_SHORTCUT_FOR_ACTION_WITH_ARGS
@@ -2070,7 +2207,7 @@ got_file_info_for_view_selection_callback (NautilusFile *file,
         g_assert (self->pending_location != NULL);
 
         /* Setting the view location might trigger a signal that calls
-         * into the slot. We don't want that when setting the location
+         +        * into the slot. We don't want that when setting the location
          * outselves from the slot */
         g_object_freeze_notify (G_OBJECT (self->content_view));
 
@@ -2097,7 +2234,6 @@ got_file_info_for_view_selection_callback (NautilusFile *file,
              *
              * But guard against the case that $HOME cannot be displayed either,
              * otherwise we would enter an infinite loop. */
-
             if (!nautilus_is_home_directory (location))
             {
                 nautilus_window_slot_go_home (self);
@@ -2179,7 +2315,7 @@ free_location_change (NautilusWindowSlot *self)
 {
     g_clear_object (&self->pending_location);
     g_clear_object (&self->pending_file_to_activate);
-    nautilus_file_list_free (self->pending_selection);
+    g_clear_pointer (&self->pending_selection, nautilus_file_list_free);
     self->pending_selection = NULL;
 
     if (self->mount_cancellable != NULL)
@@ -2711,7 +2847,8 @@ create_and_bind_new_content_view (NautilusWindowSlot *self,
     self->content_view = nautilus_files_view_new (view_id, self);
 
     GtkWidget *widget = GTK_WIDGET (self->content_view);
-    gtk_box_append (GTK_BOX (self->vbox), widget);
+    gtk_box_append (GTK_BOX (self->content_box), widget);
+    gtk_box_reorder_child_after (GTK_BOX (self->content_box), widget, NULL);
     gtk_widget_set_vexpand (widget, TRUE);
 
     g_signal_connect_object (self->content_view, "notify::loading",
@@ -3256,4 +3393,53 @@ nautilus_window_slot_go_down (NautilusWindowSlot *self)
     g_object_unref (child);
     down_list = g_list_delete_link (down_list, down_list);
     self->down_list = g_steal_pointer (&down_list);
+}
+
+static void
+on_slot_location_changed_for_terminal (NautilusWindowSlot *self,
+                                       GParamSpec         *pspec,
+                                       gpointer            user_data)
+{
+    /* Update the terminal location when Nautilus changes directories */
+    if (self->terminal_widget != NULL && self->terminal_visible && self->location != NULL)
+    {
+        gboolean terminal_had_focus = FALSE;
+
+        /* Check if terminal currently has focus before changing location */
+        if (self->terminal_widget)
+        {
+            terminal_had_focus = nautilus_terminal_widget_get_has_focus (self->terminal_widget);
+        }
+
+        /* First update the location */
+        nautilus_terminal_widget_set_current_location (self->terminal_widget, self->location);
+
+        /* Then handle focus based on what had focus before the change */
+        if (terminal_had_focus)
+        {
+            /* If terminal had focus before the location change, make sure it gets it back */
+            nautilus_terminal_widget_ensure_terminal_focus (self->terminal_widget);
+        }
+        else
+        {
+            /* If terminal didn't have focus, don't steal it */
+            nautilus_terminal_widget_release_focus (self->terminal_widget);
+        }
+    }
+}
+
+static void
+on_terminal_toggle_visibility (NautilusTerminalWidget *widget,
+                               gboolean                visible,
+                               NautilusWindowSlot     *self)
+{
+    /* Update the terminal visibility state in the slot */
+    self->terminal_visible = visible;
+
+    /* Update the action state to maintain consistency */
+    GAction *action = g_action_map_lookup_action (G_ACTION_MAP (self->slot_action_group), "toggle-terminal");
+    if (action != NULL)
+    {
+        g_action_change_state (action, g_variant_new_boolean (visible));
+    }
 }
