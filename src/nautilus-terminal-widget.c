@@ -341,8 +341,6 @@ nautilus_terminal_widget_init (NautilusTerminalWidget *self)
     GtkEventController *key_controller;
     GtkGesture *click_gesture;
 
-    /* Initialize focus maintenance to enabled by default
-     * This ensures terminal maintains focus when directory changes are initiated from the terminal */
     self->maintain_focus = TRUE;
 
     self->box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
@@ -356,6 +354,29 @@ nautilus_terminal_widget_init (NautilusTerminalWidget *self)
     vte_terminal_set_enable_sixel (VTE_TERMINAL (self->terminal), TRUE);
     vte_terminal_set_scrollback_lines (VTE_TERMINAL (self->terminal), 10000);
     vte_terminal_set_allow_hyperlink (VTE_TERMINAL (self->terminal), TRUE);
+
+    /* Get system monospace font settings from GTK4 */
+    GSettings *interface_settings = g_settings_new ("org.gnome.desktop.interface");
+    gchar *font_name = g_settings_get_string (interface_settings, "monospace-font-name");
+
+    /* Create font description from the system settings */
+    PangoFontDescription *font_desc = NULL;
+    if (font_name != NULL && font_name[0] != '\0')
+    {
+        font_desc = pango_font_description_from_string (font_name);
+        g_free (font_name);
+    }
+
+    /* Fallback to default if no system font was found */
+    if (font_desc == NULL)
+    {
+        font_desc = pango_font_description_from_string ("Monospace 12");
+    }
+
+    /* Apply the font to the terminal */
+    vte_terminal_set_font (VTE_TERMINAL (self->terminal), font_desc);
+    pango_font_description_free (font_desc);
+    g_object_unref (interface_settings);
 
     /* Handle terminal exit */
     g_signal_connect (self->terminal, "child-exited",
