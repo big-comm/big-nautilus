@@ -40,6 +40,7 @@
 #include "nautilus-toolbar.h"
 #include "nautilus-view-info.h"
 #include "nautilus-x-content-bar.h"
+#include "nautilus-terminal-widget.h"
 
 #include <glib/gi18n.h>
 #include <adwaita.h>
@@ -94,7 +95,7 @@ struct _NautilusWindowSlot
     GtkWidget *stack;
     GtkWidget *vbox;
     GtkWidget *content_box;
-    GtkWidget *terminal_pane;
+    GtkWidget *terminal_pane_container; /* This will be the GtkPaned */
     NautilusTerminalWidget *terminal_widget;
     AdwStatusPage *global_search_page;
 
@@ -191,34 +192,11 @@ static void nautilus_window_slot_set_viewed_file (NautilusWindowSlot *self,
 static void nautilus_window_slot_go_up (NautilusWindowSlot *self);
 static void nautilus_window_slot_go_down (NautilusWindowSlot *self);
 static void update_back_forward_actions (NautilusWindowSlot *self);
-static void on_terminal_change_directory (NautilusTerminalWidget *widget,
-                                          GFile                  *location,
-                                          NautilusWindowSlot     *self);
-static void on_slot_location_changed_for_terminal (NautilusWindowSlot *self,
-                                                   GParamSpec         *pspec,
-                                                   gpointer            user_data);
-static void on_terminal_toggle_visibility (NautilusTerminalWidget *widget,
-                                           gboolean                visible,
-                                           NautilusWindowSlot     *self);
 
-/* Handler for terminal pane visibility changes */
-static void
-on_terminal_pane_visibility_changed (GtkWidget          *widget,
-                                     GParamSpec         *pspec,
-                                     NautilusWindowSlot *self)
-{
-    /* If the terminal pane became visible */
-    if (gtk_widget_get_visible (widget) && self->terminal_widget)
-    {
-        /* Ensure the terminal gets focus */
-        nautilus_terminal_widget_ensure_terminal_focus (self->terminal_widget);
-    }
-    else
-    {
-        /* Return focus to the content view when terminal is hidden */
-        gtk_widget_grab_focus (GTK_WIDGET (self->content_view));
-    }
-}
+void nautilus_window_slot_init_terminal (NautilusWindowSlot *self);
+static void on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self);
+static void on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self);
+static void on_paned_size_allocated (GtkWidget *widget, GtkAllocation *allocation, gpointer user_data);
 
 void
 free_navigation_state (gpointer data)
@@ -269,11 +247,6 @@ nautilus_window_slot_get_navigation_state (NautilusWindowSlot *self)
                                      (GCopyFunc) g_object_ref,
                                      NULL);
 
-    /* This data is used to restore a tab after it was closed.
-     * In order to do that we need to keep the history, what was
-     * the view mode before search and a reference to the file.
-     * A GFile isn't enough, as the NautilusFile also keeps a
-     * reference to the search directory */
     data = g_new0 (NautilusNavigationState, 1);
     data->back_list = back_list;
     data->forward_list = forward_list;
@@ -366,9 +339,6 @@ nautilus_window_slot_sync_actions (NautilusWindowSlot *self)
         return;
     }
 
-    /* Check if we need to close the search or show search after changing the location.
-     * Needs to be done after the change has been done, if not, a loop happens,
-     * because setting the search enabled or not actually opens a location */
     update_search_visible (self);
 
     /* Files view mode */
@@ -589,7 +559,6 @@ nautilus_window_slot_handle_activate_files (NautilusWindowSlot *self,
     if (files != NULL && files->next == NULL &&
         nautilus_file_opens_in_view (NAUTILUS_FILE (files->data)))
     {
-        /* Single folder or folder-like item is always handled by the view. */
         return FALSE;
     }
 
@@ -629,7 +598,6 @@ nautilus_window_slot_handle_event (NautilusWindowSlot    *self,
         }
     }
 
-    /* If the action is not enabled, don't try to handle search */
     if (g_action_get_enabled (action))
     {
         retval = nautilus_query_editor_handle_event (self->query_editor,
@@ -698,52 +666,29 @@ nautilus_window_slot_set_property (GObject      *object,
     switch (property_id)
     {
         case PROP_MODE:
-        {
             self->mode = g_value_get_enum (value);
-        }
-        break;
-
+            break;
         case PROP_FILTER:
-        {
             nautilus_window_slot_set_filter (self, g_value_get_object (value));
-        }
-        break;
-
+            break;
         case PROP_LOCATION:
-        {
             nautilus_window_slot_set_location (self, g_value_get_object (value));
-        }
-        break;
-
+            break;
         case PROP_SEARCH_VISIBLE:
-        {
             nautilus_window_slot_set_search_visible (self, g_value_get_boolean (value));
-        }
-        break;
-
+            break;
         case PROP_EXTENSIONS_BACKGROUND_MENU:
-        {
             real_set_extensions_background_menu (self, g_value_get_object (value));
-        }
-        break;
-
+            break;
         case PROP_TEMPLATES_MENU:
-        {
             real_set_templates_menu (self, g_value_get_object (value));
-        }
-        break;
-
+            break;
         case PROP_SELECTION:
-        {
             nautilus_window_slot_set_selection (self, g_value_get_pointer (value));
-        }
-        break;
-
+            break;
         default:
-        {
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-        }
-        break;
+            break;
     }
 }
 
@@ -757,9 +702,7 @@ GMenuModel *
 nautilus_window_slot_get_extensions_background_menu (NautilusWindowSlot *self)
 {
     GMenuModel *menu = NULL;
-
     g_object_get (self, "extensions-background-menu", &menu, NULL);
-
     return menu;
 }
 
@@ -773,9 +716,7 @@ GMenuModel *
 nautilus_window_slot_get_templates_menu (NautilusWindowSlot *self)
 {
     GMenuModel *menu = NULL;
-
     g_object_get (self, "templates-menu", &menu, NULL);
-
     return menu;
 }
 
@@ -789,100 +730,53 @@ nautilus_window_slot_get_property (GObject    *object,
     switch (property_id)
     {
         case PROP_ACTIVE:
-        {
             g_value_set_boolean (value, nautilus_window_slot_get_active (self));
-        }
-        break;
-
+            break;
         case PROP_FILTER:
-        {
             g_value_set_object (value, nautilus_window_slot_get_filter (self));
-        }
-        break;
-
+            break;
         case PROP_MODE:
-        {
             g_value_set_enum (value, nautilus_window_slot_get_mode (self));
-        }
-        break;
-
+            break;
         case PROP_ICON_NAME:
-        {
             g_value_set_static_string (value, nautilus_window_slot_get_icon_name (self));
-        }
-        break;
-
+            break;
         case PROP_TOOLBAR_MENU_SECTIONS:
-        {
             g_value_set_object (value, nautilus_window_slot_get_toolbar_menu_sections (self));
-        }
-        break;
-
+            break;
         case PROP_EXTENSIONS_BACKGROUND_MENU:
-        {
             g_value_set_object (value, real_get_extensions_background_menu (self));
-        }
-        break;
-
+            break;
         case PROP_TEMPLATES_MENU:
-        {
             g_value_set_object (value, real_get_templates_menu (self));
-        }
-        break;
-
+            break;
         case PROP_LOADING:
-        {
             g_value_set_boolean (value, nautilus_window_slot_get_loading (self));
-        }
-        break;
-
+            break;
         case PROP_LOCATION:
-        {
             g_value_set_object (value, nautilus_window_slot_get_current_location (self));
-        }
-        break;
-
+            break;
         case PROP_SEARCH_VISIBLE:
-        {
             g_value_set_boolean (value, nautilus_window_slot_get_search_visible (self));
-        }
-        break;
-
+            break;
         case PROP_SEARCH_GLOBAL:
-        {
             g_value_set_boolean (value, nautilus_window_slot_get_search_global (self));
-        }
-        break;
-
+            break;
         case PROP_TOOLTIP:
-        {
             g_value_set_static_string (value, nautilus_window_slot_get_tooltip (self));
-        }
-        break;
-
+            break;
         case PROP_ALLOW_STOP:
-        {
             g_value_set_boolean (value, nautilus_window_slot_get_allow_stop (self));
-        }
-        break;
-
+            break;
         case PROP_SELECTION:
-        {
             g_value_set_pointer (value, nautilus_window_slot_get_selection (self));
-        }
-        break;
-
+            break;
         case PROP_TITLE:
-        {
             g_value_set_string (value, nautilus_window_slot_get_title (self));
-        }
-        break;
-
+            break;
         default:
-        {
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-        }
-        break;
+            break;
     }
 }
 
@@ -899,6 +793,21 @@ nautilus_window_slot_is_selection_auto (NautilusWindowSlot *self)
 }
 
 static void
+on_paned_position_changed (GObject *object, GParamSpec *pspec, gpointer user_data)
+{
+    GtkPaned *paned = GTK_PANED(object);
+    g_autoptr(GSettings) settings = g_settings_new("org.gnome.nautilus.terminal");
+    int position = gtk_paned_get_position(paned);
+    int total_height = gtk_widget_get_allocated_height(GTK_WIDGET(paned));
+
+    if (total_height > 0)
+    {
+        int height = total_height - position;
+        g_settings_set_int(settings, "pane-size", height);
+    }
+}
+
+static void
 nautilus_window_slot_constructed (GObject *object)
 {
     NautilusWindowSlot *self = NAUTILUS_WINDOW_SLOT (object);
@@ -906,35 +815,26 @@ nautilus_window_slot_constructed (GObject *object)
 
     G_OBJECT_CLASS (nautilus_window_slot_parent_class)->constructed (object);
 
-    /* Create a vertical paned container to hold the content and terminal */
-    GtkWidget *paned = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
-    adw_bin_set_child (ADW_BIN (self), paned);
+    self->terminal_pane_container = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
+    adw_bin_set_child (ADW_BIN (self), self->terminal_pane_container);
+    g_signal_connect (self->terminal_pane_container, "notify::position", G_CALLBACK (on_paned_position_changed), NULL);
 
-    /* Create stack for main content and search page */
     self->stack = gtk_stack_new ();
-    gtk_paned_set_start_child (GTK_PANED (paned), self->stack);
+    gtk_paned_set_start_child (GTK_PANED (self->terminal_pane_container), self->stack);
     gtk_widget_set_vexpand (self->stack, TRUE);
 
     self->vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     gtk_stack_add_child (GTK_STACK (self->stack), self->vbox);
 
-    /* The content_box is where we'll put the file view */
     self->content_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     gtk_box_append (GTK_BOX (self->vbox), self->content_box);
     gtk_widget_set_vexpand (self->content_box, TRUE);
-
-    /* Terminal pane will be added to the bottom pane and shown on demand with the F4 key */
-    self->terminal_pane = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-    gtk_paned_set_end_child (GTK_PANED (paned), self->terminal_pane);
-    gtk_widget_set_visible (self->terminal_pane, FALSE);
 
     extras_vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     self->extra_location_widgets = extras_vbox;
     gtk_box_append (GTK_BOX (self->vbox), extras_vbox);
 
     self->query_editor = NAUTILUS_QUERY_EDITOR (nautilus_query_editor_new ());
-    /* We want to keep alive the query editor betwen additions and removals on the
-     * UI, specifically when the toolbar adds or removes it */
     g_object_ref_sink (self->query_editor);
 
     self->banner = ADW_BANNER (adw_banner_new (""));
@@ -959,6 +859,8 @@ nautilus_window_slot_constructed (GObject *object)
 
     self->title = g_strdup (_("Loading…"));
     g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_TITLE]);
+
+    g_idle_add((GSourceFunc)nautilus_window_slot_ensure_terminal_state, self);
 }
 
 static void
@@ -1089,9 +991,6 @@ action_search_visible (GSimpleAction *action,
         g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_SEARCH_VISIBLE]);
     }
 
-    /* Update global_search_page visibility even if the state of search-visible
-     * hasn't changed. This is because we may have just been notified through
-     * property binding that the view has started showing search results. */
     if (nautilus_window_slot_get_search_global (self))
     {
         if (search_visible)
@@ -1103,7 +1002,6 @@ action_search_visible (GSimpleAction *action,
         }
         else
         {
-            /* The Escape key has been used. */
             nautilus_window_slot_set_search_global (self, FALSE);
         }
     }
@@ -1289,85 +1187,8 @@ action_toggle_terminal (GSimpleAction *action,
                         gpointer       user_data)
 {
     NautilusWindowSlot *self = NAUTILUS_WINDOW_SLOT (user_data);
-    gboolean terminal_visible = g_variant_get_boolean (state);
 
-    g_simple_action_set_state (action, state);
-
-    self->terminal_visible = terminal_visible;
-
-    /* Create terminal widget if it doesn't exist yet */
-    if (terminal_visible && self->terminal_widget == NULL)
-    {
-        /* Use the constructor with location to ensure the terminal starts in the correct directory */
-        self->terminal_widget = nautilus_terminal_widget_new_with_location (self->location);
-        gtk_box_append (GTK_BOX (self->terminal_pane), GTK_WIDGET (self->terminal_widget));
-        gtk_widget_set_vexpand (GTK_WIDGET (self->terminal_widget), TRUE);
-        gtk_widget_set_hexpand (GTK_WIDGET (self->terminal_widget), TRUE);        /* Connect to the terminal's change-directory signal */
-        g_signal_connect (self->terminal_widget, "change-directory",
-                          G_CALLBACK (on_terminal_change_directory), self);
-
-        /* Connect to the terminal's visibility toggle signal */
-        g_signal_connect (self->terminal_widget, "toggle-visibility",
-                          G_CALLBACK (on_terminal_toggle_visibility), self);
-
-        /* Connect to the slot's location change signal */
-        g_signal_connect (self, "notify::location",
-                          G_CALLBACK (on_slot_location_changed_for_terminal), self);
-
-        /* Connect to visibility changes of the terminal pane to handle focus */
-        g_signal_connect (self->terminal_pane, "notify::visible",
-                          G_CALLBACK (on_terminal_pane_visibility_changed), self);
-    }
-
-    /* Show or hide the terminal */
-    gtk_widget_set_visible (self->terminal_pane, terminal_visible);
-
-    /* Set the initial position of the paned divider when showing the terminal */
-    if (terminal_visible && gtk_widget_get_visible (self->terminal_pane))
-    {
-        GtkWidget *parent = gtk_widget_get_parent (self->terminal_pane);
-
-        if (GTK_IS_PANED (parent))
-        {
-            gtk_paned_set_position (GTK_PANED (parent), -1); /* Let GTK handle initial position */
-        }
-        nautilus_terminal_widget_ensure_terminal_focus (self->terminal_widget);
-    }
-}
-
-static void
-on_terminal_change_directory (NautilusTerminalWidget *widget,
-                              GFile                  *location,
-                              NautilusWindowSlot     *self)
-{
-    gboolean terminal_had_focus = FALSE;
-
-    /* Check if terminal currently has focus before changing location */
-    if (widget)
-    {
-        terminal_had_focus = nautilus_terminal_widget_get_has_focus (widget);
-    }
-
-    /* Only change directory if it's different from the current one */
-    if (location != NULL && self->location != NULL && !g_file_equal (location, self->location))
-    {
-        /* If terminal had focus, make sure it keeps focus after directory change */
-        if (terminal_had_focus)
-        {
-            /* Ensure focus is maintained and will be restored after location change completes */
-            nautilus_terminal_widget_set_maintain_focus (widget, TRUE);
-
-            /* This schedules a focus grab after the location change completes */
-            nautilus_terminal_widget_ensure_terminal_focus (widget);
-        }
-        else
-        {
-            /* If terminal didn't have focus, don't steal it */
-            nautilus_terminal_widget_set_maintain_focus (widget, FALSE);
-        }
-
-        nautilus_window_slot_open_location_full (self, location, NULL);
-    }
+    nautilus_window_slot_toggle_terminal (self);
 }
 
 const GActionEntry slot_entries[] =
@@ -1394,7 +1215,7 @@ const GActionEntry slot_entries[] =
     { .name = "unbookmark-current-directory", .activate = action_unbookmark_current_directory },
     { .name = "star-current-directory", .activate = action_star_current_directory },
     { .name = "unstar-current-directory", .activate = action_unstar_current_directory },
-    { .name = "toggle-terminal", .state = "false", .change_state = action_toggle_terminal },
+    { .name = "toggle-terminal", .activate = action_toggle_terminal },
 };
 
 static void
@@ -1593,9 +1414,6 @@ check_select_old_location_containing_folder (NautilusFileList           *new_sel
 {
     GFile *from_folder, *parent;
 
-    /* If there is no new selection or if we are going back and the new location
-     * is a (grand)parent of the old location then we automatically
-     * select the folder the previous location was in */
     if ((new_selection == NULL || type == NAUTILUS_LOCATION_CHANGE_BACK) &&
         previous_location != NULL &&
         g_file_has_prefix (previous_location, location))
@@ -1630,10 +1448,6 @@ check_force_reload (GFile                      *location,
     NautilusFile *file;
     gboolean force_reload;
 
-    /* The code to force a reload is here because if we do it
-     * after determining an initial view (in the components), then
-     * we end up fetching things twice.
-     */
     directory = nautilus_directory_get (location);
     file = nautilus_file_get (location);
 
@@ -1646,9 +1460,6 @@ check_force_reload (GFile                      *location,
         force_reload = !g_file_is_native (location) && !nautilus_file_is_starred_location (file);
     }
 
-    /* We need to invalidate file attributes as well due to how mounting works
-     * in the window slot and to avoid other caching issues.
-     * Read handle_mount_if_needed for one example */
     if (force_reload)
     {
         nautilus_file_invalidate_all_attributes (file);
@@ -1662,7 +1473,6 @@ check_force_reload (GFile                      *location,
 static void
 save_selection_for_history (NautilusWindowSlot *self)
 {
-    /* Set current_bookmark scroll pos */
     if (self->current_location_bookmark != NULL &&
         self->content_view != NULL)
     {
@@ -1681,22 +1491,6 @@ save_selection_for_history (NautilusWindowSlot *self)
     }
 }
 
-/*
- * begin_location_change
- *
- * Change a window slot's location.
- * @window: The NautilusWindow whose location should be changed.
- * @location: A url specifying the location to load
- * @previous_location: The url that was previously shown in the window that initialized the change, if any
- * @new_selection: The initial selection to present after loading the location
- * @type: Which type of location change is this? Standard, back, forward, or reload?
- * @distance: If type is back or forward, the index into the back or forward chain. If
- * type is standard or reload, this is ignored, and must be 0.
- * @scroll_pos: The file to scroll to when the location is loaded.
- *
- * This is the core function for changing the location of a window. Every change to the
- * location begins here.
- */
 static void
 begin_location_change (NautilusWindowSlot         *self,
                        GFile                      *location,
@@ -1711,8 +1505,6 @@ begin_location_change (NautilusWindowSlot         *self,
               || type == NAUTILUS_LOCATION_CHANGE_FORWARD
               || distance == 0);
 
-    /* We are going to change the location, so make sure we stop any loading
-     * or searching of the previous view, so we avoid to be slow */
     nautilus_window_slot_stop_loading (self);
 
     nautilus_window_slot_set_allow_stop (self, TRUE);
@@ -1728,14 +1520,12 @@ begin_location_change (NautilusWindowSlot         *self,
                                                      type,
                                                      location,
                                                      previous_location);
-    /* Flush down list. Up/down actions should fetch the list beforehand. */
     g_clear_list (&self->down_list, g_object_unref);
 
     check_force_reload (location, type);
 
     save_selection_for_history (self);
 
-    /* Get the info needed to make decisions about how to open the new location */
     self->determine_view_file = nautilus_file_get (location);
     g_assert (self->determine_view_file != NULL);
 
@@ -1755,9 +1545,6 @@ nautilus_window_slot_set_location (NautilusWindowSlot *self,
     if (self->location &&
         g_file_equal (location, self->location))
     {
-        /* The location name could be updated even if the location
-         * wasn't changed. This is the case for a search.
-         */
         nautilus_window_slot_update_title (self);
         return;
     }
@@ -1812,18 +1599,8 @@ viewed_file_changed_callback (NautilusFile       *file,
             g_autoptr (GFile) location = nautilus_file_get_location (file);
             g_autoptr (GFile) go_to_file = NULL;
 
-            /* If the current location disappears, the following code jumps to
-             * the first existing parent except in the case when the file
-             * resides on some of the user interesting mounts and the mount was
-             * unmounted. In that case, it jumps to the home directory to avoid
-             * jumping into the runtime dir.
-             */
-
             if (!nautilus_file_has_been_unmounted (file))
             {
-                /* Verify also the current location to prevent jumps to parent
-                 * in case of autofs.
-                 */
                 go_to_file = nautilus_find_existing_uri_in_hierarchy (location);
             }
 
@@ -1834,9 +1611,6 @@ viewed_file_changed_callback (NautilusFile       *file,
 
             if (g_file_equal (location, go_to_file))
             {
-                /* Path gone by time out may have been remounted by
-                 * `nautilus_find_existing_uri_in_hierarchy()`.
-                 */
                 nautilus_window_slot_force_reload (self);
             }
             else
@@ -1922,7 +1696,6 @@ mount_not_mounted_callback (GObject      *source_object,
 
     if (g_cancellable_is_cancelled (cancellable))
     {
-        /* Cancelled, don't call back */
         g_object_unref (cancellable);
         return;
     }
@@ -2011,37 +1784,17 @@ nautilus_window_slot_display_view_selection_failure (GtkWindow    *window,
             break;
 
             case G_IO_ERROR_NOT_MOUNTED:
-            {
                 detail_message = g_strdup (_("Unable to access the requested location."));
-            }
-            break;
-
+                break;
             case G_IO_ERROR_PERMISSION_DENIED:
-            {
                 detail_message = g_strdup (_("Don’t have permission to access the requested location."));
-            }
-            break;
-
+                break;
             case G_IO_ERROR_HOST_NOT_FOUND:
-            {
-                /* This case can be hit for user-typed strings like "foo" due to
-                 * the code that guesses web addresses when there's no initial "/".
-                 * But this case is also hit for legitimate web addresses when
-                 * the proxy is set up wrong.
-                 */
                 detail_message = g_strdup (_("Unable to find the requested location. Please check the spelling or the network settings."));
-            }
-            break;
-
+                break;
             case G_IO_ERROR_CONNECTION_REFUSED:
-            {
-                /* This case can be hit when server application is not installed
-                 * or is inactive in the system user is trying to connect to.
-                 */
                 detail_message = g_strdup (_("The server has refused the connection. Typically this means that the firewall is blocking access or that the remote service is not running."));
-            }
-            break;
-
+                break;
             case G_IO_ERROR_CANCELLED:
             case G_IO_ERROR_FAILED_HANDLED:
             {
@@ -2064,23 +1817,6 @@ nautilus_window_slot_display_view_selection_failure (GtkWindow    *window,
     nautilus_show_ok_dialog (error_message, detail_message, GTK_WIDGET (window));
 }
 
-/* FIXME: This works in the folowwing way. begin_location_change tries to get the
- * information of the file directly.
- * If the nautilus file finds that there is an error trying to get its
- * information and the error match that the file is not mounted, it sets an
- * internal attribute with the error then we try to mount it here.
- *
- * However, files are cached, and if the file doesn't get finalized in a location
- * change, because needs to be in the navigation history or is a bookmark, and the
- * file is not the root of the mount point, which is tracked by a volume monitor,
- * and it gets unmounted aftwerwards, the file doesn't realize it's unmounted, and
- * therefore this trick to open an unmounted file will fail the next time the user
- * tries to open.
- * For that, we need to always invalidate the file attributes when a location is
- * changed, which is done in check_force_reload.
- * A better way would be to make sure any children of the mounted root gets
- * akwnoledge by it either by adding a reference to its parent volume monitor
- * or with another solution. */
 static gboolean
 handle_mount_if_needed (NautilusWindowSlot *self,
                         NautilusFile       *file)
@@ -2206,9 +1942,6 @@ got_file_info_for_view_selection_callback (NautilusFile *file,
 
         g_assert (self->pending_location != NULL);
 
-        /* Setting the view location might trigger a signal that calls
-         +        * into the slot. We don't want that when setting the location
-         * outselves from the slot */
         g_object_freeze_notify (G_OBJECT (self->content_view));
 
         apply_pending_location_and_selection_on_view (self);
@@ -2229,18 +1962,12 @@ got_file_info_for_view_selection_callback (NautilusFile *file,
 
         if (slot_location == NULL)
         {
-            /* This happens when a new slot cannot display its initial URI.
-             * As usual, fallback to $HOME.
-             *
-             * But guard against the case that $HOME cannot be displayed either,
-             * otherwise we would enter an infinite loop. */
             if (!nautilus_is_home_directory (location))
             {
                 nautilus_window_slot_go_home (self);
             }
             else
             {
-                /* the last fallback is to go to a known place that can't be deleted! */
                 g_autoptr (GFile) root = g_file_new_for_path ("/");
                 nautilus_window_slot_open_location_full (self, root, NULL);
             }
@@ -2249,23 +1976,12 @@ got_file_info_for_view_selection_callback (NautilusFile *file,
         {
             gboolean reloading = slot_location == location;
 
-            /* Clean up state of slot already showing a previous location */
             end_location_change (self);
 
-            /* We disconnected this, so we need to re-connect it.
-             * Although not conceptually correct, a force reload is a simple
-             * way to do that. In the future we may want to have an error
-             * status page instead and only reload on explicit request. */
-            /* Since there has been an error, force reloading the same location will throw us in a loop */
             if (!reloading)
             {
                 nautilus_window_slot_force_reload (self);
             }
-
-            /* Leave the location bar showing the bad location that the user
-             * typed (or maybe achieved by dragging or something). Many times
-             * the mistake will just be an easily-correctable typo.
-             */
         }
     }
 }
@@ -2357,14 +2073,11 @@ nautilus_window_slot_back_or_forward (NautilusWindowSlot *self,
     list = back ? self->back_list : self->forward_list;
     len = g_list_length (list);
 
-    /* If we can't move in the direction at all, just return. */
     if (list == NULL)
     {
         return;
     }
 
-    /* If the distance to move is off the end of the list, go to the end
-     *  of the list. */
     if (distance >= len)
     {
         distance = len - 1;
@@ -2391,7 +2104,6 @@ nautilus_window_slot_back_or_forward (NautilusWindowSlot *self,
                            distance);
 }
 
-/* reload the contents of the window */
 static void
 nautilus_window_slot_force_reload (NautilusWindowSlot *self)
 {
@@ -2406,9 +2118,6 @@ nautilus_window_slot_force_reload (NautilusWindowSlot *self)
         return;
     }
 
-    /* peek_slot_field (window, location) can be free'd during the processing
-     * of begin_location_change, so make a copy
-     */
     g_object_ref (location);
 
     if (self->content_view)
@@ -2434,7 +2143,6 @@ nautilus_window_slot_queue_reload (NautilusWindowSlot *self)
         || self->content_view == NULL
         || nautilus_files_view_is_loading (self->content_view))
     {
-        /* there is a reload in flight */
         self->needs_reload = TRUE;
         return;
     }
@@ -2509,10 +2217,6 @@ check_bookmark_location_matches (NautilusBookmark *bookmark,
     }
 }
 
-/* Debugging function used to verify that the last_location_bookmark
- * is in the state we expect when we're about to use it to update the
- * Back or Forward list.
- */
 static void
 check_last_bookmark_location_matches_slot (NautilusWindowSlot *self)
 {
@@ -2520,8 +2224,6 @@ check_last_bookmark_location_matches_slot (NautilusWindowSlot *self)
 
     if (g_file_has_uri_scheme (slot_location, SCHEME_SEARCH))
     {
-        /* In this case, it's expected not to match, because search is not
-         * saved into the history stack. */
         return;
     }
 
@@ -2542,20 +2244,16 @@ handle_go_direction (NautilusWindowSlot *self,
     list = *list_ptr;
     other_list = *other_list_ptr;
 
-    /* Move items from the list to the other list. */
     g_assert (g_list_length (list) > self->location_change_distance);
     check_bookmark_location_matches (g_list_nth_data (list, self->location_change_distance),
                                      location);
     g_assert (nautilus_window_slot_get_location (self) != NULL);
 
-    /* Move current location to list */
     check_last_bookmark_location_matches_slot (self);
 
-    /* Use the first bookmark in the history list rather than creating a new one. */
     other_list = g_list_prepend (other_list, self->last_location_bookmark);
     g_object_ref (other_list->data);
 
-    /* Move extra links from the list to the other list */
     for (guint i = 0; i < self->location_change_distance; ++i)
     {
         bookmark = NAUTILUS_BOOKMARK (list->data);
@@ -2563,7 +2261,6 @@ handle_go_direction (NautilusWindowSlot *self,
         other_list = g_list_prepend (other_list, bookmark);
     }
 
-    /* One bookmark falls out of back/forward lists and becomes viewed location */
     link = list;
     list = g_list_remove_link (list, link);
     g_object_unref (link->data);
@@ -2578,10 +2275,8 @@ handle_go_elsewhere (NautilusWindowSlot *self,
                      GFile              *location)
 {
     GFile *slot_location;
-    /* Clobber the entire forward list, and move displayed location to back list */
     nautilus_window_slot_clear_forward_list (self);
 
-    /* If we haven't updated the current bookmark, don't update history*/
     if (self->back_list != NULL &&
         self->back_list->data == self->last_location_bookmark)
     {
@@ -2592,15 +2287,9 @@ handle_go_elsewhere (NautilusWindowSlot *self,
 
     if (slot_location != NULL)
     {
-        /* If we're returning to the same uri somehow, don't put this uri on back list.
-         * This also avoids a problem where set_displayed_location
-         * didn't update last_location_bookmark since the uri didn't change.
-         */
         if (!g_file_equal (slot_location, location) && self->last_location_bookmark != NULL)
         {
-            /* Store bookmark for current location in back list, unless there is no current location */
             check_last_bookmark_location_matches_slot (self);
-            /* Use the first bookmark in the history list rather than creating a new one. */
             self->back_list = g_list_prepend (self->back_list,
                                               self->last_location_bookmark);
             g_object_ref (self->back_list->data);
@@ -2616,28 +2305,16 @@ update_history (NautilusWindowSlot         *self,
     switch (type)
     {
         case NAUTILUS_LOCATION_CHANGE_STANDARD:
-        {
             handle_go_elsewhere (self, new_location);
             return;
-        }
-
         case NAUTILUS_LOCATION_CHANGE_RELOAD:
-        {
-            /* for reload there is no work to do */
             return;
-        }
-
         case NAUTILUS_LOCATION_CHANGE_BACK:
-        {
             handle_go_direction (self, new_location, FALSE);
             return;
-        }
-
         case NAUTILUS_LOCATION_CHANGE_FORWARD:
-        {
             handle_go_direction (self, new_location, TRUE);
             return;
-        }
     }
     g_return_if_fail (FALSE);
 }
@@ -2740,9 +2417,6 @@ nautilus_window_slot_update_for_new_location (NautilusWindowSlot *self)
 
     update_history (self, self->location_change_type, new_location);
 
-    /* Create a NautilusFile for this location, so we can catch it
-     * if it goes away.
-     */
     nautilus_window_slot_set_viewed_file (self, file);
     self->viewed_file_seen = !nautilus_file_is_not_yet_confirmed (file);
     self->viewed_file_in_trash = nautilus_file_is_in_trash (file);
@@ -2750,11 +2424,11 @@ nautilus_window_slot_update_for_new_location (NautilusWindowSlot *self)
 
     nautilus_window_slot_set_location (self, new_location);
 
-    /* Sync the actions for this new location. */
     nautilus_window_slot_sync_actions (self);
 
     nautilus_location_banner_load (self->banner, new_location);
     nautilus_window_slot_update_extra_location_widgets (self);
+    nautilus_window_slot_update_terminal_location (self);
 }
 
 static void
@@ -2812,7 +2486,6 @@ nautilus_window_slot_update_extra_location_widgets (NautilusWindowSlot *self)
     GFile *location = nautilus_window_slot_get_current_location (self);
     FindMountData *data;
 
-    /* Remove existing, if any, which were meant for the previous location. */
     nautilus_window_slot_remove_extra_location_widgets (self);
 
     if (location == NULL)
@@ -2820,7 +2493,6 @@ nautilus_window_slot_update_extra_location_widgets (NautilusWindowSlot *self)
         return;
     }
 
-    /* need the mount to determine if we should put up the x-content cluebar */
     if (self->find_mount_cancellable != NULL)
     {
         g_cancellable_cancel (self->find_mount_cancellable);
@@ -2855,8 +2527,6 @@ create_and_bind_new_content_view (NautilusWindowSlot *self,
                              G_CALLBACK (view_is_loading_changed_cb), self,
                              G_CONNECT_DEFAULT);
 
-    /* Note that this is not bidirectional and that we may also change
-     * :search-visible alone, e.g. when clicking the search button. */
     self->searching_binding = g_object_bind_property (self->content_view, "searching",
                                                       self, "search-visible",
                                                       G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
@@ -2997,12 +2667,6 @@ nautilus_window_slot_class_init (NautilusWindowSlotClass *klass)
                               FALSE,
                               G_PARAM_READABLE);
 
-    /**
-     * NautilusWindowSlot:search-visible:
-     *
-     * Whether the search query editor is to be shown for this slot.
-     * This doesn't necessarily mean the view is showing search results.
-     */
     properties[PROP_SEARCH_VISIBLE] =
         g_param_spec_boolean ("search-visible", "", "",
                               FALSE,
@@ -3111,13 +2775,6 @@ nautilus_window_slot_get_location_uri (NautilusWindowSlot *self)
     return NULL;
 }
 
-/* nautilus_window_slot_update_title:
- *
- * Re-calculate the slot title.
- * Called when the location or view has changed.
- * @slot: The NautilusWindowSlot in question.
- *
- */
 void
 nautilus_window_slot_update_title (NautilusWindowSlot *self)
 {
@@ -3395,51 +3052,86 @@ nautilus_window_slot_go_down (NautilusWindowSlot *self)
     self->down_list = g_steal_pointer (&down_list);
 }
 
-static void
-on_slot_location_changed_for_terminal (NautilusWindowSlot *self,
-                                       GParamSpec         *pspec,
-                                       gpointer            user_data)
+void
+nautilus_window_slot_init_terminal (NautilusWindowSlot *self)
 {
-    /* Update the terminal location when Nautilus changes directories */
-    if (self->terminal_widget != NULL && self->terminal_visible && self->location != NULL)
-    {
-        gboolean terminal_had_focus = FALSE;
+    if (self->terminal_widget != NULL) {
+        return;
+    }
 
-        /* Check if terminal currently has focus before changing location */
-        if (self->terminal_widget)
-        {
-            terminal_had_focus = nautilus_terminal_widget_get_has_focus (self->terminal_widget);
-        }
+    self->terminal_widget = nautilus_terminal_widget_new_with_location(self->location);
+    gtk_paned_set_end_child(GTK_PANED(self->terminal_pane_container), GTK_WIDGET(self->terminal_widget));
+    gtk_widget_set_vexpand(GTK_WIDGET(self->terminal_widget), TRUE);
+    gtk_widget_set_hexpand(GTK_WIDGET(self->terminal_widget), TRUE);
 
-        /* First update the location */
-        nautilus_terminal_widget_set_current_location (self->terminal_widget, self->location);
+    g_signal_connect(self->terminal_widget, "change-directory",
+                     G_CALLBACK(on_terminal_directory_changed), self);
+    g_signal_connect(self->terminal_widget, "toggle-visibility",
+                     G_CALLBACK(on_terminal_visibility_changed), self);
 
-        /* Then handle focus based on what had focus before the change */
-        if (terminal_had_focus)
-        {
-            /* If terminal had focus before the location change, make sure it gets it back */
-            nautilus_terminal_widget_ensure_terminal_focus (self->terminal_widget);
-        }
-        else
-        {
-            /* If terminal didn't have focus, don't steal it */
-            nautilus_terminal_widget_release_focus (self->terminal_widget);
-        }
+    nautilus_terminal_widget_set_container_paned(self->terminal_widget, self->terminal_pane_container);
+    g_signal_connect (self->terminal_pane_container, "size-allocate", G_CALLBACK (on_paned_size_allocated), self->terminal_widget);
+}
+
+void
+nautilus_window_slot_toggle_terminal (NautilusWindowSlot *self)
+{
+    if (self->terminal_widget == NULL) {
+        nautilus_window_slot_init_terminal(self);
+    }
+
+    if (self->terminal_widget != NULL) {
+        nautilus_terminal_widget_toggle_visible(self->terminal_widget);
+    }
+}
+
+void
+nautilus_window_slot_update_terminal_location (NautilusWindowSlot *self)
+{
+    if (self->terminal_widget != NULL && self->location != NULL) {
+        nautilus_terminal_widget_set_current_location(self->terminal_widget, self->location);
     }
 }
 
 static void
-on_terminal_toggle_visibility (NautilusTerminalWidget *widget,
-                               gboolean                visible,
-                               NautilusWindowSlot     *self)
+on_paned_size_allocated (GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
 {
-    /* Update the terminal visibility state in the slot */
-    self->terminal_visible = visible;
+    NautilusTerminalWidget *terminal_widget = NAUTILUS_TERMINAL_WIDGET(user_data);
+    nautilus_terminal_widget_apply_new_size(terminal_widget);
+}
 
-    /* Update the action state to maintain consistency */
-    GAction *action = g_action_map_lookup_action (G_ACTION_MAP (self->slot_action_group), "toggle-terminal");
-    if (action != NULL)
+static void
+on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self)
+{
+    if (self->pending_location == NULL && self->location != NULL && !g_file_equal(self->location, location))
     {
-        g_action_change_state (action, g_variant_new_boolean (visible));
+        nautilus_window_slot_open_location_full(self, location, NAUTILUS_OPEN_FLAG_NORMAL, NULL);
     }
+}
+
+static void
+on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self)
+{
+    self->terminal_visible = visible;
+}
+
+gboolean
+nautilus_window_slot_ensure_terminal_state (gpointer user_data)
+{
+    NautilusWindowSlot *self = user_data;
+    g_autoptr(GSettings) settings = g_settings_new("org.gnome.nautilus.terminal");
+    gboolean terminal_should_be_visible = g_settings_get_boolean(settings, "visible");
+
+    if (terminal_should_be_visible) {
+        if (self->terminal_widget == NULL) {
+            nautilus_window_slot_init_terminal(self);
+        }
+        nautilus_terminal_widget_ensure_state(self->terminal_widget);
+        nautilus_window_slot_update_terminal_location(self);
+    } else {
+        if (self->terminal_widget != NULL) {
+            nautilus_terminal_widget_ensure_state(self->terminal_widget);
+        }
+    }
+    return G_SOURCE_REMOVE;
 }

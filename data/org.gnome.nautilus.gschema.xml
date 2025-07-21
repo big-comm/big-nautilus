@@ -68,12 +68,28 @@
     <value value="3" nick="encrypted_zip"/>
   </enum>
 
+  <enum id="org.gnome.nautilus.terminal.TerminalSyncMode">
+    <value nick="none" value="0"/>
+    <value nick="fm-to-term" value="1"/>
+    <value nick="term-to-fm" value="2"/>
+    <value nick="both" value="3"/>
+  </enum>
+
+  <enum id="org.gnome.nautilus.terminal.TerminalSshAutoConnectMode">
+    <value nick="off" value="0"/>
+    <value nick="sync-both" value="1"/>
+    <value nick="sync-fm-to-term" value="2"/>
+    <value nick="sync-term-to-fm" value="3"/>
+    <value nick="sync-none" value="4"/>
+  </enum>
+
   <schema path="/org/gnome/nautilus/" id="org.gnome.nautilus" gettext-domain="nautilus">
     <child schema="org.gnome.nautilus.preferences" name="preferences"/>
     <child schema="org.gnome.nautilus.compression" name="compression"/>
     <child schema="org.gnome.nautilus.icon-view" name="icon-view"/>
     <child schema="org.gnome.nautilus.list-view" name="list-view"/>
     <child schema="org.gnome.nautilus.window-state" name="window-state"/>
+    <child schema="org.gnome.nautilus.terminal" name="terminal"/>
   </schema>
 
   <schema path="/org/gnome/nautilus/preferences/" id="org.gnome.nautilus.preferences" gettext-domain="nautilus">
@@ -256,4 +272,43 @@
       <description>A tuple containing the initial width and height of the file chooser window.</description>
     </key>
   </schema>
+
+  <schema id="org.gnome.nautilus.terminal" path="/org/gnome/nautilus/terminal/" gettext-domain="nautilus">
+    <key name="visible" type="b">
+      <default>false</default>
+      <summary>Terminal pane visibility</summary>
+      <description>Whether the terminal pane should be visible by default in new windows.</description>
+    </key>
+    <key name="pane-size" type="i">
+        <default>200</default>
+        <summary>Terminal panel height</summary>
+        <description>Height of the terminal panel in pixels.</description>
+    </key>
+    <key name="font" type="s">
+      <default>''</default>
+      <summary>Terminal font</summary>
+      <description>The font to use for the terminal. If empty, the system monospace font is used.</description>
+    </key>
+    <key name="font-size" type="i">
+      <default>12</default>
+      <summary>Terminal font size</summary>
+      <description>The font size to use for the embedded terminal in point units.</description>
+    </key>
+    <key name="color-scheme" type="s">
+      <default>'system'</default>
+      <summary>Terminal color scheme</summary>
+      <description>The color scheme to use for the embedded terminal. Available values: 'system', 'dark', 'light', 'solarized-dark', 'solarized-light', 'matrix', 'one-half-dark', 'one-half-light', 'monokai'.</description>
+    </key>
+    <key name="local-sync-mode" enum="org.gnome.nautilus.terminal.TerminalSyncMode">
+      <default>'both'</default>
+      <summary>Local terminal folder synchronization mode</summary>
+      <description>Determines how the embedded terminal synchronizes its current directory with the file manager when navigating local folders. 'none': No synchronization. 'fm-to-term': File manager navigation changes terminal directory. 'term-to-fm': Terminal navigation changes file manager location. 'both': Synchronization works in both directions.</description>
+    </key>
+    <key name="ssh-auto-connect-mode" enum="org.gnome.nautilus.terminal.TerminalSshAutoConnectMode">
+      <default>'off'</default>
+      <summary>SSH terminal auto-connection and synchronization mode preference</summary>
+      <description>Determines behavior when an SFTP location is active. 'off': Do not connect automatically. 'sync-both': Connect and sync both ways. 'sync-fm-to-term': Connect and sync File Manager to Terminal. 'sync-term-to-fm': Connect and sync Terminal to File Manager. 'sync-none': Connect without folder synchronization.</description>
+    </key>
+  </schema>
+
 </schemalist>

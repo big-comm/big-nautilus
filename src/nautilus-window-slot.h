@@ -125,3 +125,7 @@ void nautilus_window_slot_back_or_forward (NautilusWindowSlot *slot,
                                            guint               distance);
 
 void free_navigation_state (gpointer data);
+
+void nautilus_window_slot_toggle_terminal (NautilusWindowSlot *slot);
+void nautilus_window_slot_update_terminal_location (NautilusWindowSlot *slot);
+gboolean nautilus_window_slot_ensure_terminal_state (gpointer user_data);
