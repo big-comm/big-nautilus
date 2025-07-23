@@ -632,67 +632,92 @@ spawn_async_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer us
 }
 
 static void
-spawn_terminal_async(NautilusTerminalWidget *self)
+spawn_terminal_async (NautilusTerminalWidget *self)
 {
-    NautilusTerminalWidgetPrivate *priv = self->priv;
-    g_autofree gchar *working_directory = NULL;
-    const gchar *shell_executable;
-    gchar *argv[2];
-    gchar *envp[] = {
+  NautilusTerminalWidgetPrivate *priv = self->priv;
+  g_autofree gchar            *working_directory = NULL;
+  const gchar                 *shell_executable;
+  gchar                      **argv = NULL;
+  gchar                      **envp = NULL;
+
+  g_return_if_fail (NAUTILUS_IS_TERMINAL_WIDGET (self));
+
+  if (priv->child_pid != -1)
+    return;
+
+  if (g_cancellable_is_cancelled (priv->spawn_cancellable))
+    {
+      g_clear_object (&priv->spawn_cancellable);
+      priv->spawn_cancellable = g_cancellable_new ();
+    }
+
+  if (priv->pending_ssh_hostname != NULL)
+    {
+      _initiate_ssh_connection (self, priv->pending_ssh_hostname, priv->pending_ssh_username, priv->pending_ssh_port, priv->pending_ssh_sync_mode);
+      g_clear_pointer (&priv->pending_ssh_hostname, g_free);
+      g_clear_pointer (&priv->pending_ssh_username, g_free);
+      g_clear_pointer (&priv->pending_ssh_port, g_free);
+      return;
+    }
+
+  shell_executable = g_getenv ("SHELL");
+  if (!shell_executable || *shell_executable == '\0')
+    shell_executable = "/bin/sh";
+
+  if (priv->current_location && g_file_query_exists (priv->current_location, NULL))
+    {
+      working_directory = g_file_get_path (priv->current_location);
+    }
+
+  if (g_str_has_suffix (shell_executable, "zsh"))
+    {
+      g_autofree gchar *config_dir = g_build_filename (g_get_user_config_dir (), "nautilus", "terminal", NULL);
+      g_autofree gchar *zshrc_path = g_build_filename (config_dir, ".zshrc", NULL);
+      g_autofree gchar *zshrc_content = NULL;
+      g_autofree gchar *zdotdir_env = NULL;
+
+      g_mkdir_with_parents (config_dir, 0700);
+
+      zshrc_content = g_strdup_printf ("_nautilus_vte_update_cwd() { echo -en \"\\033]7;file://$PWD\\007\"; };\n"
+                                       "typeset -a precmd_functions;\n"
+                                       "precmd_functions+=(_nautilus_vte_update_cwd);\n"
+                                       "[ -f \"$HOME/.zshrc\" ] && . \"$HOME/.zshrc\";\n");
+
+      g_file_set_contents (zshrc_path, zshrc_content, -1, NULL);
+
+      zdotdir_env = g_strdup_printf ("ZDOTDIR=%s", config_dir);
+      gchar *zsh_envp[] = { "TERM=xterm-256color", "COLORTERM=truecolor", zdotdir_env, NULL };
+      envp = g_strdupv (zsh_envp);
+      argv = g_strsplit (shell_executable, " ", -1);
+    }
+  else /* Assume bash or other compatible shells */
+    {
+      argv = g_strsplit (shell_executable, " ", -1);
+      gchar *bash_envp[] = {
         "TERM=xterm-256color",
-        "LC_ALL=C.UTF-8",
+        "PROMPT_COMMAND=echo -en \"\\033]7;file://$PWD\\007\"",
         "COLORTERM=truecolor",
         NULL
-    };
-
-    g_return_if_fail(NAUTILUS_IS_TERMINAL_WIDGET(self));
-
-    if (priv->child_pid != -1)
-        return;
-
-    if (g_cancellable_is_cancelled(priv->spawn_cancellable))
-    {
-        g_clear_object(&priv->spawn_cancellable);
-        priv->spawn_cancellable = g_cancellable_new();
+      };
+      envp = g_strdupv (bash_envp);
     }
 
-    /*
-     * UI/UX Rationale: To prevent an inefficient spawn-kill-respawn cycle, we decide here
-     * whether to start a local shell or an SSH session. If an SSH connection is pending,
-     * we initiate it directly. This provides a faster and cleaner startup.
-     */
-    if (priv->pending_ssh_hostname != NULL)
-    {
-        _initiate_ssh_connection(self, priv->pending_ssh_hostname, priv->pending_ssh_username, priv->pending_ssh_port, priv->pending_ssh_sync_mode);
-        g_clear_pointer(&priv->pending_ssh_hostname, g_free);
-        g_clear_pointer(&priv->pending_ssh_username, g_free);
-        g_clear_pointer(&priv->pending_ssh_port, g_free);
-        return;
-    }
-
-    shell_executable = g_getenv("SHELL");
-    if (!shell_executable || *shell_executable == '\0')
-        shell_executable = "/bin/sh";
-
-    argv[0] = (gchar *)shell_executable;
-    argv[1] = NULL;
-
-    if (priv->current_location && g_file_query_exists(priv->current_location, NULL))
-    {
-        working_directory = g_file_get_path(priv->current_location);
-    }
-
-    vte_terminal_spawn_async(priv->terminal,
+  vte_terminal_spawn_async (priv->terminal,
                             VTE_PTY_DEFAULT,
                             working_directory,
                             argv,
-                            (char **)envp,
+                            envp,
                             G_SPAWN_SEARCH_PATH,
-                            NULL, NULL, NULL,
-                            -1,
+                            NULL, /* child_setup */
+                            NULL, /* child_setup_data */
+                            NULL, /* child_setup_data_destroy */
+                            -1,   /* timeout */
                             priv->spawn_cancellable,
-                            (VteTerminalSpawnAsyncCallback)spawn_async_callback,
+                            (VteTerminalSpawnAsyncCallback) spawn_async_callback,
                             self);
+
+  g_strfreev (argv);
+  g_strfreev (envp);
 }
 
 static void
@@ -721,30 +746,45 @@ _reset_to_local_state(NautilusTerminalWidget *self)
 }
 
 static void
-on_terminal_child_exited(VteTerminal *terminal, gint status, gpointer user_data)
+on_terminal_child_exited (VteTerminal *terminal,
+                          gint         status,
+                          gpointer     user_data)
 {
-    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
-    NautilusTerminalWidgetPrivate *priv = self->priv;
+  NautilusTerminalWidget        *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+  NautilusTerminalWidgetPrivate *priv = self->priv;
 
-    if (gtk_widget_in_destruction(GTK_WIDGET(self)))
+  if (gtk_widget_in_destruction (GTK_WIDGET (self)))
     {
-        priv->child_pid = -1;
-        return;
+      priv->child_pid = -1;
+      return;
     }
 
-    priv->child_pid = -1;
+  priv->child_pid = -1;
 
-    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
+  /* If the terminal was in an SSH session, the end of the ssh process
+   * triggers this signal. We reset the state back to local, which flags
+   * the terminal for respawning a new local shell below. */
+  if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
     {
-        _reset_to_local_state(self);
+      _reset_to_local_state (self); /* This sets needs_respawn = TRUE */
+      if (priv->is_visible)
+        {
+          spawn_terminal_async (self);
+        }
     }
-
-    if (gtk_widget_get_ancestor(GTK_WIDGET(self), GTK_TYPE_WINDOW))
+  /*
+   * If the local shell exits (e.g., user types 'exit'), we hide the
+   * terminal widget and ensure it's marked for a full respawn on next show.
+   */
+  else if (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL)
     {
-        if (priv->is_visible)
-            spawn_terminal_async(self);
-        else
-            priv->needs_respawn = TRUE;
+      priv->needs_respawn = TRUE;
+
+      /* If the user saw it exit, hide the pane. */
+      if (priv->is_visible)
+        {
+          nautilus_terminal_widget_toggle_visible (self);
+        }
     }
 }
 
