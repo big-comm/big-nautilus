@@ -3105,7 +3105,7 @@ on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location,
 {
     if (self->pending_location == NULL && self->location != NULL && !g_file_equal(self->location, location))
     {
-        nautilus_window_slot_open_location_full(self, location, NAUTILUS_OPEN_FLAG_NORMAL, NULL);
+        nautilus_window_slot_open_location_full(self, location, NULL);
     }
 }
 

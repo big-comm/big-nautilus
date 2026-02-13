@@ -15,3 +15,7 @@ build/
 # Ignore captures
 /*.syscap
 /heaptrack.nautilus.*
+
+# Ignore build directory and maintenance scripts
+/builddir
+/update-nautilus-fork.sh

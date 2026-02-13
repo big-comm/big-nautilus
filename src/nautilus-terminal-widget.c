@@ -67,6 +67,7 @@ struct _NautilusTerminalWidgetPrivate
   gboolean            needs_respawn;
   gboolean            ignore_next_terminal_cd_signal;
   gboolean            just_synced_directory;
+  gboolean            refocus_after_paste;
   guint               focus_timeout_id;
   GPid                child_pid;
   GCancellable       *spawn_cancellable;
@@ -347,6 +348,7 @@ static void
 action_paste (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    self->priv->refocus_after_paste = TRUE;
     vte_terminal_paste_clipboard (self->priv->terminal);
 }
 
@@ -592,9 +594,10 @@ on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
-    if (priv->just_synced_directory)
+    if (priv->just_synced_directory || priv->refocus_after_paste)
     {
         priv->just_synced_directory = FALSE;
+        priv->refocus_after_paste = FALSE;
         /*
          * UI/UX Rationale: Directly calling grab_focus can fail due to event loop race
          * conditions where Nautilus steals focus immediately after. By using a minimal,
@@ -942,6 +945,7 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
                 return TRUE;
             case GDK_KEY_V:
             case GDK_KEY_v:
+                priv->refocus_after_paste = TRUE;
                 vte_terminal_paste_clipboard(priv->terminal);
                 return TRUE;
         }
