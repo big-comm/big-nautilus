@@ -1,0 +1,110 @@
+# Turkish translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Turkish\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Sistem"
+
+msgid "Dark"
+msgstr "Koyu"
+
+msgid "Light"
+msgstr "Açık"
+
+msgid "Solarized Dark"
+msgstr "Solarized koyu"
+
+msgid "Solarized Light"
+msgstr "Solarized açık"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half koyu"
+
+msgid "One Half Light"
+msgstr "One Half açık"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Her iki yönde eşitle"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Eşitle: Dosya Yöneticisi → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Eşitle: Terminal → Dosya Yöneticisi"
+
+msgid "No Sync"
+msgstr "Eşitleme yok"
+
+msgid "Do not connect automatically"
+msgstr "Otomatik bağlanma"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Otomatik bağlan ve her iki yönde eşitle"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Otomatik bağlan ve eşitle: Dosya Yöneticisi → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Otomatik bağlan ve eşitle: Terminal → Dosya Yöneticisi"
+
+msgid "Automatically connect without syncing"
+msgstr "Eşitlemeden otomatik bağlan"
+
+msgid "Sync folder both ways"
+msgstr "Klasörü her iki yönde eşitle"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Klasörü eşitle: Dosya Yöneticisi → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Klasörü eşitle: Terminal → Dosya Yöneticisi"
+
+msgid "No folder sync"
+msgstr "Klasör eşitlemesi yok"
+
+msgid "Copy"
+msgstr "Kopyala"
+
+msgid "Paste"
+msgstr "Yapıştır"
+
+msgid "Select All"
+msgstr "Tümünü seç"
+
+msgid "Color Scheme"
+msgstr "Renk şeması"
+
+msgid "Font Size"
+msgstr "Yazı tipi boyutu"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH otomatik bağlantı"
+
+msgid "Disconnect from SSH"
+msgstr "SSH bağlantısını kes"
+
+msgid "Local Folder Sync"
+msgstr "Yerel klasör eşitleme"
+
+msgid "SSH Connection to %s"
+msgstr "%s için SSH bağlantısı"
+

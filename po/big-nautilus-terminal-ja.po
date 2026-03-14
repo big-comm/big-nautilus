@@ -1,0 +1,110 @@
+# Japanese translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Japanese\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "システム"
+
+msgid "Dark"
+msgstr "ダーク"
+
+msgid "Light"
+msgstr "ライト"
+
+msgid "Solarized Dark"
+msgstr "Solarized ダーク"
+
+msgid "Solarized Light"
+msgstr "Solarized ライト"
+
+msgid "Matrix"
+msgstr "マトリックス"
+
+msgid "One Half Dark"
+msgstr "One Half ダーク"
+
+msgid "One Half Light"
+msgstr "One Half ライト"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "双方向で同期"
+
+msgid "Sync File Manager → Terminal"
+msgstr "同期: ファイルマネージャー → ターミナル"
+
+msgid "Sync Terminal → File Manager"
+msgstr "同期: ターミナル → ファイルマネージャー"
+
+msgid "No Sync"
+msgstr "同期なし"
+
+msgid "Do not connect automatically"
+msgstr "自動接続しない"
+
+msgid "Automatically connect and sync both ways"
+msgstr "自動接続して双方向で同期"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "自動接続して同期: ファイルマネージャー → ターミナル"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "自動接続して同期: ターミナル → ファイルマネージャー"
+
+msgid "Automatically connect without syncing"
+msgstr "同期なしで自動接続"
+
+msgid "Sync folder both ways"
+msgstr "フォルダを双方向で同期"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "フォルダ同期: ファイルマネージャー → ターミナル"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "フォルダ同期: ターミナル → ファイルマネージャー"
+
+msgid "No folder sync"
+msgstr "フォルダ同期なし"
+
+msgid "Copy"
+msgstr "コピー"
+
+msgid "Paste"
+msgstr "貼り付け"
+
+msgid "Select All"
+msgstr "すべて選択"
+
+msgid "Color Scheme"
+msgstr "配色"
+
+msgid "Font Size"
+msgstr "フォントサイズ"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH自動接続"
+
+msgid "Disconnect from SSH"
+msgstr "SSHの切断"
+
+msgid "Local Folder Sync"
+msgstr "ローカルフォルダ同期"
+
+msgid "SSH Connection to %s"
+msgstr "%s へのSSH接続"
+

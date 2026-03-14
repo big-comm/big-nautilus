@@ -1,0 +1,110 @@
+# Dutch translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Dutch\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Systeem"
+
+msgid "Dark"
+msgstr "Donker"
+
+msgid "Light"
+msgstr "Licht"
+
+msgid "Solarized Dark"
+msgstr "Solarized donker"
+
+msgid "Solarized Light"
+msgstr "Solarized licht"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half donker"
+
+msgid "One Half Light"
+msgstr "One Half licht"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Beide richtingen synchroniseren"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Synchroniseren: Bestandsbeheerder → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Synchroniseren: Terminal → Bestandsbeheerder"
+
+msgid "No Sync"
+msgstr "Geen synchronisatie"
+
+msgid "Do not connect automatically"
+msgstr "Niet automatisch verbinden"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Automatisch verbinden en beide richtingen synchroniseren"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Automatisch verbinden en synchroniseren: Bestandsbeheerder → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Automatisch verbinden en synchroniseren: Terminal → Bestandsbeheerder"
+
+msgid "Automatically connect without syncing"
+msgstr "Automatisch verbinden zonder synchronisatie"
+
+msgid "Sync folder both ways"
+msgstr "Map beide richtingen synchroniseren"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Map synchroniseren: Bestandsbeheerder → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Map synchroniseren: Terminal → Bestandsbeheerder"
+
+msgid "No folder sync"
+msgstr "Geen map synchronisatie"
+
+msgid "Copy"
+msgstr "Kopiëren"
+
+msgid "Paste"
+msgstr "Plakken"
+
+msgid "Select All"
+msgstr "Alles selecteren"
+
+msgid "Color Scheme"
+msgstr "Kleurenschema"
+
+msgid "Font Size"
+msgstr "Lettergrootte"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH automatisch verbinden"
+
+msgid "Disconnect from SSH"
+msgstr "SSH-verbinding verbreken"
+
+msgid "Local Folder Sync"
+msgstr "Lokale map synchroniseren"
+
+msgid "SSH Connection to %s"
+msgstr "SSH-verbinding met %s"
+

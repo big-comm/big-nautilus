@@ -1,0 +1,110 @@
+# Estonian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Estonian\n"
+"Language: et\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Süsteem"
+
+msgid "Dark"
+msgstr "Tume"
+
+msgid "Light"
+msgstr "Hele"
+
+msgid "Solarized Dark"
+msgstr "Solarized tume"
+
+msgid "Solarized Light"
+msgstr "Solarized hele"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half tume"
+
+msgid "One Half Light"
+msgstr "One Half hele"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Sünkroniseeri mõlemas suunas"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Sünkroniseeri: Failihaldur → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Sünkroniseeri: Terminal → Failihaldur"
+
+msgid "No Sync"
+msgstr "Ei sünkroniseerimist"
+
+msgid "Do not connect automatically"
+msgstr "Ära ühendu automaatselt"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Ühendu automaatselt ja sünkroniseeri mõlemas suunas"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Ühendu automaatselt ja sünkroniseeri: Failihaldur → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Ühendu automaatselt ja sünkroniseeri: Terminal → Failihaldur"
+
+msgid "Automatically connect without syncing"
+msgstr "Ühendu automaatselt ilma sünkroniseerimiseta"
+
+msgid "Sync folder both ways"
+msgstr "Sünkroniseeri kaust mõlemas suunas"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Sünkroniseeri kaust: Failihaldur → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Sünkroniseeri kaust: Terminal → Failihaldur"
+
+msgid "No folder sync"
+msgstr "Kausta ei sünkroniseerita"
+
+msgid "Copy"
+msgstr "Kopeeri"
+
+msgid "Paste"
+msgstr "Aseta"
+
+msgid "Select All"
+msgstr "Vali kõik"
+
+msgid "Color Scheme"
+msgstr "Värviskeem"
+
+msgid "Font Size"
+msgstr "Fondi suurus"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH automaatühendus"
+
+msgid "Disconnect from SSH"
+msgstr "Katkesta SSH ühendus"
+
+msgid "Local Folder Sync"
+msgstr "Kohaliku kausta sünkroniseerimine"
+
+msgid "SSH Connection to %s"
+msgstr "SSH ühendus serveriga %s"
+

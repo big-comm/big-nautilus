@@ -196,7 +196,7 @@ static void update_back_forward_actions (NautilusWindowSlot *self);
 void nautilus_window_slot_init_terminal (NautilusWindowSlot *self);
 static void on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self);
 static void on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self);
-static void on_paned_size_allocated (GtkWidget *widget, GtkAllocation *allocation, gpointer user_data);
+static void on_paned_size_allocated (GtkWidget *widget, int width, int height, int baseline, gpointer user_data);
 
 void
 free_navigation_state (gpointer data)
@@ -3094,7 +3094,7 @@ nautilus_window_slot_update_terminal_location (NautilusWindowSlot *self)
 }
 
 static void
-on_paned_size_allocated (GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
+on_paned_size_allocated (GtkWidget *widget, int width, int height, int baseline, gpointer user_data)
 {
     NautilusTerminalWidget *terminal_widget = NAUTILUS_TERMINAL_WIDGET(user_data);
     nautilus_terminal_widget_apply_new_size(terminal_widget);

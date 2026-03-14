@@ -20,6 +20,7 @@
 #include "nautilus-terminal-widget.h"
 
 #include <glib/gi18n.h>
+#include <adwaita.h>
 #include <vte/vte.h>
 #include <string.h>
 #include <errno.h>
@@ -255,11 +256,14 @@ static const MenuSyncModeEntry MANUAL_SSH_SYNC_ENTRIES[] = {
 static void spawn_terminal_async(NautilusTerminalWidget *self);
 static void on_terminal_child_exited(VteTerminal *terminal, gint status, gpointer user_data);
 static void on_terminal_button_pressed(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data);
+static void on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data);
 static gboolean on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint keycode, GdkModifierType state, gpointer user_data);
+static gboolean _ensure_focus_timeout(gpointer user_data);
 static void on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data);
 static void on_terminal_preference_changed(GSettings *settings, const gchar *key, gpointer user_data);
 static void setup_terminal_font(VteTerminal *terminal, GSettings *settings);
 static void nautilus_terminal_widget_apply_color_scheme(NautilusTerminalWidget *self);
+static void on_system_dark_changed(AdwStyleManager *style_manager, GParamSpec *pspec, gpointer user_data);
 static void _initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port, NautilusTerminalSyncMode sync_mode);
 static gboolean parse_gvfs_ssh_path(GFile *location, gchar **hostname, gchar **username, gchar **port);
 static void change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location);
@@ -314,7 +318,12 @@ nautilus_terminal_widget_finalize(GObject *object)
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GtkWidget) paned = g_weak_ref_get(&priv->paned_weak_ref);
 
+    /* Disconnect all signal handlers to prevent callbacks on destroyed object */
+    if (priv->terminal) {
+        g_signal_handlers_disconnect_by_data(priv->terminal, self);
+    }
     g_signal_handlers_disconnect_by_data(priv->settings, self);
+    g_signal_handlers_disconnect_by_data(adw_style_manager_get_default(), self);
     g_clear_object(&priv->settings);
     g_clear_object(&priv->action_group);
 
@@ -324,13 +333,21 @@ nautilus_terminal_widget_finalize(GObject *object)
     }
     g_weak_ref_clear(&priv->paned_weak_ref);
 
-    if (priv->focus_timeout_id > 0)
+    if (priv->focus_timeout_id > 0) {
         g_source_remove(priv->focus_timeout_id);
+        priv->focus_timeout_id = 0;
+    }
 
     g_cancellable_cancel(priv->spawn_cancellable);
     g_clear_object(&priv->spawn_cancellable);
     g_clear_object(&priv->current_location);
     g_clear_pointer(&priv->color_scheme, g_free);
+
+    /* Clean up popup menu */
+    if (priv->popup_menu) {
+        gtk_widget_unparent(priv->popup_menu);
+        priv->popup_menu = NULL;
+    }
 
     _clear_ssh_connection_data(priv);
 
@@ -348,8 +365,16 @@ static void
 action_paste (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    self->priv->refocus_after_paste = TRUE;
-    vte_terminal_paste_clipboard (self->priv->terminal);
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    priv->refocus_after_paste = TRUE;
+    vte_terminal_paste_clipboard (priv->terminal);
+
+    /* Directly schedule a focus grab after paste. The focus-leave handler
+     * is unreliable because focus may not always leave during paste. */
+    if (priv->focus_timeout_id > 0)
+        g_source_remove (priv->focus_timeout_id);
+    priv->focus_timeout_id = g_timeout_add (50, _ensure_focus_timeout, self);
 }
 
 static void
@@ -484,9 +509,9 @@ static void
 nautilus_terminal_widget_init(NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = nautilus_terminal_widget_get_instance_private(self);
-    GtkStyleContext *context = NULL;
     g_autoptr(GtkCssProvider) provider = NULL;
     GtkGesture *click;
+    GtkGesture *primary_click;
     GtkEventController *key_controller;
     GtkEventController *focus_controller;
     GSimpleAction *action;
@@ -520,9 +545,8 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_label_set_xalign(GTK_LABEL(priv->ssh_indicator), 0.5);
 
     provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(provider, "label#ssh-indicator { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; padding: 2px 5px; margin: 0; font-weight: bold; }", -1);
-    context = gtk_widget_get_style_context(priv->ssh_indicator);
-    gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
+    gtk_css_provider_load_from_string(provider, "label#ssh-indicator { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; padding: 2px 5px; margin: 0; font-weight: bold; }");
+    gtk_style_context_add_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
 
     gtk_box_append(GTK_BOX(self), priv->ssh_indicator);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(priv->scrolled_window), GTK_WIDGET(priv->terminal));
@@ -535,6 +559,10 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     setup_terminal_font(priv->terminal, priv->settings);
     nautilus_terminal_widget_get_color_scheme(self);
     nautilus_terminal_widget_apply_color_scheme(self);
+
+    /* Listen for system dark/light theme changes */
+    g_signal_connect(adw_style_manager_get_default(), "notify::dark",
+                     G_CALLBACK(on_system_dark_changed), self);
 
     priv->action_group = G_ACTION_GROUP(g_simple_action_group_new());
     g_action_map_add_action_entries(G_ACTION_MAP(priv->action_group), terminal_actions, G_N_ELEMENTS(terminal_actions), self);
@@ -563,6 +591,12 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     g_signal_connect(click, "pressed", G_CALLBACK(on_terminal_button_pressed), self);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), GTK_EVENT_CONTROLLER(click));
 
+    /* Primary click handler to ensure terminal gets focus when clicked */
+    primary_click = gtk_gesture_click_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(primary_click), GDK_BUTTON_PRIMARY);
+    g_signal_connect(primary_click, "pressed", G_CALLBACK(on_terminal_primary_click), self);
+    gtk_widget_add_controller(GTK_WIDGET(priv->terminal), GTK_EVENT_CONTROLLER(primary_click));
+
     key_controller = gtk_event_controller_key_new();
     g_signal_connect(key_controller, "key-pressed", G_CALLBACK(on_terminal_key_pressed), self);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), key_controller);
@@ -577,22 +611,27 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_widget_set_visible(GTK_WIDGET(self), FALSE);
 }
 
-// Add this new helper function near the top of the file with other static function declarations.
+// Helper to defer focus grab safely
 static void
 _deferred_focus_grab(gpointer user_data) {
     GtkWidget *widget = GTK_WIDGET(user_data);
-    if (widget && gtk_widget_get_realized(widget) && gtk_widget_get_visible(widget)) {
+    if (widget != NULL &&
+        !gtk_widget_in_destruction(widget) &&
+        gtk_widget_get_realized(widget) &&
+        gtk_widget_get_visible(widget)) {
         gtk_widget_grab_focus(widget);
     }
 }
 
 
-// Replace the existing on_terminal_focus_leave function with this one.
 static void
 on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (gtk_widget_in_destruction(GTK_WIDGET(self)))
+        return;
 
     if (priv->just_synced_directory || priv->refocus_after_paste)
     {
@@ -605,7 +644,19 @@ on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
          * processing cycle has completed, ensuring our action is the final one and
          * reliably returns focus to the terminal.
          */
-        g_timeout_add_once(10, _deferred_focus_grab, priv->terminal);
+        g_timeout_add_once(50, _deferred_focus_grab, priv->terminal);
+    }
+}
+
+/* Primary click handler: ensure terminal grabs focus on any left click */
+static void
+on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (!gtk_widget_in_destruction(GTK_WIDGET(self)) && priv->terminal) {
+        gtk_widget_grab_focus(GTK_WIDGET(priv->terminal));
     }
 }
 
@@ -614,6 +665,12 @@ spawn_async_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer us
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (gtk_widget_in_destruction(GTK_WIDGET(self)))
+    {
+        priv->child_pid = -1;
+        return;
+    }
 
     if (pid == -1)
     {
@@ -625,12 +682,6 @@ spawn_async_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer us
     {
         priv->child_pid = pid;
         priv->needs_respawn = FALSE;
-        /*
-         * UI/UX Rationale: The spawn process (either local or SSH) is now configured
-         * to start in the correct directory from the beginning. The callback's only
-         * responsibility is to update the state based on the outcome, simplifying the
-         * logic and preventing redundant 'cd' commands or process restarts.
-         */
     }
 }
 
@@ -833,8 +884,12 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GFile) new_gfile_location = NULL;
     gboolean should_sync_to_fm = FALSE;
-    const gchar *cwd_uri = vte_terminal_get_current_directory_uri(terminal);
+    const gchar *cwd_uri;
 
+    if (gtk_widget_in_destruction(GTK_WIDGET(self)))
+        return;
+
+    cwd_uri = vte_terminal_get_current_directory_uri(terminal);
     if (!cwd_uri) return;
 
     if (priv->ignore_next_terminal_cd_signal)
@@ -947,6 +1002,10 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
             case GDK_KEY_v:
                 priv->refocus_after_paste = TRUE;
                 vte_terminal_paste_clipboard(priv->terminal);
+                /* Directly schedule focus grab after keyboard paste */
+                if (priv->focus_timeout_id > 0)
+                    g_source_remove (priv->focus_timeout_id);
+                priv->focus_timeout_id = g_timeout_add (50, _ensure_focus_timeout, self);
                 return TRUE;
         }
     }
@@ -1114,7 +1173,8 @@ change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location)
     g_autofree gchar *target_path = NULL;
     gboolean should_sync = FALSE;
 
-    if (!priv->is_visible || priv->child_pid == -1)
+    if (!priv->is_visible || priv->child_pid == -1 ||
+        gtk_widget_in_destruction(GTK_WIDGET(self)))
         return;
 
     if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
@@ -1266,7 +1326,14 @@ setup_terminal_font(VteTerminal *terminal, GSettings *settings)
     if (font_name && *font_name) {
         font_desc = pango_font_description_from_string(font_name);
     } else {
-        font_desc = pango_font_description_from_string("Monospace");
+        /* Read the system monospace font from GNOME settings */
+        g_autoptr(GSettings) iface_settings = g_settings_new("org.gnome.desktop.interface");
+        g_autofree gchar *system_font = g_settings_get_string(iface_settings, "monospace-font-name");
+        if (system_font && *system_font) {
+            font_desc = pango_font_description_from_string(system_font);
+        } else {
+            font_desc = pango_font_description_from_string("Monospace");
+        }
     }
 
     pango_font_description_set_size(font_desc, font_size * PANGO_SCALE);
@@ -1299,7 +1366,6 @@ nautilus_terminal_widget_apply_color_scheme(NautilusTerminalWidget *self)
     NautilusTerminalWidgetPrivate *priv = self->priv;
     const gchar *scheme_id = nautilus_terminal_widget_get_color_scheme(self);
     const MenuSchemeEntry *scheme = NULL;
-    GtkStyleContext *context;
     GdkRGBA fg, bg;
 
     for (gsize i = 0; i < G_N_ELEMENTS(COLOR_SCHEME_ENTRIES); ++i) {
@@ -1314,10 +1380,52 @@ nautilus_terminal_widget_apply_color_scheme(NautilusTerminalWidget *self)
     }
 
     if (scheme->palette.use_system_colors) {
-        context = gtk_widget_get_style_context(GTK_WIDGET(priv->terminal));
-        gtk_style_context_get_color(context, &fg);
-        gtk_style_context_lookup_color(context, "theme_base_color", &bg);
-        vte_terminal_set_colors(priv->terminal, &fg, &bg, NULL, 0);
+        /* Use sensible defaults based on the system style preference */
+        AdwStyleManager *style_manager = adw_style_manager_get_default();
+        gboolean is_dark = adw_style_manager_get_dark(style_manager);
+
+        /* Standard 16-color ANSI palette for proper terminal prompt rendering */
+        GdkRGBA ansi_palette[16];
+        if (is_dark) {
+            fg = (GdkRGBA){ 0.9, 0.9, 0.9, 1.0 };
+            bg = (GdkRGBA){ 0.12, 0.12, 0.12, 1.0 };
+            ansi_palette[0]  = (GdkRGBA){ 0.20, 0.20, 0.20, 1.0 }; /* Black */
+            ansi_palette[1]  = (GdkRGBA){ 0.80, 0.15, 0.15, 1.0 }; /* Red */
+            ansi_palette[2]  = (GdkRGBA){ 0.20, 0.70, 0.20, 1.0 }; /* Green */
+            ansi_palette[3]  = (GdkRGBA){ 0.75, 0.65, 0.10, 1.0 }; /* Yellow */
+            ansi_palette[4]  = (GdkRGBA){ 0.30, 0.50, 0.80, 1.0 }; /* Blue */
+            ansi_palette[5]  = (GdkRGBA){ 0.70, 0.30, 0.70, 1.0 }; /* Magenta */
+            ansi_palette[6]  = (GdkRGBA){ 0.20, 0.65, 0.70, 1.0 }; /* Cyan */
+            ansi_palette[7]  = (GdkRGBA){ 0.80, 0.80, 0.80, 1.0 }; /* White */
+            ansi_palette[8]  = (GdkRGBA){ 0.45, 0.45, 0.45, 1.0 }; /* Bright Black */
+            ansi_palette[9]  = (GdkRGBA){ 1.00, 0.35, 0.35, 1.0 }; /* Bright Red */
+            ansi_palette[10] = (GdkRGBA){ 0.35, 0.90, 0.35, 1.0 }; /* Bright Green */
+            ansi_palette[11] = (GdkRGBA){ 1.00, 0.90, 0.35, 1.0 }; /* Bright Yellow */
+            ansi_palette[12] = (GdkRGBA){ 0.45, 0.65, 1.00, 1.0 }; /* Bright Blue */
+            ansi_palette[13] = (GdkRGBA){ 0.90, 0.45, 0.90, 1.0 }; /* Bright Magenta */
+            ansi_palette[14] = (GdkRGBA){ 0.35, 0.85, 0.90, 1.0 }; /* Bright Cyan */
+            ansi_palette[15] = (GdkRGBA){ 1.00, 1.00, 1.00, 1.0 }; /* Bright White */
+        } else {
+            fg = (GdkRGBA){ 0.15, 0.15, 0.15, 1.0 };
+            bg = (GdkRGBA){ 0.98, 0.98, 0.98, 1.0 };
+            ansi_palette[0]  = (GdkRGBA){ 0.10, 0.10, 0.10, 1.0 }; /* Black */
+            ansi_palette[1]  = (GdkRGBA){ 0.75, 0.10, 0.10, 1.0 }; /* Red */
+            ansi_palette[2]  = (GdkRGBA){ 0.15, 0.55, 0.15, 1.0 }; /* Green */
+            ansi_palette[3]  = (GdkRGBA){ 0.60, 0.50, 0.00, 1.0 }; /* Yellow */
+            ansi_palette[4]  = (GdkRGBA){ 0.15, 0.35, 0.65, 1.0 }; /* Blue */
+            ansi_palette[5]  = (GdkRGBA){ 0.55, 0.20, 0.55, 1.0 }; /* Magenta */
+            ansi_palette[6]  = (GdkRGBA){ 0.10, 0.50, 0.55, 1.0 }; /* Cyan */
+            ansi_palette[7]  = (GdkRGBA){ 0.70, 0.70, 0.70, 1.0 }; /* White */
+            ansi_palette[8]  = (GdkRGBA){ 0.35, 0.35, 0.35, 1.0 }; /* Bright Black */
+            ansi_palette[9]  = (GdkRGBA){ 0.85, 0.20, 0.20, 1.0 }; /* Bright Red */
+            ansi_palette[10] = (GdkRGBA){ 0.25, 0.70, 0.25, 1.0 }; /* Bright Green */
+            ansi_palette[11] = (GdkRGBA){ 0.80, 0.70, 0.15, 1.0 }; /* Bright Yellow */
+            ansi_palette[12] = (GdkRGBA){ 0.25, 0.45, 0.80, 1.0 }; /* Bright Blue */
+            ansi_palette[13] = (GdkRGBA){ 0.70, 0.30, 0.70, 1.0 }; /* Bright Magenta */
+            ansi_palette[14] = (GdkRGBA){ 0.20, 0.65, 0.70, 1.0 }; /* Bright Cyan */
+            ansi_palette[15] = (GdkRGBA){ 0.90, 0.90, 0.90, 1.0 }; /* Bright White */
+        }
+        vte_terminal_set_colors(priv->terminal, &fg, &bg, ansi_palette, 16);
     } else {
         vte_terminal_set_colors(priv->terminal,
                                 &scheme->palette.foreground,
@@ -1325,6 +1433,15 @@ nautilus_terminal_widget_apply_color_scheme(NautilusTerminalWidget *self)
                                 (GdkRGBA *)scheme->palette.palette,
                                 G_N_ELEMENTS(scheme->palette.palette));
     }
+}
+
+static void
+on_system_dark_changed(AdwStyleManager *style_manager, GParamSpec *pspec, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
+    if (gtk_widget_in_destruction(GTK_WIDGET(self)))
+        return;
+    nautilus_terminal_widget_apply_color_scheme(self);
 }
 
 NautilusTerminalWidget *
@@ -1486,7 +1603,7 @@ _ensure_focus_timeout(gpointer user_data)
     NautilusTerminalWidget *self = user_data;
     NautilusTerminalWidgetPrivate *priv = self->priv;
     priv->focus_timeout_id = 0;
-    if (priv->is_visible) {
+    if (!gtk_widget_in_destruction(GTK_WIDGET(self)) && priv->is_visible && priv->terminal) {
         gtk_widget_grab_focus(GTK_WIDGET(priv->terminal));
     }
     return G_SOURCE_REMOVE;

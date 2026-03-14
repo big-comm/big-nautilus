@@ -287,7 +287,7 @@
     <key name="font" type="s">
       <default>''</default>
       <summary>Terminal font</summary>
-      <description>The font to use for the terminal. If empty, the system monospace font is used.</description>
+      <description>The font to use for the terminal. If empty, the system monospace font from org.gnome.desktop.interface is used.</description>
     </key>
     <key name="font-size" type="i">
       <default>12</default>

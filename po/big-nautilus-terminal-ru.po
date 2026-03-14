@@ -1,0 +1,110 @@
+# Russian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Системная"
+
+msgid "Dark"
+msgstr "Тёмная"
+
+msgid "Light"
+msgstr "Светлая"
+
+msgid "Solarized Dark"
+msgstr "Solarized тёмная"
+
+msgid "Solarized Light"
+msgstr "Solarized светлая"
+
+msgid "Matrix"
+msgstr "Матрица"
+
+msgid "One Half Dark"
+msgstr "One Half тёмная"
+
+msgid "One Half Light"
+msgstr "One Half светлая"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Синхронизировать в обе стороны"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Синхронизировать: Файловый менеджер → Терминал"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Синхронизировать: Терминал → Файловый менеджер"
+
+msgid "No Sync"
+msgstr "Без синхронизации"
+
+msgid "Do not connect automatically"
+msgstr "Не подключаться автоматически"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Подключаться автоматически и синхронизировать в обе стороны"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Подключаться автоматически и синхронизировать: Файловый менеджер → Терминал"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Подключаться автоматически и синхронизировать: Терминал → Файловый менеджер"
+
+msgid "Automatically connect without syncing"
+msgstr "Подключаться автоматически без синхронизации"
+
+msgid "Sync folder both ways"
+msgstr "Синхронизировать папку в обе стороны"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Синхронизировать папку: Файловый менеджер → Терминал"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Синхронизировать папку: Терминал → Файловый менеджер"
+
+msgid "No folder sync"
+msgstr "Без синхронизации папки"
+
+msgid "Copy"
+msgstr "Копировать"
+
+msgid "Paste"
+msgstr "Вставить"
+
+msgid "Select All"
+msgstr "Выделить всё"
+
+msgid "Color Scheme"
+msgstr "Цветовая схема"
+
+msgid "Font Size"
+msgstr "Размер шрифта"
+
+msgid "SSH Auto-Connect"
+msgstr "Автоматическое подключение SSH"
+
+msgid "Disconnect from SSH"
+msgstr "Отключить SSH"
+
+msgid "Local Folder Sync"
+msgstr "Синхронизация локальной папки"
+
+msgid "SSH Connection to %s"
+msgstr "SSH-подключение к %s"
+

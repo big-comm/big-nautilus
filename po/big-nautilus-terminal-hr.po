@@ -1,0 +1,110 @@
+# Croatian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Croatian\n"
+"Language: hr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Sustav"
+
+msgid "Dark"
+msgstr "Tamno"
+
+msgid "Light"
+msgstr "Svijetlo"
+
+msgid "Solarized Dark"
+msgstr "Solarized tamno"
+
+msgid "Solarized Light"
+msgstr "Solarized svijetlo"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half tamno"
+
+msgid "One Half Light"
+msgstr "One Half svijetlo"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Sinkroniziraj u oba smjera"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Sinkroniziraj: Upravitelj datoteka → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Sinkroniziraj: Terminal → Upravitelj datoteka"
+
+msgid "No Sync"
+msgstr "Bez sinkronizacije"
+
+msgid "Do not connect automatically"
+msgstr "Ne povezuj se automatski"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Automatski se poveži i sinkroniziraj u oba smjera"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Automatski se poveži i sinkroniziraj: Upravitelj datoteka → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Automatski se poveži i sinkroniziraj: Terminal → Upravitelj datoteka"
+
+msgid "Automatically connect without syncing"
+msgstr "Automatski se poveži bez sinkronizacije"
+
+msgid "Sync folder both ways"
+msgstr "Sinkroniziraj mapu u oba smjera"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Sinkroniziraj mapu: Upravitelj datoteka → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Sinkroniziraj mapu: Terminal → Upravitelj datoteka"
+
+msgid "No folder sync"
+msgstr "Bez sinkronizacije mape"
+
+msgid "Copy"
+msgstr "Kopiraj"
+
+msgid "Paste"
+msgstr "Zalijepi"
+
+msgid "Select All"
+msgstr "Odaberi sve"
+
+msgid "Color Scheme"
+msgstr "Shema boja"
+
+msgid "Font Size"
+msgstr "Veličina fonta"
+
+msgid "SSH Auto-Connect"
+msgstr "Automatsko SSH povezivanje"
+
+msgid "Disconnect from SSH"
+msgstr "Prekini SSH vezu"
+
+msgid "Local Folder Sync"
+msgstr "Sinkronizacija lokalne mape"
+
+msgid "SSH Connection to %s"
+msgstr "SSH veza na %s"
+

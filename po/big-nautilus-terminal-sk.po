@@ -1,0 +1,110 @@
+# Slovak translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Slovak\n"
+"Language: sk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Systém"
+
+msgid "Dark"
+msgstr "Tmavé"
+
+msgid "Light"
+msgstr "Svetlé"
+
+msgid "Solarized Dark"
+msgstr "Solarized tmavé"
+
+msgid "Solarized Light"
+msgstr "Solarized svetlé"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half tmavé"
+
+msgid "One Half Light"
+msgstr "One Half svetlé"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Synchronizovať oboma smermi"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Synchronizovať: Správca súborov → Terminál"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Synchronizovať: Terminál → Správca súborov"
+
+msgid "No Sync"
+msgstr "Bez synchronizácie"
+
+msgid "Do not connect automatically"
+msgstr "Nepripájať automaticky"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Automaticky pripojiť a synchronizovať oboma smermi"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Automaticky pripojiť a synchronizovať: Správca súborov → Terminál"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Automaticky pripojiť a synchronizovať: Terminál → Správca súborov"
+
+msgid "Automatically connect without syncing"
+msgstr "Automaticky pripojiť bez synchronizácie"
+
+msgid "Sync folder both ways"
+msgstr "Synchronizovať priečinok oboma smermi"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Synchronizovať priečinok: Správca súborov → Terminál"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Synchronizovať priečinok: Terminál → Správca súborov"
+
+msgid "No folder sync"
+msgstr "Bez synchronizácie priečinka"
+
+msgid "Copy"
+msgstr "Kopírovať"
+
+msgid "Paste"
+msgstr "Prilepiť"
+
+msgid "Select All"
+msgstr "Vybrať všetko"
+
+msgid "Color Scheme"
+msgstr "Farebná schéma"
+
+msgid "Font Size"
+msgstr "Veľkosť písma"
+
+msgid "SSH Auto-Connect"
+msgstr "Automatické SSH pripojenie"
+
+msgid "Disconnect from SSH"
+msgstr "Odpojiť od SSH"
+
+msgid "Local Folder Sync"
+msgstr "Synchronizácia miestneho priečinka"
+
+msgid "SSH Connection to %s"
+msgstr "SSH pripojenie k %s"
+

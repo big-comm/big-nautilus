@@ -1,0 +1,110 @@
+# Hebrew translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Hebrew\n"
+"Language: he\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "מערכת"
+
+msgid "Dark"
+msgstr "כהה"
+
+msgid "Light"
+msgstr "בהיר"
+
+msgid "Solarized Dark"
+msgstr "Solarized כהה"
+
+msgid "Solarized Light"
+msgstr "Solarized בהיר"
+
+msgid "Matrix"
+msgstr "מטריקס"
+
+msgid "One Half Dark"
+msgstr "One Half כהה"
+
+msgid "One Half Light"
+msgstr "One Half בהיר"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "סנכרון בשני הכיוונים"
+
+msgid "Sync File Manager → Terminal"
+msgstr "סנכרון: מנהל קבצים ← מסוף"
+
+msgid "Sync Terminal → File Manager"
+msgstr "סנכרון: מסוף ← מנהל קבצים"
+
+msgid "No Sync"
+msgstr "ללא סנכרון"
+
+msgid "Do not connect automatically"
+msgstr "אל תתחבר אוטומטית"
+
+msgid "Automatically connect and sync both ways"
+msgstr "התחבר אוטומטית וסנכרן בשני הכיוונים"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "התחבר אוטומטית וסנכרן: מנהל קבצים ← מסוף"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "התחבר אוטומטית וסנכרן: מסוף ← מנהל קבצים"
+
+msgid "Automatically connect without syncing"
+msgstr "התחבר אוטומטית ללא סנכרון"
+
+msgid "Sync folder both ways"
+msgstr "סנכרון תיקייה בשני הכיוונים"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "סנכרון תיקייה: מנהל קבצים ← מסוף"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "סנכרון תיקייה: מסוף ← מנהל קבצים"
+
+msgid "No folder sync"
+msgstr "ללא סנכרון תיקייה"
+
+msgid "Copy"
+msgstr "העתקה"
+
+msgid "Paste"
+msgstr "הדבקה"
+
+msgid "Select All"
+msgstr "בחר הכל"
+
+msgid "Color Scheme"
+msgstr "ערכת צבעים"
+
+msgid "Font Size"
+msgstr "גודל גופן"
+
+msgid "SSH Auto-Connect"
+msgstr "חיבור SSH אוטומטי"
+
+msgid "Disconnect from SSH"
+msgstr "נתק מ-SSH"
+
+msgid "Local Folder Sync"
+msgstr "סנכרון תיקייה מקומית"
+
+msgid "SSH Connection to %s"
+msgstr "חיבור SSH ל-%s"
+

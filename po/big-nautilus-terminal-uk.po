@@ -1,0 +1,110 @@
+# Ukrainian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Ukrainian\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Системна"
+
+msgid "Dark"
+msgstr "Темна"
+
+msgid "Light"
+msgstr "Світла"
+
+msgid "Solarized Dark"
+msgstr "Solarized темна"
+
+msgid "Solarized Light"
+msgstr "Solarized світла"
+
+msgid "Matrix"
+msgstr "Матриця"
+
+msgid "One Half Dark"
+msgstr "One Half темна"
+
+msgid "One Half Light"
+msgstr "One Half світла"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Синхронізувати в обох напрямках"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Синхронізувати: Файловий менеджер → Термінал"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Синхронізувати: Термінал → Файловий менеджер"
+
+msgid "No Sync"
+msgstr "Без синхронізації"
+
+msgid "Do not connect automatically"
+msgstr "Не підключатися автоматично"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Підключатися автоматично та синхронізувати в обох напрямках"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Підключатися автоматично та синхронізувати: Файловий менеджер → Термінал"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Підключатися автоматично та синхронізувати: Термінал → Файловий менеджер"
+
+msgid "Automatically connect without syncing"
+msgstr "Підключатися автоматично без синхронізації"
+
+msgid "Sync folder both ways"
+msgstr "Синхронізувати теку в обох напрямках"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Синхронізувати теку: Файловий менеджер → Термінал"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Синхронізувати теку: Термінал → Файловий менеджер"
+
+msgid "No folder sync"
+msgstr "Без синхронізації теки"
+
+msgid "Copy"
+msgstr "Копіювати"
+
+msgid "Paste"
+msgstr "Вставити"
+
+msgid "Select All"
+msgstr "Вибрати все"
+
+msgid "Color Scheme"
+msgstr "Кольорова схема"
+
+msgid "Font Size"
+msgstr "Розмір шрифту"
+
+msgid "SSH Auto-Connect"
+msgstr "Автоматичне підключення SSH"
+
+msgid "Disconnect from SSH"
+msgstr "Від'єднатися від SSH"
+
+msgid "Local Folder Sync"
+msgstr "Синхронізація локальної теки"
+
+msgid "SSH Connection to %s"
+msgstr "SSH-підключення до %s"
+

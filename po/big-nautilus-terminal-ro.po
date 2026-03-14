@@ -1,0 +1,110 @@
+# Romanian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Romanian\n"
+"Language: ro\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Sistem"
+
+msgid "Dark"
+msgstr "Întunecat"
+
+msgid "Light"
+msgstr "Luminat"
+
+msgid "Solarized Dark"
+msgstr "Solarized întunecat"
+
+msgid "Solarized Light"
+msgstr "Solarized luminat"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half întunecat"
+
+msgid "One Half Light"
+msgstr "One Half luminat"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Sincronizare în ambele direcții"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Sincronizare: Manager de fișiere → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Sincronizare: Terminal → Manager de fișiere"
+
+msgid "No Sync"
+msgstr "Fără sincronizare"
+
+msgid "Do not connect automatically"
+msgstr "Nu conecta automat"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Conectare automată și sincronizare în ambele direcții"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Conectare automată și sincronizare: Manager de fișiere → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Conectare automată și sincronizare: Terminal → Manager de fișiere"
+
+msgid "Automatically connect without syncing"
+msgstr "Conectare automată fără sincronizare"
+
+msgid "Sync folder both ways"
+msgstr "Sincronizare folder în ambele direcții"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Sincronizare folder: Manager de fișiere → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Sincronizare folder: Terminal → Manager de fișiere"
+
+msgid "No folder sync"
+msgstr "Fără sincronizare folder"
+
+msgid "Copy"
+msgstr "Copiază"
+
+msgid "Paste"
+msgstr "Lipește"
+
+msgid "Select All"
+msgstr "Selectează tot"
+
+msgid "Color Scheme"
+msgstr "Schema de culori"
+
+msgid "Font Size"
+msgstr "Dimensiune font"
+
+msgid "SSH Auto-Connect"
+msgstr "Conectare SSH automată"
+
+msgid "Disconnect from SSH"
+msgstr "Deconectare SSH"
+
+msgid "Local Folder Sync"
+msgstr "Sincronizare folder local"
+
+msgid "SSH Connection to %s"
+msgstr "Conexiune SSH la %s"
+

@@ -1,0 +1,110 @@
+# Czech translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Czech\n"
+"Language: cs\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Systém"
+
+msgid "Dark"
+msgstr "Tmavé"
+
+msgid "Light"
+msgstr "Světlé"
+
+msgid "Solarized Dark"
+msgstr "Solarized tmavé"
+
+msgid "Solarized Light"
+msgstr "Solarized světlé"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half tmavé"
+
+msgid "One Half Light"
+msgstr "One Half světlé"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Synchronizovat obousměrně"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Synchronizovat: Správce souborů → Terminál"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Synchronizovat: Terminál → Správce souborů"
+
+msgid "No Sync"
+msgstr "Bez synchronizace"
+
+msgid "Do not connect automatically"
+msgstr "Nepřipojovat automaticky"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Automaticky připojit a synchronizovat obousměrně"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Automaticky připojit a synchronizovat: Správce souborů → Terminál"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Automaticky připojit a synchronizovat: Terminál → Správce souborů"
+
+msgid "Automatically connect without syncing"
+msgstr "Automaticky připojit bez synchronizace"
+
+msgid "Sync folder both ways"
+msgstr "Synchronizovat složku obousměrně"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Synchronizovat složku: Správce souborů → Terminál"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Synchronizovat složku: Terminál → Správce souborů"
+
+msgid "No folder sync"
+msgstr "Bez synchronizace složky"
+
+msgid "Copy"
+msgstr "Kopírovat"
+
+msgid "Paste"
+msgstr "Vložit"
+
+msgid "Select All"
+msgstr "Vybrat vše"
+
+msgid "Color Scheme"
+msgstr "Barevné schéma"
+
+msgid "Font Size"
+msgstr "Velikost písma"
+
+msgid "SSH Auto-Connect"
+msgstr "Automatické SSH připojení"
+
+msgid "Disconnect from SSH"
+msgstr "Odpojit od SSH"
+
+msgid "Local Folder Sync"
+msgstr "Synchronizace místní složky"
+
+msgid "SSH Connection to %s"
+msgstr "SSH připojení k %s"
+

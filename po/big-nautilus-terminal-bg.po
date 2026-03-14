@@ -1,0 +1,110 @@
+# Bulgarian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Bulgarian\n"
+"Language: bg\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Системни"
+
+msgid "Dark"
+msgstr "Тъмна"
+
+msgid "Light"
+msgstr "Светла"
+
+msgid "Solarized Dark"
+msgstr "Solarized тъмна"
+
+msgid "Solarized Light"
+msgstr "Solarized светла"
+
+msgid "Matrix"
+msgstr "Матрица"
+
+msgid "One Half Dark"
+msgstr "One Half тъмна"
+
+msgid "One Half Light"
+msgstr "One Half светла"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Синхронизиране в двете посоки"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Синхронизиране: Файлов мениджър → Терминал"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Синхронизиране: Терминал → Файлов мениджър"
+
+msgid "No Sync"
+msgstr "Без синхронизиране"
+
+msgid "Do not connect automatically"
+msgstr "Без автоматично свързване"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Автоматично свързване и синхронизиране в двете посоки"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Автоматично свързване и синхронизиране: Файлов мениджър → Терминал"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Автоматично свързване и синхронизиране: Терминал → Файлов мениджър"
+
+msgid "Automatically connect without syncing"
+msgstr "Автоматично свързване без синхронизиране"
+
+msgid "Sync folder both ways"
+msgstr "Синхронизиране на папка в двете посоки"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Синхронизиране на папка: Файлов мениджър → Терминал"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Синхронизиране на папка: Терминал → Файлов мениджър"
+
+msgid "No folder sync"
+msgstr "Без синхронизиране на папка"
+
+msgid "Copy"
+msgstr "Копиране"
+
+msgid "Paste"
+msgstr "Поставяне"
+
+msgid "Select All"
+msgstr "Избиране на всичко"
+
+msgid "Color Scheme"
+msgstr "Цветова схема"
+
+msgid "Font Size"
+msgstr "Размер на шрифта"
+
+msgid "SSH Auto-Connect"
+msgstr "Автоматично SSH свързване"
+
+msgid "Disconnect from SSH"
+msgstr "Прекъсване на SSH връзката"
+
+msgid "Local Folder Sync"
+msgstr "Синхронизиране на локална папка"
+
+msgid "SSH Connection to %s"
+msgstr "SSH връзка към %s"
+

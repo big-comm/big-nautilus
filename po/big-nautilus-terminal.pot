@@ -1,0 +1,143 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the nautilus-terminal package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/nautilus-terminal-widget.c:128
+msgid "System"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:129
+msgid "Dark"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:139
+msgid "Light"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:149
+msgid "Solarized Dark"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:159
+msgid "Solarized Light"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:169
+msgid "Matrix"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:179
+msgid "One Half Dark"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:189
+msgid "One Half Light"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:199
+msgid "Monokai"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:229
+msgid "Sync Both Ways"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:230
+msgid "Sync File Manager → Terminal"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:231
+msgid "Sync Terminal → File Manager"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:232
+msgid "No Sync"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:242
+msgid "Do not connect automatically"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:243
+msgid "Automatically connect and sync both ways"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:244
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:245
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:246
+msgid "Automatically connect without syncing"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:250
+msgid "Sync folder both ways"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:251
+msgid "Sync folder from File Manager → Terminal"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:252
+msgid "Sync folder from Terminal → File Manager"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:253
+msgid "No folder sync"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1099
+msgid "Copy"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1100
+msgid "Paste"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1101
+msgid "Select All"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1103
+msgid "Color Scheme"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1104
+msgid "Font Size"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1105
+msgid "SSH Auto-Connect"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1116
+msgid "Disconnect from SSH"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1120
+msgid "Local Folder Sync"
+msgstr ""
+
+#: src/nautilus-terminal-widget.c:1127
+#, c-format
+msgid "SSH Connection to %s"
+msgstr ""

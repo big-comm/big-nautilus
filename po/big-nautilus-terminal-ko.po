@@ -1,0 +1,110 @@
+# Korean translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Korean\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "시스템"
+
+msgid "Dark"
+msgstr "어두운"
+
+msgid "Light"
+msgstr "밝은"
+
+msgid "Solarized Dark"
+msgstr "Solarized 어두운"
+
+msgid "Solarized Light"
+msgstr "Solarized 밝은"
+
+msgid "Matrix"
+msgstr "매트릭스"
+
+msgid "One Half Dark"
+msgstr "One Half 어두운"
+
+msgid "One Half Light"
+msgstr "One Half 밝은"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "양방향 동기화"
+
+msgid "Sync File Manager → Terminal"
+msgstr "동기화: 파일 관리자 → 터미널"
+
+msgid "Sync Terminal → File Manager"
+msgstr "동기화: 터미널 → 파일 관리자"
+
+msgid "No Sync"
+msgstr "동기화 없음"
+
+msgid "Do not connect automatically"
+msgstr "자동으로 연결하지 않음"
+
+msgid "Automatically connect and sync both ways"
+msgstr "자동 연결 및 양방향 동기화"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "자동 연결 및 동기화: 파일 관리자 → 터미널"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "자동 연결 및 동기화: 터미널 → 파일 관리자"
+
+msgid "Automatically connect without syncing"
+msgstr "동기화 없이 자동 연결"
+
+msgid "Sync folder both ways"
+msgstr "폴더 양방향 동기화"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "폴더 동기화: 파일 관리자 → 터미널"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "폴더 동기화: 터미널 → 파일 관리자"
+
+msgid "No folder sync"
+msgstr "폴더 동기화 없음"
+
+msgid "Copy"
+msgstr "복사"
+
+msgid "Paste"
+msgstr "붙여넣기"
+
+msgid "Select All"
+msgstr "모두 선택"
+
+msgid "Color Scheme"
+msgstr "색 구성표"
+
+msgid "Font Size"
+msgstr "글꼴 크기"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH 자동 연결"
+
+msgid "Disconnect from SSH"
+msgstr "SSH 연결 해제"
+
+msgid "Local Folder Sync"
+msgstr "로컬 폴더 동기화"
+
+msgid "SSH Connection to %s"
+msgstr "%s 에 SSH 연결"
+

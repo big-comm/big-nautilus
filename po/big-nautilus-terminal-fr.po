@@ -1,0 +1,110 @@
+# French translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: French\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "Système"
+
+msgid "Dark"
+msgstr "Sombre"
+
+msgid "Light"
+msgstr "Clair"
+
+msgid "Solarized Dark"
+msgstr "Solarized sombre"
+
+msgid "Solarized Light"
+msgstr "Solarized clair"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half sombre"
+
+msgid "One Half Light"
+msgstr "One Half clair"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Synchroniser dans les deux sens"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Synchroniser : Gestionnaire de fichiers → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Synchroniser : Terminal → Gestionnaire de fichiers"
+
+msgid "No Sync"
+msgstr "Pas de synchronisation"
+
+msgid "Do not connect automatically"
+msgstr "Ne pas se connecter automatiquement"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Se connecter automatiquement et synchroniser dans les deux sens"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Se connecter automatiquement et synchroniser : Gestionnaire de fichiers → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Se connecter automatiquement et synchroniser : Terminal → Gestionnaire de fichiers"
+
+msgid "Automatically connect without syncing"
+msgstr "Se connecter automatiquement sans synchroniser"
+
+msgid "Sync folder both ways"
+msgstr "Synchroniser le dossier dans les deux sens"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Synchroniser le dossier : Gestionnaire de fichiers → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Synchroniser le dossier : Terminal → Gestionnaire de fichiers"
+
+msgid "No folder sync"
+msgstr "Pas de synchronisation de dossier"
+
+msgid "Copy"
+msgstr "Copier"
+
+msgid "Paste"
+msgstr "Coller"
+
+msgid "Select All"
+msgstr "Tout sélectionner"
+
+msgid "Color Scheme"
+msgstr "Jeu de couleurs"
+
+msgid "Font Size"
+msgstr "Taille de police"
+
+msgid "SSH Auto-Connect"
+msgstr "Connexion SSH automatique"
+
+msgid "Disconnect from SSH"
+msgstr "Se déconnecter de SSH"
+
+msgid "Local Folder Sync"
+msgstr "Synchronisation du dossier local"
+
+msgid "SSH Connection to %s"
+msgstr "Connexion SSH à %s"
+

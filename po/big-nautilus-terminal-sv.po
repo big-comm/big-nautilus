@@ -1,0 +1,110 @@
+# Swedish translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Swedish\n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "System"
+
+msgid "Dark"
+msgstr "Mörk"
+
+msgid "Light"
+msgstr "Ljus"
+
+msgid "Solarized Dark"
+msgstr "Solarized mörk"
+
+msgid "Solarized Light"
+msgstr "Solarized ljus"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half mörk"
+
+msgid "One Half Light"
+msgstr "One Half ljus"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Synkronisera åt båda håll"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Synkronisera: Filhanteraren → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Synkronisera: Terminal → Filhanteraren"
+
+msgid "No Sync"
+msgstr "Ingen synkronisering"
+
+msgid "Do not connect automatically"
+msgstr "Anslut inte automatiskt"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Anslut automatiskt och synkronisera åt båda håll"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Anslut automatiskt och synkronisera: Filhanteraren → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Anslut automatiskt och synkronisera: Terminal → Filhanteraren"
+
+msgid "Automatically connect without syncing"
+msgstr "Anslut automatiskt utan synkronisering"
+
+msgid "Sync folder both ways"
+msgstr "Synkronisera mapp åt båda håll"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Synkronisera mapp: Filhanteraren → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Synkronisera mapp: Terminal → Filhanteraren"
+
+msgid "No folder sync"
+msgstr "Ingen mappsynkronisering"
+
+msgid "Copy"
+msgstr "Kopiera"
+
+msgid "Paste"
+msgstr "Klistra in"
+
+msgid "Select All"
+msgstr "Markera allt"
+
+msgid "Color Scheme"
+msgstr "Färgschema"
+
+msgid "Font Size"
+msgstr "Teckenstorlek"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH automatisk anslutning"
+
+msgid "Disconnect from SSH"
+msgstr "Koppla från SSH"
+
+msgid "Local Folder Sync"
+msgstr "Lokal mappsynkronisering"
+
+msgid "SSH Connection to %s"
+msgstr "SSH-anslutning till %s"
+

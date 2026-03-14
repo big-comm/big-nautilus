@@ -1,0 +1,110 @@
+# English translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "System"
+
+msgid "Dark"
+msgstr "Dark"
+
+msgid "Light"
+msgstr "Light"
+
+msgid "Solarized Dark"
+msgstr "Solarized Dark"
+
+msgid "Solarized Light"
+msgstr "Solarized Light"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half Dark"
+
+msgid "One Half Light"
+msgstr "One Half Light"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Sync Both Ways"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Sync File Manager → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Sync Terminal → File Manager"
+
+msgid "No Sync"
+msgstr "No Sync"
+
+msgid "Do not connect automatically"
+msgstr "Do not connect automatically"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Automatically connect and sync both ways"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Automatically connect and sync: File Manager → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Automatically connect and sync: Terminal → File Manager"
+
+msgid "Automatically connect without syncing"
+msgstr "Automatically connect without syncing"
+
+msgid "Sync folder both ways"
+msgstr "Sync folder both ways"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Sync folder from File Manager → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Sync folder from Terminal → File Manager"
+
+msgid "No folder sync"
+msgstr "No folder sync"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Select All"
+msgstr "Select All"
+
+msgid "Color Scheme"
+msgstr "Color Scheme"
+
+msgid "Font Size"
+msgstr "Font Size"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH Auto-Connect"
+
+msgid "Disconnect from SSH"
+msgstr "Disconnect from SSH"
+
+msgid "Local Folder Sync"
+msgstr "Local Folder Sync"
+
+msgid "SSH Connection to %s"
+msgstr "SSH Connection to %s"
+

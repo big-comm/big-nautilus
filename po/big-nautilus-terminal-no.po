@@ -1,0 +1,110 @@
+# Norwegian translations for nautilus-terminal.
+# Copyright (C) 2025 The Nautilus Authors
+# This file is distributed under the same license as the nautilus package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-terminal 49.4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"PO-Revision-Date: 2026-03-14 19:07-0300\n"
+"Last-Translator: Auto-generated\n"
+"Language-Team: Norwegian\n"
+"Language: no\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "System"
+msgstr "System"
+
+msgid "Dark"
+msgstr "Mørk"
+
+msgid "Light"
+msgstr "Lys"
+
+msgid "Solarized Dark"
+msgstr "Solarized mørk"
+
+msgid "Solarized Light"
+msgstr "Solarized lys"
+
+msgid "Matrix"
+msgstr "Matrix"
+
+msgid "One Half Dark"
+msgstr "One Half mørk"
+
+msgid "One Half Light"
+msgstr "One Half lys"
+
+msgid "Monokai"
+msgstr "Monokai"
+
+msgid "Sync Both Ways"
+msgstr "Synkroniser begge veier"
+
+msgid "Sync File Manager → Terminal"
+msgstr "Synkroniser: Filbehandler → Terminal"
+
+msgid "Sync Terminal → File Manager"
+msgstr "Synkroniser: Terminal → Filbehandler"
+
+msgid "No Sync"
+msgstr "Ingen synkronisering"
+
+msgid "Do not connect automatically"
+msgstr "Ikke koble til automatisk"
+
+msgid "Automatically connect and sync both ways"
+msgstr "Koble til automatisk og synkroniser begge veier"
+
+msgid "Automatically connect and sync: File Manager → Terminal"
+msgstr "Koble til automatisk og synkroniser: Filbehandler → Terminal"
+
+msgid "Automatically connect and sync: Terminal → File Manager"
+msgstr "Koble til automatisk og synkroniser: Terminal → Filbehandler"
+
+msgid "Automatically connect without syncing"
+msgstr "Koble til automatisk uten synkronisering"
+
+msgid "Sync folder both ways"
+msgstr "Synkroniser mappe begge veier"
+
+msgid "Sync folder from File Manager → Terminal"
+msgstr "Synkroniser mappe: Filbehandler → Terminal"
+
+msgid "Sync folder from Terminal → File Manager"
+msgstr "Synkroniser mappe: Terminal → Filbehandler"
+
+msgid "No folder sync"
+msgstr "Ingen mappesynkronisering"
+
+msgid "Copy"
+msgstr "Kopier"
+
+msgid "Paste"
+msgstr "Lim inn"
+
+msgid "Select All"
+msgstr "Velg alle"
+
+msgid "Color Scheme"
+msgstr "Fargeskjema"
+
+msgid "Font Size"
+msgstr "Skriftstørrelse"
+
+msgid "SSH Auto-Connect"
+msgstr "SSH automatisk tilkobling"
+
+msgid "Disconnect from SSH"
+msgstr "Koble fra SSH"
+
+msgid "Local Folder Sync"
+msgstr "Lokal mappesynkronisering"
+
+msgid "SSH Connection to %s"
+msgstr "SSH-tilkobling til %s"
+
