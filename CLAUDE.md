@@ -6,12 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a fork of GNOME Files (Nautilus), the default file manager for GNOME desktop. The codebase is written in C and uses GTK4/Libadwaita for the UI. This fork includes an embedded terminal feature using VTE (Virtual Terminal Emulator).
 
-**Key Dependencies:**
-- GTK4 >= 4.17.5
-- Libadwaita >= 1.6.beta
+**Key Dependencies (Nautilus 50):**
+- GTK4 >= 4.20.0
+- Libadwaita >= 1.8.alpha
 - GLib >= 2.84.0
-- VTE >= 0.70.0 (for terminal widget)
-- Tracker SPARQL 3.0 (for search and metadata)
+- VTE >= 0.78.0 (for terminal widget, vte-2.91-gtk4)
+- glycin >= 2 (image loader)
+- blueprint-compiler >= 0.19.0 (build-time, for .blp UIs)
+- TinySPARQL 3.0 (for search and metadata)
 
 **Runtime Dependencies:**
 - Bubblewrap (for sandboxing)
@@ -203,12 +205,6 @@ issue number if applicable) and so forth. Be concise but not too brief.
 
 Closes #1234
 ```
-
-### Merge Conflicts
-
-Note: The repository currently has merge conflicts in:
-- `meson.build` (version conflict between main and embedded_terminal branch)
-- `data/org.gnome.Nautilus.metainfo.xml.in.in`
 
 ## Important Files
 

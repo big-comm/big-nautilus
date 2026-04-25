@@ -196,7 +196,6 @@ static void update_back_forward_actions (NautilusWindowSlot *self);
 void nautilus_window_slot_init_terminal (NautilusWindowSlot *self);
 static void on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self);
 static void on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self);
-static void on_paned_size_allocated (GtkWidget *widget, int width, int height, int baseline, gpointer user_data);
 
 void
 free_navigation_state (gpointer data)
@@ -798,7 +797,7 @@ on_paned_position_changed (GObject *object, GParamSpec *pspec, gpointer user_dat
     GtkPaned *paned = GTK_PANED(object);
     g_autoptr(GSettings) settings = g_settings_new("org.gnome.nautilus.terminal");
     int position = gtk_paned_get_position(paned);
-    int total_height = gtk_widget_get_allocated_height(GTK_WIDGET(paned));
+    int total_height = gtk_widget_get_height(GTK_WIDGET(paned));
 
     if (total_height > 0)
     {
@@ -3070,7 +3069,6 @@ nautilus_window_slot_init_terminal (NautilusWindowSlot *self)
                      G_CALLBACK(on_terminal_visibility_changed), self);
 
     nautilus_terminal_widget_set_container_paned(self->terminal_widget, self->terminal_pane_container);
-    g_signal_connect (self->terminal_pane_container, "size-allocate", G_CALLBACK (on_paned_size_allocated), self->terminal_widget);
 }
 
 void
@@ -3091,13 +3089,6 @@ nautilus_window_slot_update_terminal_location (NautilusWindowSlot *self)
     if (self->terminal_widget != NULL && self->location != NULL) {
         nautilus_terminal_widget_set_current_location(self->terminal_widget, self->location);
     }
-}
-
-static void
-on_paned_size_allocated (GtkWidget *widget, int width, int height, int baseline, gpointer user_data)
-{
-    NautilusTerminalWidget *terminal_widget = NAUTILUS_TERMINAL_WIDGET(user_data);
-    nautilus_terminal_widget_apply_new_size(terminal_widget);
 }
 
 static void

@@ -2,8 +2,10 @@ build/
 .*/
 !.gitlab/
 
-# Ignore meson's subprojects folder
-/subprojects
+# Ignore meson's subprojects folder, but keep wrap files and overlays
+/subprojects/*
+!/subprojects/*.wrap
+!/subprojects/packagefiles/
 
 # Ignore auto generated files
 /.buildconfig

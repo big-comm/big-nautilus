@@ -1550,7 +1550,7 @@ nautilus_terminal_widget_toggle_visible(NautilusTerminalWidget *self)
         g_autoptr(GtkWidget) paned = g_weak_ref_get(&priv->paned_weak_ref);
         if (paned && GTK_IS_PANED(paned)) {
             int position = gtk_paned_get_position(GTK_PANED(paned));
-            int total_height = gtk_widget_get_allocated_height(paned);
+            int total_height = gtk_widget_get_height(paned);
             if (total_height > 0) {
                 g_settings_set_int(priv->settings, "pane-size", total_height - position);
             }
@@ -1645,7 +1645,7 @@ nautilus_terminal_widget_apply_new_size(NautilusTerminalWidget *self)
     }
 
     if (priv->is_visible) {
-        gint total_height = gtk_widget_get_allocated_height(paned);
+        gint total_height = gtk_widget_get_height(paned);
         term_size = g_settings_get_int(priv->settings, "pane-size");
 
         if (term_size < MIN_TERMINAL_HEIGHT) {
