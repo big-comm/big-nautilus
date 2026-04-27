@@ -106,6 +106,28 @@ install_data(
   install_dir: join_paths(datadir, 'glib-2.0', 'schemas')
 )
 
+# Install the embedded-terminal translations (a separate gettext domain — see
+# po/generate_terminal_translations.py and src/nautilus-terminal-widget.c).
+# The .mo files are pre-compiled in-tree; we install them next to nautilus.mo
+# under $localedir so dgettext("nautilus-terminal", ...) finds them.
+fs = import('fs')
+terminal_locale_root = meson.current_source_dir() / 'locale'
+foreach lang_dir : run_command(
+    'sh', '-c',
+    'cd "@0@" && ls -1 2>/dev/null'.format(terminal_locale_root),
+    check: false
+  ).stdout().strip().split('\n')
+  if lang_dir != ''
+    mo_path = terminal_locale_root / lang_dir / 'LC_MESSAGES' / 'nautilus-terminal.mo'
+    if fs.is_file(mo_path)
+      install_data(
+        mo_path,
+        install_dir: join_paths(localedir, lang_dir, 'LC_MESSAGES')
+      )
+    endif
+  endif
+endforeach
+
 desktop_file_validate = find_program('desktop-file-validate', required: false)
 if desktop_file_validate.found()
   test(

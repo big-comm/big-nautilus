@@ -17,6 +17,8 @@
  *  Author: Bruno Goncalves <biglinux.com.br>
  */
 
+#include <config.h>
+
 #include "nautilus-terminal-widget.h"
 
 #include <glib/gi18n.h>
@@ -27,6 +29,12 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+/* Terminal-widget strings live in their own gettext domain so they can be
+ * shipped independently of the main nautilus.mo (see po/big-nautilus-terminal-*.po
+ * and po/generate_terminal_translations.py). */
+#define GETTEXT_PACKAGE_TERMINAL "nautilus-terminal"
+#define _T(s) dgettext (GETTEXT_PACKAGE_TERMINAL, (s))
 
 /* UI constants */
 #define MIN_TERMINAL_HEIGHT 100
@@ -516,6 +524,17 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     GtkEventController *focus_controller;
     GSimpleAction *action;
 
+    /* Bind our private gettext domain once. nautilus' main domain is bound by
+     * nautilus-main.c; we layer our own on top so terminal strings are looked up
+     * in nautilus-terminal.mo (installed alongside nautilus.mo in $LOCALEDIR). */
+    static gsize textdomain_init = 0;
+    if (g_once_init_enter (&textdomain_init))
+    {
+        bindtextdomain (GETTEXT_PACKAGE_TERMINAL, LOCALEDIR);
+        bind_textdomain_codeset (GETTEXT_PACKAGE_TERMINAL, "UTF-8");
+        g_once_init_leave (&textdomain_init, 1);
+    }
+
     self->priv = priv;
 
     gtk_orientable_set_orientation(GTK_ORIENTABLE(self), GTK_ORIENTATION_VERTICAL);
@@ -605,7 +624,12 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     g_signal_connect(focus_controller, "leave", G_CALLBACK(on_terminal_focus_leave), self);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), focus_controller);
 
-    priv->popup_menu = gtk_popover_menu_new_from_model(NULL);
+    /* Submenus open as nested popovers rather than sliding pages so the parent
+     * width is dictated by its own top-level items, not by the longest label
+     * inside any submenu. Height stays automatic from GTK. */
+    priv->popup_menu = gtk_popover_menu_new_from_model_full (NULL, GTK_POPOVER_MENU_NESTED);
+    gtk_popover_set_has_arrow (GTK_POPOVER (priv->popup_menu), FALSE);
+    gtk_widget_add_css_class (priv->popup_menu, "menu");
     gtk_widget_set_parent(priv->popup_menu, GTK_WIDGET(self));
 
     gtk_widget_set_visible(GTK_WIDGET(self), FALSE);
@@ -1007,6 +1031,10 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
                     g_source_remove (priv->focus_timeout_id);
                 priv->focus_timeout_id = g_timeout_add (50, _ensure_focus_timeout, self);
                 return TRUE;
+            case GDK_KEY_A:
+            case GDK_KEY_a:
+                vte_terminal_select_all (priv->terminal);
+                return TRUE;
         }
     }
 
@@ -1025,7 +1053,7 @@ _build_color_scheme_submenu(NautilusTerminalWidget *self)
     GMenu *submenu = g_menu_new();
     for (gsize i = 0; i < G_N_ELEMENTS(COLOR_SCHEME_ENTRIES); ++i)
     {
-        GMenuItem *item = g_menu_item_new (_(COLOR_SCHEME_ENTRIES[i].label_pot), "terminal.set-color-scheme");
+        GMenuItem *item = g_menu_item_new (_T(COLOR_SCHEME_ENTRIES[i].label_pot), "terminal.set-color-scheme");
         g_menu_item_set_action_and_target_value(item, "terminal.set-color-scheme", g_variant_new_string(COLOR_SCHEME_ENTRIES[i].id));
         g_menu_append_item(submenu, item);
     }
@@ -1062,7 +1090,7 @@ _build_enum_pref_submenu(NautilusTerminalWidget *self, const void *entries_gener
 
     for (gsize i = 0; i < count; ++i)
     {
-        GMenuItem *item = g_menu_item_new(_(entries[i].label_pot), action_name);
+        GMenuItem *item = g_menu_item_new(_T(entries[i].label_pot), action_name);
         g_menu_item_set_action_and_target_value(item, action_name, g_variant_new_int32(entries[i].mode));
         g_menu_append_item(submenu, item);
     }
@@ -1087,7 +1115,7 @@ _build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hos
     GMenu *submenu = g_menu_new();
     for (gsize i = 0; i < G_N_ELEMENTS(MANUAL_SSH_SYNC_ENTRIES); ++i)
     {
-        GMenuItem *item = g_menu_item_new(_(MANUAL_SSH_SYNC_ENTRIES[i].label_pot), "terminal.manual-ssh-connect");
+        GMenuItem *item = g_menu_item_new(_T(MANUAL_SSH_SYNC_ENTRIES[i].label_pot), "terminal.manual-ssh-connect");
         g_autofree gchar *target_str = g_strdup_printf("%s;%s;%s;%d", hostname, username ? username : "", port ? port : "", MANUAL_SSH_SYNC_ENTRIES[i].mode);
         g_menu_item_set_action_and_target_value(item, "terminal.manual-ssh-connect", g_variant_new_string(target_str));
         g_menu_append_item(submenu, item);
@@ -1095,49 +1123,73 @@ _build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hos
     return G_MENU_MODEL(submenu);
 }
 
+static GMenuItem *
+_menu_item_with_accel (const gchar *label, const gchar *action, const gchar *accel)
+{
+    GMenuItem *item = g_menu_item_new (label, action);
+    if (accel != NULL)
+        g_menu_item_set_attribute (item, "accel", "s", accel);
+    return item;
+}
+
 static void
 update_popup_menu_model (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
-    GMenu *menu = g_menu_new();
+    g_autoptr (GMenu) menu = g_menu_new ();
+    g_autoptr (GMenu) clipboard_section = g_menu_new ();
+    g_autoptr (GMenu) appearance_section = g_menu_new ();
+    g_autoptr (GMenu) sync_section = g_menu_new ();
     gboolean is_sftp_location = FALSE;
 
-    g_menu_append(menu, _("Copy"), "terminal.copy");
-    g_menu_append(menu, _("Paste"), "terminal.paste");
-    g_menu_append(menu, _("Select All"), "terminal.select-all");
+    /* Section 1 — clipboard, with accelerator labels shown on the right. */
+    {
+        g_autoptr (GMenuItem) item = NULL;
+        item = _menu_item_with_accel (_T("Copy"), "terminal.copy", "<Ctrl><Shift>c");
+        g_menu_append_item (clipboard_section, item);
+        g_clear_object (&item);
+        item = _menu_item_with_accel (_T("Paste"), "terminal.paste", "<Ctrl><Shift>v");
+        g_menu_append_item (clipboard_section, item);
+        g_clear_object (&item);
+        item = _menu_item_with_accel (_T("Select All"), "terminal.select-all", "<Ctrl><Shift>a");
+        g_menu_append_item (clipboard_section, item);
+    }
+    g_menu_append_section (menu, NULL, G_MENU_MODEL (clipboard_section));
 
-    g_menu_append_submenu(menu, _("Color Scheme"), _build_color_scheme_submenu(self));
-    g_menu_append_submenu(menu, _("Font Size"), _build_font_size_submenu(self));
-    g_menu_append_submenu(menu, _("SSH Auto-Connect"), _build_sftp_auto_connect_submenu(self));
+    /* Section 2 — appearance. */
+    g_menu_append_submenu (appearance_section, _T("Color Scheme"), _build_color_scheme_submenu (self));
+    g_menu_append_submenu (appearance_section, _T("Font Size"), _build_font_size_submenu (self));
+    g_menu_append_section (menu, NULL, G_MENU_MODEL (appearance_section));
 
+    /* Section 3 — synchronisation / SSH. */
     if (priv->current_location)
     {
-        g_autofree gchar *scheme = g_file_get_uri_scheme(priv->current_location);
-        if (scheme && g_strcmp0(scheme, "sftp") == 0)
+        g_autofree gchar *scheme = g_file_get_uri_scheme (priv->current_location);
+        if (scheme && g_strcmp0 (scheme, "sftp") == 0)
             is_sftp_location = TRUE;
     }
 
+    g_menu_append_submenu (sync_section, _T("SSH Auto-Connect"), _build_sftp_auto_connect_submenu (self));
     if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
     {
-        g_menu_append(menu, _("Disconnect from SSH"), "terminal.ssh-disconnect");
+        g_menu_append (sync_section, _T("Disconnect from SSH"), "terminal.ssh-disconnect");
     }
     else
     {
-        g_menu_append_submenu(menu, _("Local Folder Sync"), _build_local_sync_submenu(self));
+        g_menu_append_submenu (sync_section, _T("Local Folder Sync"), _build_local_sync_submenu (self));
         if (is_sftp_location)
         {
             g_autofree gchar *hostname = NULL, *username = NULL, *port = NULL;
-            if (parse_gvfs_ssh_path(priv->current_location, &hostname, &username, &port))
+            if (parse_gvfs_ssh_path (priv->current_location, &hostname, &username, &port))
             {
-                g_menu_append_section(menu, NULL, NULL);
-                g_autofree gchar *label = g_strdup_printf(_("SSH Connection to %s"), hostname);
-                g_menu_append_submenu(menu, label, _build_manual_ssh_connect_submenu(self, hostname, username, port));
+                g_autofree gchar *label = g_strdup_printf (_T("SSH Connection to %s"), hostname);
+                g_menu_append_submenu (sync_section, label, _build_manual_ssh_connect_submenu (self, hostname, username, port));
             }
         }
     }
+    g_menu_append_section (menu, NULL, G_MENU_MODEL (sync_section));
 
-    gtk_popover_menu_set_menu_model(GTK_POPOVER_MENU(priv->popup_menu), G_MENU_MODEL(menu));
-    g_object_unref(menu);
+    gtk_popover_menu_set_menu_model (GTK_POPOVER_MENU (priv->popup_menu), G_MENU_MODEL (menu));
 }
 
 static void

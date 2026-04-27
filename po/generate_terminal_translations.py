@@ -970,7 +970,32 @@ LANGUAGE_NAMES = {
     "zh": "Chinese",
 }
 
-LANGUAGES = list(LANGUAGE_NAMES.keys())
+# Locale variants that share their parent language's translations verbatim.
+# Each entry maps `<variant>` to its source language. We emit a `.po`/`.mo` for
+# the variant by copying the source's strings, so e.g. a user with
+# `LANG=pt_BR.UTF-8` finds `pt_BR/LC_MESSAGES/nautilus-terminal.mo` directly
+# (in addition to the existing gettext fallback to plain `pt`).
+#
+# `pt`'s translations were authored in Brazilian Portuguese ("Gerenciador de
+# arquivos"), so `pt_BR` is a faithful copy. `pt_PT` would need separate
+# strings if/when someone contributes them.
+LANGUAGE_ALIASES = {
+    "pt_BR": "pt",
+    "zh_CN": "zh",
+    "zh_TW": "zh",
+    "en_US": "en",
+    "en_GB": "en",
+}
+
+ALIAS_LANGUAGE_NAMES = {
+    "pt_BR": "Portuguese (Brazil)",
+    "zh_CN": "Chinese (Simplified)",
+    "zh_TW": "Chinese (Traditional)",
+    "en_US": "English (United States)",
+    "en_GB": "English (United Kingdom)",
+}
+
+LANGUAGES = list(LANGUAGE_NAMES.keys()) + list(LANGUAGE_ALIASES.keys())
 
 
 def escape_po_string(s):
@@ -978,10 +1003,23 @@ def escape_po_string(s):
     return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
 
 
+def resolve_lang(lang):
+    """Return the language code whose translations should be used for `lang`."""
+    return LANGUAGE_ALIASES.get(lang, lang)
+
+
+def lang_display_name(lang):
+    """Human-readable name for the language, including alias-only ones."""
+    if lang in ALIAS_LANGUAGE_NAMES:
+        return ALIAS_LANGUAGE_NAMES[lang]
+    return LANGUAGE_NAMES.get(lang, lang)
+
+
 def generate_po_file(lang):
     """Generate a .po file for the given language."""
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M%z")
-    lang_name = LANGUAGE_NAMES.get(lang, lang)
+    lang_name = lang_display_name(lang)
+    source_lang = resolve_lang(lang)
 
     lines = []
     lines.append(f'# {lang_name} translations for nautilus-terminal.')
@@ -1003,7 +1041,7 @@ def generate_po_file(lang):
     lines.append('')
 
     for msgid, translations in TRANSLATIONS.items():
-        msgstr = translations.get(lang, "")
+        msgstr = translations.get(source_lang, "")
         lines.append(f'msgid "{escape_po_string(msgid)}"')
         lines.append(f'msgstr "{escape_po_string(msgstr)}"')
         lines.append('')
