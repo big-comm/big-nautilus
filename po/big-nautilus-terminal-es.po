@@ -108,3 +108,33 @@ msgstr "Sincronización de carpeta local"
 msgid "SSH Connection to %s"
 msgstr "Conexión SSH a %s"
 
+msgid "Find…"
+msgstr "Buscar…"
+
+msgid "Search terminal scrollback"
+msgstr "Buscar en el historial del terminal"
+
+msgid "Previous match"
+msgstr "Coincidencia anterior"
+
+msgid "Next match"
+msgstr "Coincidencia siguiente"
+
+msgid "Match Case"
+msgstr "Distinguir mayúsculas"
+
+msgid "Regular Expression"
+msgstr "Expresión regular"
+
+msgid "Close search"
+msgstr "Cerrar búsqueda"
+
+msgid "Split Horizontally"
+msgstr "Dividir horizontalmente"
+
+msgid "Split Vertically"
+msgstr "Dividir verticalmente"
+
+msgid "Close Pane"
+msgstr "Cerrar panel"
+

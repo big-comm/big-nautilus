@@ -108,3 +108,33 @@ msgstr "Lokale Ordner-Synchronisierung"
 msgid "SSH Connection to %s"
 msgstr "SSH-Verbindung zu %s"
 
+msgid "Find…"
+msgstr "Suchen…"
+
+msgid "Search terminal scrollback"
+msgstr "Terminalverlauf durchsuchen"
+
+msgid "Previous match"
+msgstr "Vorheriger Treffer"
+
+msgid "Next match"
+msgstr "Nächster Treffer"
+
+msgid "Match Case"
+msgstr "Groß-/Kleinschreibung beachten"
+
+msgid "Regular Expression"
+msgstr "Regulärer Ausdruck"
+
+msgid "Close search"
+msgstr "Suche schließen"
+
+msgid "Split Horizontally"
+msgstr "Horizontal teilen"
+
+msgid "Split Vertically"
+msgstr "Vertikal teilen"
+
+msgid "Close Pane"
+msgstr "Bereich schließen"
+

@@ -108,3 +108,33 @@ msgstr "Yerel klasör eşitleme"
 msgid "SSH Connection to %s"
 msgstr "%s için SSH bağlantısı"
 
+msgid "Find…"
+msgstr "Bul…"
+
+msgid "Search terminal scrollback"
+msgstr "Uçbirim geçmişinde ara"
+
+msgid "Previous match"
+msgstr "Önceki eşleşme"
+
+msgid "Next match"
+msgstr "Sonraki eşleşme"
+
+msgid "Match Case"
+msgstr "Büyük/küçük harfe duyarlı"
+
+msgid "Regular Expression"
+msgstr "Düzenli ifade"
+
+msgid "Close search"
+msgstr "Aramayı kapat"
+
+msgid "Split Horizontally"
+msgstr "Yatay böl"
+
+msgid "Split Vertically"
+msgstr "Dikey böl"
+
+msgid "Close Pane"
+msgstr "Bölmeyi kapat"
+

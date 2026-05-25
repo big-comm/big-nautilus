@@ -108,3 +108,33 @@ msgstr "Helyi mappa szinkronizálás"
 msgid "SSH Connection to %s"
 msgstr "SSH kapcsolat: %s"
 
+msgid "Find…"
+msgstr "Keresés…"
+
+msgid "Search terminal scrollback"
+msgstr "Keresés a terminál előzményeiben"
+
+msgid "Previous match"
+msgstr "Előző találat"
+
+msgid "Next match"
+msgstr "Következő találat"
+
+msgid "Match Case"
+msgstr "Kis- és nagybetűk megkülönböztetése"
+
+msgid "Regular Expression"
+msgstr "Reguláris kifejezés"
+
+msgid "Close search"
+msgstr "Keresés bezárása"
+
+msgid "Split Horizontally"
+msgstr "Vízszintes felosztás"
+
+msgid "Split Vertically"
+msgstr "Függőleges felosztás"
+
+msgid "Close Pane"
+msgstr "Panel bezárása"
+

@@ -108,3 +108,33 @@ msgstr "Kohaliku kausta sünkroniseerimine"
 msgid "SSH Connection to %s"
 msgstr "SSH ühendus serveriga %s"
 
+msgid "Find…"
+msgstr "Otsi…"
+
+msgid "Search terminal scrollback"
+msgstr "Otsi terminali ajaloost"
+
+msgid "Previous match"
+msgstr "Eelmine vaste"
+
+msgid "Next match"
+msgstr "Järgmine vaste"
+
+msgid "Match Case"
+msgstr "Tõstutundlik"
+
+msgid "Regular Expression"
+msgstr "Regulaaravaldis"
+
+msgid "Close search"
+msgstr "Sulge otsing"
+
+msgid "Split Horizontally"
+msgstr "Tükelda horisontaalselt"
+
+msgid "Split Vertically"
+msgstr "Tükelda vertikaalselt"
+
+msgid "Close Pane"
+msgstr "Sulge paan"
+

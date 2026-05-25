@@ -108,3 +108,33 @@ msgstr "סנכרון תיקייה מקומית"
 msgid "SSH Connection to %s"
 msgstr "חיבור SSH ל-%s"
 
+msgid "Find…"
+msgstr "חיפוש…"
+
+msgid "Search terminal scrollback"
+msgstr "חיפוש בהיסטוריית המסוף"
+
+msgid "Previous match"
+msgstr "התאמה קודמת"
+
+msgid "Next match"
+msgstr "התאמה הבאה"
+
+msgid "Match Case"
+msgstr "התאם רישיות"
+
+msgid "Regular Expression"
+msgstr "ביטוי רגולרי"
+
+msgid "Close search"
+msgstr "סגירת חיפוש"
+
+msgid "Split Horizontally"
+msgstr "פיצול אופקי"
+
+msgid "Split Vertically"
+msgstr "פיצול אנכי"
+
+msgid "Close Pane"
+msgstr "סגירת חלונית"
+

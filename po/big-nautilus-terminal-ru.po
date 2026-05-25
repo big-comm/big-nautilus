@@ -108,3 +108,33 @@ msgstr "Синхронизация локальной папки"
 msgid "SSH Connection to %s"
 msgstr "SSH-подключение к %s"
 
+msgid "Find…"
+msgstr "Найти…"
+
+msgid "Search terminal scrollback"
+msgstr "Поиск в журнале терминала"
+
+msgid "Previous match"
+msgstr "Предыдущее совпадение"
+
+msgid "Next match"
+msgstr "Следующее совпадение"
+
+msgid "Match Case"
+msgstr "Учитывать регистр"
+
+msgid "Regular Expression"
+msgstr "Регулярное выражение"
+
+msgid "Close search"
+msgstr "Закрыть поиск"
+
+msgid "Split Horizontally"
+msgstr "Разделить горизонтально"
+
+msgid "Split Vertically"
+msgstr "Разделить вертикально"
+
+msgid "Close Pane"
+msgstr "Закрыть панель"
+

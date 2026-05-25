@@ -108,3 +108,33 @@ msgstr "Local Folder Sync"
 msgid "SSH Connection to %s"
 msgstr "SSH Connection to %s"
 
+msgid "Find…"
+msgstr "Find…"
+
+msgid "Search terminal scrollback"
+msgstr "Search terminal scrollback"
+
+msgid "Previous match"
+msgstr "Previous match"
+
+msgid "Next match"
+msgstr "Next match"
+
+msgid "Match Case"
+msgstr "Match Case"
+
+msgid "Regular Expression"
+msgstr "Regular Expression"
+
+msgid "Close search"
+msgstr "Close search"
+
+msgid "Split Horizontally"
+msgstr "Split Horizontally"
+
+msgid "Split Vertically"
+msgstr "Split Vertically"
+
+msgid "Close Pane"
+msgstr "Close Pane"
+

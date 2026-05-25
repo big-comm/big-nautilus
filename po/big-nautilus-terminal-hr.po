@@ -108,3 +108,33 @@ msgstr "Sinkronizacija lokalne mape"
 msgid "SSH Connection to %s"
 msgstr "SSH veza na %s"
 
+msgid "Find…"
+msgstr "Pronađi…"
+
+msgid "Search terminal scrollback"
+msgstr "Pretraži povijest terminala"
+
+msgid "Previous match"
+msgstr "Prethodno podudaranje"
+
+msgid "Next match"
+msgstr "Sljedeće podudaranje"
+
+msgid "Match Case"
+msgstr "Razlikuj velika i mala slova"
+
+msgid "Regular Expression"
+msgstr "Regularni izraz"
+
+msgid "Close search"
+msgstr "Zatvori pretragu"
+
+msgid "Split Horizontally"
+msgstr "Vodoravna podjela"
+
+msgid "Split Vertically"
+msgstr "Okomita podjela"
+
+msgid "Close Pane"
+msgstr "Zatvori ploču"
+

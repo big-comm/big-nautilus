@@ -108,3 +108,33 @@ msgstr "本地文件夹同步"
 msgid "SSH Connection to %s"
 msgstr "SSH连接到 %s"
 
+msgid "Find…"
+msgstr "查找…"
+
+msgid "Search terminal scrollback"
+msgstr "搜索终端回滚"
+
+msgid "Previous match"
+msgstr "上一个匹配"
+
+msgid "Next match"
+msgstr "下一个匹配"
+
+msgid "Match Case"
+msgstr "区分大小写"
+
+msgid "Regular Expression"
+msgstr "正则表达式"
+
+msgid "Close search"
+msgstr "关闭搜索"
+
+msgid "Split Horizontally"
+msgstr "水平拆分"
+
+msgid "Split Vertically"
+msgstr "垂直拆分"
+
+msgid "Close Pane"
+msgstr "关闭面板"
+

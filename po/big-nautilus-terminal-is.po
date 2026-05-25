@@ -108,3 +108,33 @@ msgstr "Staðbundin möppusamstilling"
 msgid "SSH Connection to %s"
 msgstr "SSH tenging við %s"
 
+msgid "Find…"
+msgstr "Finna…"
+
+msgid "Search terminal scrollback"
+msgstr "Leita í skjáminni skjáhermis"
+
+msgid "Previous match"
+msgstr "Fyrra samsvörun"
+
+msgid "Next match"
+msgstr "Næsta samsvörun"
+
+msgid "Match Case"
+msgstr "Næmt fyrir há-/lágstöfum"
+
+msgid "Regular Expression"
+msgstr "Reglulega segð"
+
+msgid "Close search"
+msgstr "Loka leit"
+
+msgid "Split Horizontally"
+msgstr "Skipta lárétt"
+
+msgid "Split Vertically"
+msgstr "Skipta lóðrétt"
+
+msgid "Close Pane"
+msgstr "Loka spjaldi"
+

@@ -81,4 +81,7 @@ gboolean nautilus_terminal_widget_get_visible (NautilusTerminalWidget *self);
 
 void nautilus_terminal_widget_apply_new_size (NautilusTerminalWidget *self);
 
+const char *nautilus_terminal_widget_get_last_command_title (NautilusTerminalWidget *self);
+gboolean    nautilus_terminal_widget_is_command_running     (NautilusTerminalWidget *self);
+
 G_END_DECLS

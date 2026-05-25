@@ -108,3 +108,33 @@ msgstr "ローカルフォルダ同期"
 msgid "SSH Connection to %s"
 msgstr "%s へのSSH接続"
 
+msgid "Find…"
+msgstr "検索…"
+
+msgid "Search terminal scrollback"
+msgstr "ターミナルの履歴を検索"
+
+msgid "Previous match"
+msgstr "前の一致"
+
+msgid "Next match"
+msgstr "次の一致"
+
+msgid "Match Case"
+msgstr "大文字と小文字を区別"
+
+msgid "Regular Expression"
+msgstr "正規表現"
+
+msgid "Close search"
+msgstr "検索を閉じる"
+
+msgid "Split Horizontally"
+msgstr "水平に分割"
+
+msgid "Split Vertically"
+msgstr "垂直に分割"
+
+msgid "Close Pane"
+msgstr "ペインを閉じる"
+

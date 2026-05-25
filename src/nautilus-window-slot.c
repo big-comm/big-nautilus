@@ -91,6 +91,7 @@ struct _NautilusWindowSlot
     gboolean active : 1;
     guint loading : 1;
     gboolean terminal_visible : 1;
+    gboolean terminal_command_running : 1;
 
     GtkWidget *stack;
     GtkWidget *vbox;
@@ -196,6 +197,7 @@ static void update_back_forward_actions (NautilusWindowSlot *self);
 void nautilus_window_slot_init_terminal (NautilusWindowSlot *self);
 static void on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self);
 static void on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self);
+static void on_terminal_running_command_changed(NautilusTerminalWidget *terminal, gboolean running, NautilusWindowSlot *self);
 
 void
 free_navigation_state (gpointer data)
@@ -2777,7 +2779,26 @@ nautilus_window_slot_get_location_uri (NautilusWindowSlot *self)
 void
 nautilus_window_slot_update_title (NautilusWindowSlot *self)
 {
-    g_autofree char *title = nautilus_compute_title_for_location (self->location);
+    g_autofree char *base_title = nautilus_compute_title_for_location (self->location);
+    g_autofree char *title = NULL;
+
+    /* When the embedded terminal is visible and running a foreground command
+     * (as reported by VTE shell.preexec/postexec termprops, OSC 133), prepend
+     * a small badge to the tab title so the user can spot busy tabs. */
+    if (self->terminal_visible && self->terminal_command_running)
+    {
+        const char *cmd = self->terminal_widget != NULL
+                          ? nautilus_terminal_widget_get_last_command_title (self->terminal_widget)
+                          : NULL;
+        if (cmd != NULL && *cmd != '\0')
+            title = g_strdup_printf ("▶ %s — %s", cmd, base_title);
+        else
+            title = g_strdup_printf ("▶ %s", base_title);
+    }
+    else
+    {
+        title = g_steal_pointer (&base_title);
+    }
 
     if (g_strcmp0 (title, self->title) != 0)
     {
@@ -3067,6 +3088,8 @@ nautilus_window_slot_init_terminal (NautilusWindowSlot *self)
                      G_CALLBACK(on_terminal_directory_changed), self);
     g_signal_connect(self->terminal_widget, "toggle-visibility",
                      G_CALLBACK(on_terminal_visibility_changed), self);
+    g_signal_connect(self->terminal_widget, "running-command-changed",
+                     G_CALLBACK(on_terminal_running_command_changed), self);
 
     nautilus_terminal_widget_set_container_paned(self->terminal_widget, self->terminal_pane_container);
 }
@@ -3106,10 +3129,29 @@ on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visibl
     self->terminal_visible = visible;
 }
 
+static void
+on_terminal_running_command_changed(NautilusTerminalWidget *terminal, gboolean running, NautilusWindowSlot *self)
+{
+    self->terminal_command_running = running;
+    nautilus_window_slot_update_title (self);
+}
+
 gboolean
 nautilus_window_slot_ensure_terminal_state (gpointer user_data)
 {
     NautilusWindowSlot *self = user_data;
+    /* The persisted "visible" setting represents user intent across app
+     * sessions, not a shared live state. Restore it only on the very first slot
+     * of the process; later tabs (Ctrl+T) start with terminal hidden and the
+     * user toggles per-tab via F4. Without this, new tabs inherited whatever
+     * the GSetting happened to be, opening the terminal unexpectedly. */
+    static gboolean initial_state_applied = FALSE;
+
+    if (initial_state_applied) {
+        return G_SOURCE_REMOVE;
+    }
+    initial_state_applied = TRUE;
+
     g_autoptr(GSettings) settings = g_settings_new("org.gnome.nautilus.terminal");
     gboolean terminal_should_be_visible = g_settings_get_boolean(settings, "visible");
 

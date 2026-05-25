@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 
 /* Terminal-widget strings live in their own gettext domain so they can be
  * shipped independently of the main nautilus.mo (see po/big-nautilus-terminal-*.po
@@ -54,6 +55,7 @@ enum
 {
   CHANGE_DIRECTORY,
   TOGGLE_VISIBILITY,
+  RUNNING_COMMAND_CHANGED,
   LAST_SIGNAL
 };
 
@@ -99,6 +101,42 @@ struct _NautilusTerminalWidgetPrivate
   gchar                 *pending_ssh_username;
   gchar                 *pending_ssh_port;
   NautilusTerminalSyncMode   pending_ssh_sync_mode;
+
+  /* Scrollback search bar (Ctrl+Shift+F). */
+  GtkWidget   *search_revealer;
+  GtkWidget   *search_entry;
+  GtkWidget   *search_case_toggle;
+  GtkWidget   *search_regex_toggle;
+
+  /* Running-command indicator. Updated from VTE shell.preexec/postexec
+   * termprops; the window-slot listens on the running-command-changed signal
+   * to badge the tab title. */
+  gboolean     command_running;
+  gchar       *last_command_title;
+
+  /* Split panes. The primary terminal lives in priv->terminal and owns all the
+   * shared state (SSH, sync, settings, color scheme). A secondary pane, when
+   * present, is always a local-shell terminal — no SSH, no FM sync — and shares
+   * only display preferences. Maximum 2 panes; close-pane reverts to single.
+   *
+   *   split_paned == NULL                  → single-pane mode
+   *   split_paned != NULL && secondary*    → two panes inside split_paned
+   */
+  GtkWidget   *primary_pane_box;     /* wraps scrolled_window + search bar */
+  GtkWidget   *split_paned;          /* NULL when not split */
+  VteTerminal *secondary_terminal;
+  GtkWidget   *secondary_pane_box;
+  GtkWidget   *secondary_scrolled;
+  GPid         secondary_pid;
+  GCancellable *secondary_cancellable;
+  VteTerminal *active_terminal;      /* primary or secondary, follows focus */
+
+  /* Set in on_terminal_button_pressed *before* gtk_popover_popup() and cleared
+   * on the popover's "closed" signal. gtk_widget_get_visible() lags by one
+   * event-loop tick after gtk_popover_popup(), and in SSH the remote prompt
+   * re-emits OSC 7 fast enough to fire between popup() and the visibility flag
+   * flipping — long enough to navigate the FM and dismiss the popover. */
+  gboolean     popup_pending;
 };
 
 typedef struct _NautilusTerminalWidgetPrivate NautilusTerminalWidgetPrivate;
@@ -264,6 +302,7 @@ static const MenuSyncModeEntry MANUAL_SSH_SYNC_ENTRIES[] = {
 static void spawn_terminal_async(NautilusTerminalWidget *self);
 static void on_terminal_child_exited(VteTerminal *terminal, gint status, gpointer user_data);
 static void on_terminal_button_pressed(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data);
+static void on_popup_menu_closed (GtkPopover *popover, gpointer user_data);
 static void on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data);
 static gboolean on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint keycode, GdkModifierType state, gpointer user_data);
 static gboolean _ensure_focus_timeout(gpointer user_data);
@@ -280,6 +319,13 @@ static void _reset_to_local_state(NautilusTerminalWidget *self);
 static const gchar * nautilus_terminal_widget_get_color_scheme(NautilusTerminalWidget *self);
 static void nautilus_terminal_widget_set_color_scheme(NautilusTerminalWidget *self, const gchar *scheme);
 static void update_popup_menu_model (NautilusTerminalWidget *self);
+static GtkWidget *_build_search_bar (NautilusTerminalWidget *self);
+static void _install_drop_target (NautilusTerminalWidget *self);
+static void _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data);
+static void action_split_horizontal (GSimpleAction *action, GVariant *parameter, gpointer user_data);
+static void action_split_vertical   (GSimpleAction *action, GVariant *parameter, gpointer user_data);
+static void action_close_pane       (GSimpleAction *action, GVariant *parameter, gpointer user_data);
+static void _attach_focus_tracker   (NautilusTerminalWidget *self, VteTerminal *term);
 
 static GParamSpec *properties[N_PROPS];
 static guint       signals[LAST_SIGNAL];
@@ -320,53 +366,83 @@ nautilus_terminal_widget_get_property(GObject *object, guint prop_id, GValue *va
 }
 
 static void
-nautilus_terminal_widget_finalize(GObject *object)
+nautilus_terminal_widget_dispose(GObject *object)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(object);
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GtkWidget) paned = g_weak_ref_get(&priv->paned_weak_ref);
 
-    /* Disconnect all signal handlers to prevent callbacks on destroyed object */
-    if (priv->terminal) {
+    /* Widget cleanup must happen in dispose, not finalize: by the time finalize
+     * runs, the GtkBox parent dispose has already unparented our children and
+     * priv->terminal is no longer a valid GObject. */
+    if (priv->terminal && G_IS_OBJECT (priv->terminal)) {
         g_signal_handlers_disconnect_by_data(priv->terminal, self);
     }
-    g_signal_handlers_disconnect_by_data(priv->settings, self);
+    if (priv->secondary_terminal && G_IS_OBJECT (priv->secondary_terminal)) {
+        g_signal_handlers_disconnect_by_data(priv->secondary_terminal, self);
+    }
+    if (priv->settings) {
+        g_signal_handlers_disconnect_by_data(priv->settings, self);
+    }
     g_signal_handlers_disconnect_by_data(adw_style_manager_get_default(), self);
-    g_clear_object(&priv->settings);
-    g_clear_object(&priv->action_group);
-
     if (paned)
     {
         g_signal_handlers_disconnect_by_data(paned, self);
     }
-    g_weak_ref_clear(&priv->paned_weak_ref);
 
     if (priv->focus_timeout_id > 0) {
         g_source_remove(priv->focus_timeout_id);
         priv->focus_timeout_id = 0;
     }
 
-    g_cancellable_cancel(priv->spawn_cancellable);
-    g_clear_object(&priv->spawn_cancellable);
-    g_clear_object(&priv->current_location);
-    g_clear_pointer(&priv->color_scheme, g_free);
+    if (priv->spawn_cancellable) {
+        g_cancellable_cancel(priv->spawn_cancellable);
+    }
+    if (priv->secondary_cancellable != NULL) {
+        g_cancellable_cancel (priv->secondary_cancellable);
+    }
+    if (priv->secondary_pid > 0) {
+        kill (priv->secondary_pid, SIGHUP);
+        priv->secondary_pid = -1;
+    }
 
-    /* Clean up popup menu */
-    if (priv->popup_menu) {
+    /* popup_menu is parented to `self` via gtk_widget_set_parent (not added to
+     * the box), so the GtkBox dispose chain won't auto-unparent it. */
+    if (priv->popup_menu && GTK_IS_WIDGET (priv->popup_menu)) {
         gtk_widget_unparent(priv->popup_menu);
         priv->popup_menu = NULL;
     }
+
+    G_OBJECT_CLASS(nautilus_terminal_widget_parent_class)->dispose(object);
+}
+
+static void
+nautilus_terminal_widget_finalize(GObject *object)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(object);
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    g_weak_ref_clear(&priv->paned_weak_ref);
+    g_clear_object(&priv->settings);
+    g_clear_object(&priv->action_group);
+    g_clear_object(&priv->spawn_cancellable);
+    g_clear_object(&priv->secondary_cancellable);
+    g_clear_object(&priv->current_location);
+    g_clear_pointer(&priv->color_scheme, g_free);
+    g_clear_pointer(&priv->last_command_title, g_free);
 
     _clear_ssh_connection_data(priv);
 
     G_OBJECT_CLASS(nautilus_terminal_widget_parent_class)->finalize(object);
 }
 
+static VteTerminal *_active_terminal (NautilusTerminalWidget *self);
+
 static void
 action_copy (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    vte_terminal_copy_clipboard_format (self->priv->terminal, VTE_FORMAT_TEXT);
+    vte_terminal_copy_clipboard_format (_active_terminal (self), VTE_FORMAT_TEXT);
 }
 
 static void
@@ -376,7 +452,7 @@ action_paste (GSimpleAction *action, GVariant *parameter, gpointer user_data)
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
     priv->refocus_after_paste = TRUE;
-    vte_terminal_paste_clipboard (priv->terminal);
+    vte_terminal_paste_clipboard (_active_terminal (self));
 
     /* Directly schedule a focus grab after paste. The focus-leave handler
      * is unreliable because focus may not always leave during paste. */
@@ -389,7 +465,7 @@ static void
 action_select_all (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    vte_terminal_select_all (self->priv->terminal);
+    vte_terminal_select_all (_active_terminal (self));
 }
 
 static void
@@ -445,6 +521,34 @@ action_ssh_disconnect (GSimpleAction *action, GVariant *parameter, gpointer user
     }
 }
 
+static void _terminal_search_update_regex (NautilusTerminalWidget *self);
+static void _terminal_search_set_visible  (NautilusTerminalWidget *self, gboolean visible);
+
+static void
+action_search_toggle (GSimpleAction *action, GVariant *parameter, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    gboolean now_visible = !gtk_revealer_get_reveal_child (GTK_REVEALER (priv->search_revealer));
+    _terminal_search_set_visible (self, now_visible);
+}
+
+static void
+action_search_next (GSimpleAction *action, GVariant *parameter, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    _terminal_search_update_regex (self);
+    vte_terminal_search_find_next (_active_terminal (self));
+}
+
+static void
+action_search_prev (GSimpleAction *action, GVariant *parameter, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    _terminal_search_update_regex (self);
+    vte_terminal_search_find_previous (_active_terminal (self));
+}
+
 static void
 action_manual_ssh_connect (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
@@ -472,6 +576,12 @@ static const GActionEntry terminal_actions[] =
   { .name = "set-font-size", .parameter_type = "i", .state = "12", .change_state = action_set_font_size_state },
   { .name = "set-local-sync-mode", .parameter_type = "i", .state = "3", .change_state = action_set_local_sync_mode_state },
   { .name = "set-ssh-auto-connect-mode", .parameter_type = "i", .state = "0", .change_state = action_set_ssh_auto_connect_mode_state },
+  { .name = "search-toggle",   .activate = action_search_toggle    },
+  { .name = "search-next",     .activate = action_search_next      },
+  { .name = "search-prev",     .activate = action_search_prev      },
+  { .name = "split-horizontal", .activate = action_split_horizontal },
+  { .name = "split-vertical",  .activate = action_split_vertical   },
+  { .name = "close-pane",      .activate = action_close_pane       },
 };
 
 
@@ -482,6 +592,7 @@ nautilus_terminal_widget_class_init(NautilusTerminalWidgetClass *klass)
 
     object_class->set_property = nautilus_terminal_widget_set_property;
     object_class->get_property = nautilus_terminal_widget_get_property;
+    object_class->dispose = nautilus_terminal_widget_dispose;
     object_class->finalize = nautilus_terminal_widget_finalize;
 
     properties[PROP_CURRENT_LOCATION] =
@@ -503,6 +614,14 @@ nautilus_terminal_widget_class_init(NautilusTerminalWidgetClass *klass)
 
     signals[TOGGLE_VISIBILITY] =
         g_signal_new("toggle-visibility",
+                     G_TYPE_FROM_CLASS(klass),
+                     G_SIGNAL_RUN_LAST,
+                     0, NULL, NULL,
+                     g_cclosure_marshal_VOID__BOOLEAN,
+                     G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
+
+    signals[RUNNING_COMMAND_CHANGED] =
+        g_signal_new("running-command-changed",
                      G_TYPE_FROM_CLASS(klass),
                      G_SIGNAL_RUN_LAST,
                      0, NULL, NULL,
@@ -568,8 +687,21 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_style_context_add_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
 
     gtk_box_append(GTK_BOX(self), priv->ssh_indicator);
+    priv->search_revealer = _build_search_bar (self);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(priv->scrolled_window), GTK_WIDGET(priv->terminal));
-    gtk_box_append(GTK_BOX(self), priv->scrolled_window);
+
+    /* Wrap the primary pane's content (search bar + scrolled VTE) in its own
+     * box so we can reparent it when entering/leaving split mode. */
+    priv->primary_pane_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+    gtk_widget_set_vexpand (priv->primary_pane_box, TRUE);
+    gtk_widget_set_hexpand (priv->primary_pane_box, TRUE);
+    gtk_box_append (GTK_BOX (priv->primary_pane_box), priv->search_revealer);
+    gtk_box_append (GTK_BOX (priv->primary_pane_box), priv->scrolled_window);
+    gtk_box_append (GTK_BOX (self), priv->primary_pane_box);
+
+    priv->active_terminal = priv->terminal;
+    _attach_focus_tracker (self, priv->terminal);
+    priv->secondary_pid = -1;
 
     priv->settings = g_settings_new("org.gnome.nautilus.terminal");
     priv->local_sync_mode = g_settings_get_enum(priv->settings, "local-sync-mode");
@@ -604,6 +736,7 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
 
     g_signal_connect(priv->terminal, "child-exited", G_CALLBACK(on_terminal_child_exited), self);
     g_signal_connect(priv->terminal, "current-directory-uri-changed", G_CALLBACK(on_terminal_directory_changed), self);
+    g_signal_connect(priv->terminal, "termprop-changed", G_CALLBACK(_on_termprop_changed), self);
 
     click = gtk_gesture_click_new();
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), GDK_BUTTON_SECONDARY);
@@ -624,6 +757,8 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     g_signal_connect(focus_controller, "leave", G_CALLBACK(on_terminal_focus_leave), self);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), focus_controller);
 
+    _install_drop_target (self);
+
     /* Submenus open as nested popovers rather than sliding pages so the parent
      * width is dictated by its own top-level items, not by the longest label
      * inside any submenu. Height stays automatic from GTK. */
@@ -631,8 +766,541 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_popover_set_has_arrow (GTK_POPOVER (priv->popup_menu), FALSE);
     gtk_widget_add_css_class (priv->popup_menu, "menu");
     gtk_widget_set_parent(priv->popup_menu, GTK_WIDGET(self));
+    g_signal_connect (priv->popup_menu, "closed", G_CALLBACK (on_popup_menu_closed), self);
 
     gtk_widget_set_visible(GTK_WIDGET(self), FALSE);
+}
+
+/* ---- Split panes -------------------------------------------------------- */
+
+static VteTerminal *
+_active_terminal (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    return priv->active_terminal != NULL ? priv->active_terminal : priv->terminal;
+}
+
+static void
+_on_pane_focus_enter (GtkEventControllerFocus *controller, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    GtkWidget *w = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
+    if (VTE_IS_TERMINAL (w))
+        self->priv->active_terminal = VTE_TERMINAL (w);
+}
+
+static void
+_attach_focus_tracker (NautilusTerminalWidget *self, VteTerminal *term)
+{
+    GtkEventController *fc = gtk_event_controller_focus_new ();
+    g_signal_connect (fc, "enter", G_CALLBACK (_on_pane_focus_enter), self);
+    gtk_widget_add_controller (GTK_WIDGET (term), fc);
+}
+
+static void
+_secondary_spawn_cb (VteTerminal *terminal, GPid pid, GError *error, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    if (gtk_widget_in_destruction (GTK_WIDGET (self))) return;
+    if (pid == -1) {
+        g_warning ("split pane: failed to spawn: %s", error ? error->message : "?");
+        return;
+    }
+    self->priv->secondary_pid = pid;
+}
+
+static void
+_on_secondary_child_exited (VteTerminal *terminal, gint status, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    /* Mirror primary behaviour: when the shell exits, collapse the split. */
+    self->priv->secondary_pid = -1;
+    g_action_group_activate_action (self->priv->action_group, "close-pane", NULL);
+}
+
+static gchar *
+_get_local_cwd_for_split (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    if (priv->current_location != NULL && g_file_is_native (priv->current_location)) {
+        gchar *p = g_file_get_path (priv->current_location);
+        if (p != NULL) return p;
+    }
+    return g_strdup (g_get_home_dir ());
+}
+
+static GtkWidget *
+_build_secondary_pane (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *box;
+    g_autofree gchar *cwd = _get_local_cwd_for_split (self);
+    const gchar *shell = g_getenv ("SHELL");
+    if (shell == NULL || *shell == '\0') shell = "/bin/sh";
+    gchar *argv[] = { (gchar *) shell, NULL };
+
+    priv->secondary_terminal = VTE_TERMINAL (vte_terminal_new ());
+    vte_terminal_set_scroll_on_output    (priv->secondary_terminal, FALSE);
+    vte_terminal_set_scroll_on_keystroke (priv->secondary_terminal, TRUE);
+    vte_terminal_set_scrollback_lines    (priv->secondary_terminal, 10000);
+    /* Mirror primary appearance — font + colors *before* it is realized so the
+     * pane doesn't flash with the default VTE black background. */
+    vte_terminal_set_font (priv->secondary_terminal, vte_terminal_get_font (priv->terminal));
+    gtk_widget_set_can_focus (GTK_WIDGET (priv->secondary_terminal), TRUE);
+    gtk_widget_set_vexpand (GTK_WIDGET (priv->secondary_terminal), TRUE);
+    gtk_widget_set_hexpand (GTK_WIDGET (priv->secondary_terminal), TRUE);
+    nautilus_terminal_widget_apply_color_scheme (self);
+
+    priv->secondary_scrolled = gtk_scrolled_window_new ();
+    gtk_widget_set_vexpand (priv->secondary_scrolled, TRUE);
+    gtk_widget_set_hexpand (priv->secondary_scrolled, TRUE);
+    gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (priv->secondary_scrolled), GTK_WIDGET (priv->secondary_terminal));
+
+    box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+    gtk_widget_set_vexpand (box, TRUE);
+    gtk_widget_set_hexpand (box, TRUE);
+    gtk_box_append (GTK_BOX (box), priv->secondary_scrolled);
+    priv->secondary_pane_box = box;
+
+    /* Mirror primary's input handlers so the secondary pane behaves the same:
+     * right-click menu, primary-click focus grab, key shortcuts. */
+    {
+        GtkGesture *click = gtk_gesture_click_new ();
+        gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (click), GDK_BUTTON_SECONDARY);
+        g_signal_connect (click, "pressed", G_CALLBACK (on_terminal_button_pressed), self);
+        gtk_widget_add_controller (GTK_WIDGET (priv->secondary_terminal), GTK_EVENT_CONTROLLER (click));
+
+        GtkGesture *primary_click = gtk_gesture_click_new ();
+        gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (primary_click), GDK_BUTTON_PRIMARY);
+        g_signal_connect (primary_click, "pressed", G_CALLBACK (on_terminal_primary_click), self);
+        gtk_widget_add_controller (GTK_WIDGET (priv->secondary_terminal), GTK_EVENT_CONTROLLER (primary_click));
+
+        GtkEventController *key_controller = gtk_event_controller_key_new ();
+        g_signal_connect (key_controller, "key-pressed", G_CALLBACK (on_terminal_key_pressed), self);
+        gtk_widget_add_controller (GTK_WIDGET (priv->secondary_terminal), key_controller);
+    }
+
+    priv->secondary_cancellable = g_cancellable_new ();
+    vte_terminal_spawn_async (priv->secondary_terminal,
+                              VTE_PTY_DEFAULT,
+                              cwd,
+                              argv,
+                              NULL, /* envp */
+                              G_SPAWN_SEARCH_PATH,
+                              NULL, NULL, NULL,
+                              -1,
+                              priv->secondary_cancellable,
+                              _secondary_spawn_cb,
+                              self);
+
+    g_signal_connect (priv->secondary_terminal, "child-exited",
+                      G_CALLBACK (_on_secondary_child_exited), self);
+    _attach_focus_tracker (self, priv->secondary_terminal);
+
+    return box;
+}
+
+static void
+_split_pane (NautilusTerminalWidget *self, GtkOrientation orientation)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *new_pane;
+    int total;
+
+    if (priv->split_paned != NULL) return; /* max 2 panes */
+    if (priv->primary_pane_box == NULL) return;
+
+    new_pane = _build_secondary_pane (self);
+
+    priv->split_paned = gtk_paned_new (orientation);
+    gtk_paned_set_resize_start_child  (GTK_PANED (priv->split_paned), TRUE);
+    gtk_paned_set_resize_end_child    (GTK_PANED (priv->split_paned), TRUE);
+    gtk_paned_set_shrink_start_child  (GTK_PANED (priv->split_paned), FALSE);
+    gtk_paned_set_shrink_end_child    (GTK_PANED (priv->split_paned), FALSE);
+    gtk_widget_set_vexpand (priv->split_paned, TRUE);
+    gtk_widget_set_hexpand (priv->split_paned, TRUE);
+
+    g_object_ref (priv->primary_pane_box);
+    gtk_box_remove (GTK_BOX (self), priv->primary_pane_box);
+    gtk_paned_set_start_child (GTK_PANED (priv->split_paned), priv->primary_pane_box);
+    g_object_unref (priv->primary_pane_box);
+
+    gtk_paned_set_end_child (GTK_PANED (priv->split_paned), new_pane);
+    gtk_box_append (GTK_BOX (self), priv->split_paned);
+
+    /* Place the divider in the middle. */
+    total = orientation == GTK_ORIENTATION_HORIZONTAL
+            ? gtk_widget_get_width (GTK_WIDGET (self))
+            : gtk_widget_get_height (GTK_WIDGET (self));
+    if (total > 0)
+        gtk_paned_set_position (GTK_PANED (priv->split_paned), total / 2);
+
+    gtk_widget_grab_focus (GTK_WIDGET (priv->secondary_terminal));
+    priv->active_terminal = priv->secondary_terminal;
+}
+
+static void
+_close_secondary_pane (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (priv->split_paned == NULL || priv->primary_pane_box == NULL) return;
+
+    if (priv->secondary_pid > 0) {
+        kill (priv->secondary_pid, SIGHUP);
+        priv->secondary_pid = -1;
+    }
+    if (priv->secondary_cancellable != NULL) {
+        g_cancellable_cancel (priv->secondary_cancellable);
+        g_clear_object (&priv->secondary_cancellable);
+    }
+
+    g_object_ref (priv->primary_pane_box);
+    gtk_paned_set_start_child (GTK_PANED (priv->split_paned), NULL);
+    gtk_paned_set_end_child   (GTK_PANED (priv->split_paned), NULL);
+    gtk_box_remove (GTK_BOX (self), priv->split_paned);
+    priv->split_paned = NULL;
+    priv->secondary_terminal = NULL;
+    priv->secondary_scrolled = NULL;
+    priv->secondary_pane_box = NULL;
+
+    gtk_box_append (GTK_BOX (self), priv->primary_pane_box);
+    g_object_unref (priv->primary_pane_box);
+
+    priv->active_terminal = priv->terminal;
+    gtk_widget_grab_focus (GTK_WIDGET (priv->terminal));
+}
+
+static void
+action_split_horizontal (GSimpleAction *action, GVariant *parameter, gpointer user_data)
+{
+    _split_pane (NAUTILUS_TERMINAL_WIDGET (user_data), GTK_ORIENTATION_HORIZONTAL);
+}
+
+static void
+action_split_vertical (GSimpleAction *action, GVariant *parameter, gpointer user_data)
+{
+    _split_pane (NAUTILUS_TERMINAL_WIDGET (user_data), GTK_ORIENTATION_VERTICAL);
+}
+
+static void
+action_close_pane (GSimpleAction *action, GVariant *parameter, gpointer user_data)
+{
+    _close_secondary_pane (NAUTILUS_TERMINAL_WIDGET (user_data));
+}
+
+/* ---- Running-command tracking (OSC 133 via VTE termprops) -------------- */
+
+static void
+_emit_running_command_changed (NautilusTerminalWidget *self, gboolean running)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    if (priv->command_running == running)
+        return;
+    priv->command_running = running;
+    g_signal_emit (self, signals[RUNNING_COMMAND_CHANGED], 0, running);
+}
+
+static void
+_on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (prop == NULL || gtk_widget_in_destruction (GTK_WIDGET (self)))
+        return;
+
+    if (g_strcmp0 (prop, VTE_TERMPROP_SHELL_PREEXEC) == 0)
+    {
+        _emit_running_command_changed (self, TRUE);
+    }
+    else if (g_strcmp0 (prop, VTE_TERMPROP_SHELL_POSTEXEC) == 0)
+    {
+        _emit_running_command_changed (self, FALSE);
+    }
+    else if (g_strcmp0 (prop, VTE_TERMPROP_XTERM_TITLE) == 0)
+    {
+        const char *title = vte_terminal_get_termprop_string (terminal, VTE_TERMPROP_XTERM_TITLE, NULL);
+        g_clear_pointer (&priv->last_command_title, g_free);
+        if (title != NULL && *title != '\0')
+            priv->last_command_title = g_strdup (title);
+        /* Re-emit so listeners can refresh the badge text. */
+        g_signal_emit (self, signals[RUNNING_COMMAND_CHANGED], 0, priv->command_running);
+    }
+}
+
+const char *
+nautilus_terminal_widget_get_last_command_title (NautilusTerminalWidget *self)
+{
+    g_return_val_if_fail (NAUTILUS_IS_TERMINAL_WIDGET (self), NULL);
+    return self->priv->last_command_title;
+}
+
+gboolean
+nautilus_terminal_widget_is_command_running (NautilusTerminalWidget *self)
+{
+    g_return_val_if_fail (NAUTILUS_IS_TERMINAL_WIDGET (self), FALSE);
+    return self->priv->command_running;
+}
+
+/* ---- Drag & drop into terminal ------------------------------------------ */
+
+static gchar *
+_path_for_drop (NautilusTerminalWidget *self, GFile *file)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    g_autofree gchar *scheme = g_file_get_uri_scheme (file);
+
+    /* In SSH mode, accept sftp:// drops only if they point at the same host the
+     * terminal is connected to; emit just the remote path. */
+    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH && scheme != NULL && g_strcmp0 (scheme, "sftp") == 0)
+    {
+        g_autofree gchar *hostname = NULL, *username = NULL, *port = NULL;
+        if (parse_gvfs_ssh_path (file, &hostname, &username, &port) &&
+            g_strcmp0 (hostname, priv->ssh_hostname) == 0)
+        {
+            g_autofree gchar *uri = g_file_get_uri (file);
+            g_autoptr (GUri) parsed = g_uri_parse (uri, G_URI_FLAGS_NONE, NULL);
+            if (parsed != NULL)
+                return g_strdup (g_uri_get_path (parsed));
+        }
+        return NULL;
+    }
+
+    /* Local file: only file:// makes sense in a local shell. */
+    if (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL)
+    {
+        gchar *path = g_file_get_path (file);
+        return path; /* may be NULL for non-native; caller skips it. */
+    }
+
+    return NULL;
+}
+
+static gboolean
+_on_terminal_drop (GtkDropTarget *target,
+                   const GValue  *value,
+                   double         x,
+                   double         y,
+                   gpointer       user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    g_autoptr (GString) feed = g_string_new (NULL);
+
+    if (priv->terminal == NULL || priv->child_pid == -1)
+        return FALSE;
+
+    if (G_VALUE_HOLDS (value, GDK_TYPE_FILE_LIST))
+    {
+        GSList *files = g_value_get_boxed (value);
+        for (GSList *l = files; l != NULL; l = l->next)
+        {
+            g_autofree gchar *path = _path_for_drop (self, l->data);
+            if (path == NULL)
+                continue;
+            g_autofree gchar *quoted = g_shell_quote (path);
+            if (feed->len > 0)
+                g_string_append_c (feed, ' ');
+            g_string_append (feed, quoted);
+        }
+    }
+    else if (G_VALUE_HOLDS (value, G_TYPE_FILE))
+    {
+        g_autofree gchar *path = _path_for_drop (self, g_value_get_object (value));
+        if (path != NULL) {
+            g_autofree gchar *quoted = g_shell_quote (path);
+            g_string_append (feed, quoted);
+        }
+    }
+    else if (G_VALUE_HOLDS (value, G_TYPE_STRING))
+    {
+        /* Plain text drop: insert verbatim. */
+        const char *s = g_value_get_string (value);
+        if (s != NULL) g_string_append (feed, s);
+    }
+
+    if (feed->len == 0)
+        return FALSE;
+
+    /* Insert at the prompt without auto-executing. User reviews and presses Enter. */
+    vte_terminal_feed_child (priv->terminal, feed->str, feed->len);
+    gtk_widget_grab_focus (GTK_WIDGET (priv->terminal));
+    return TRUE;
+}
+
+static void
+_install_drop_target (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkDropTarget *target;
+    GType types[] = { GDK_TYPE_FILE_LIST, G_TYPE_FILE, G_TYPE_STRING };
+
+    target = gtk_drop_target_new (G_TYPE_INVALID, GDK_ACTION_COPY);
+    gtk_drop_target_set_gtypes (target, types, G_N_ELEMENTS (types));
+    g_signal_connect (target, "drop", G_CALLBACK (_on_terminal_drop), self);
+    gtk_widget_add_controller (GTK_WIDGET (priv->terminal), GTK_EVENT_CONTROLLER (target));
+}
+
+/* ---- Scrollback search bar ---------------------------------------------- */
+
+static void
+_terminal_search_update_regex (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    const char *text = gtk_editable_get_text (GTK_EDITABLE (priv->search_entry));
+    g_autoptr (VteRegex) regex = NULL;
+    g_autoptr (GError) error = NULL;
+    g_autofree char *pattern = NULL;
+    /* PCRE2 compile flags. VTE wraps PCRE2 but does not re-export its flag
+     * constants; we OR these onto VTE_REGEX_FLAGS_DEFAULT. Values from pcre2.h. */
+    enum { PCRE2_FLAG_CASELESS = 0x00000008u, PCRE2_FLAG_MULTILINE = 0x00000400u };
+    guint32 flags = VTE_REGEX_FLAGS_DEFAULT | PCRE2_FLAG_MULTILINE;
+    gboolean is_regex;
+    gboolean case_sensitive;
+
+    if (text == NULL || *text == '\0') {
+        vte_terminal_search_set_regex (_active_terminal (self), NULL, 0);
+        return;
+    }
+
+    is_regex = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (priv->search_regex_toggle));
+    case_sensitive = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (priv->search_case_toggle));
+
+    if (is_regex) {
+        pattern = g_strdup (text);
+    } else {
+        /* Escape PCRE2 metacharacters so plain search is literal. */
+        GString *s = g_string_new (NULL);
+        for (const char *p = text; *p; p++) {
+            if (strchr ("\\^$.|?*+()[]{}", *p))
+                g_string_append_c (s, '\\');
+            g_string_append_c (s, *p);
+        }
+        pattern = g_string_free (s, FALSE);
+    }
+
+    if (!case_sensitive)
+        flags |= PCRE2_FLAG_CASELESS;
+
+    regex = vte_regex_new_for_search (pattern, -1, flags, &error);
+    if (regex == NULL) {
+        g_debug ("terminal search regex error: %s", error ? error->message : "(unknown)");
+        vte_terminal_search_set_regex (_active_terminal (self), NULL, 0);
+        return;
+    }
+    vte_terminal_search_set_regex (_active_terminal (self), regex, 0);
+    vte_terminal_search_set_wrap_around (_active_terminal (self), TRUE);
+}
+
+static void
+_on_search_entry_changed (GtkSearchEntry *entry, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    _terminal_search_update_regex (self);
+    /* Live-jump to the next match while typing. */
+    vte_terminal_search_find_next (_active_terminal (self));
+}
+
+static void
+_on_search_entry_activate (GtkSearchEntry *entry, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    _terminal_search_update_regex (self);
+    vte_terminal_search_find_next (_active_terminal (self));
+}
+
+static void
+_on_search_stop (GtkSearchEntry *entry, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    _terminal_search_set_visible (self, FALSE);
+}
+
+static void
+_on_search_toggle_clicked (GtkToggleButton *button, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+    _terminal_search_update_regex (self);
+}
+
+static void
+_terminal_search_set_visible (NautilusTerminalWidget *self, gboolean visible)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    gtk_revealer_set_reveal_child (GTK_REVEALER (priv->search_revealer), visible);
+
+    if (visible) {
+        gtk_widget_grab_focus (priv->search_entry);
+    } else {
+        /* Clear highlight and return focus to the active pane's terminal. */
+        VteTerminal *t = _active_terminal (self);
+        vte_terminal_search_set_regex (t, NULL, 0);
+        vte_terminal_unselect_all (t);
+        if (t != NULL && !gtk_widget_in_destruction (GTK_WIDGET (self))) {
+            gtk_widget_grab_focus (GTK_WIDGET (t));
+        }
+    }
+}
+
+static GtkWidget *
+_build_search_bar (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *revealer;
+    GtkWidget *bar;
+    GtkWidget *prev_btn;
+    GtkWidget *next_btn;
+    GtkWidget *close_btn;
+
+    revealer = gtk_revealer_new ();
+    gtk_revealer_set_transition_type (GTK_REVEALER (revealer), GTK_REVEALER_TRANSITION_TYPE_SLIDE_DOWN);
+    gtk_revealer_set_transition_duration (GTK_REVEALER (revealer), 120);
+    gtk_revealer_set_reveal_child (GTK_REVEALER (revealer), FALSE);
+
+    bar = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_widget_add_css_class (bar, "toolbar");
+    gtk_widget_set_margin_start  (bar, 4);
+    gtk_widget_set_margin_end    (bar, 4);
+    gtk_widget_set_margin_top    (bar, 2);
+    gtk_widget_set_margin_bottom (bar, 2);
+
+    priv->search_entry = gtk_search_entry_new ();
+    gtk_widget_set_hexpand (priv->search_entry, TRUE);
+    gtk_widget_set_tooltip_text (priv->search_entry, _T("Search terminal scrollback"));
+    g_signal_connect (priv->search_entry, "search-changed", G_CALLBACK (_on_search_entry_changed), self);
+    g_signal_connect (priv->search_entry, "activate",       G_CALLBACK (_on_search_entry_activate), self);
+    g_signal_connect (priv->search_entry, "stop-search",    G_CALLBACK (_on_search_stop), self);
+    gtk_box_append (GTK_BOX (bar), priv->search_entry);
+
+    prev_btn = gtk_button_new_from_icon_name ("go-up-symbolic");
+    gtk_widget_set_tooltip_text (prev_btn, _T("Previous match"));
+    gtk_actionable_set_action_name (GTK_ACTIONABLE (prev_btn), "terminal.search-prev");
+    gtk_box_append (GTK_BOX (bar), prev_btn);
+
+    next_btn = gtk_button_new_from_icon_name ("go-down-symbolic");
+    gtk_widget_set_tooltip_text (next_btn, _T("Next match"));
+    gtk_actionable_set_action_name (GTK_ACTIONABLE (next_btn), "terminal.search-next");
+    gtk_box_append (GTK_BOX (bar), next_btn);
+
+    priv->search_case_toggle = gtk_toggle_button_new_with_label ("Aa");
+    gtk_widget_set_tooltip_text (priv->search_case_toggle, _T("Match Case"));
+    g_signal_connect (priv->search_case_toggle, "toggled", G_CALLBACK (_on_search_toggle_clicked), self);
+    gtk_box_append (GTK_BOX (bar), priv->search_case_toggle);
+
+    priv->search_regex_toggle = gtk_toggle_button_new_with_label (".*");
+    gtk_widget_set_tooltip_text (priv->search_regex_toggle, _T("Regular Expression"));
+    g_signal_connect (priv->search_regex_toggle, "toggled", G_CALLBACK (_on_search_toggle_clicked), self);
+    gtk_box_append (GTK_BOX (bar), priv->search_regex_toggle);
+
+    close_btn = gtk_button_new_from_icon_name ("window-close-symbolic");
+    gtk_widget_set_tooltip_text (close_btn, _T("Close search"));
+    gtk_actionable_set_action_name (GTK_ACTIONABLE (close_btn), "terminal.search-toggle");
+    gtk_box_append (GTK_BOX (bar), close_btn);
+
+    gtk_revealer_set_child (GTK_REVEALER (revealer), bar);
+    return revealer;
 }
 
 // Helper to defer focus grab safely
@@ -657,6 +1325,17 @@ on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
     if (gtk_widget_in_destruction(GTK_WIDGET(self)))
         return;
 
+    /* In SSH, the remote prompt emits OSC 7 frequently, leaving
+     * just_synced_directory=TRUE almost permanently. Without this guard, opening
+     * the right-click popover triggers focus-leave, which would re-grab focus
+     * 50ms later and dismiss the popover instantly. */
+    if (priv->popup_pending)
+    {
+        priv->just_synced_directory = FALSE;
+        priv->refocus_after_paste = FALSE;
+        return;
+    }
+
     if (priv->just_synced_directory || priv->refocus_after_paste)
     {
         priv->just_synced_directory = FALSE;
@@ -672,15 +1351,16 @@ on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
     }
 }
 
-/* Primary click handler: ensure terminal grabs focus on any left click */
+/* Primary click handler: focus whichever terminal was clicked (primary or
+ * secondary), so the pane the user just clicked on receives keyboard input. */
 static void
 on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
-    NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *clicked = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (gesture));
 
-    if (!gtk_widget_in_destruction(GTK_WIDGET(self)) && priv->terminal) {
-        gtk_widget_grab_focus(GTK_WIDGET(priv->terminal));
+    if (!gtk_widget_in_destruction(GTK_WIDGET(self)) && clicked != NULL) {
+        gtk_widget_grab_focus(clicked);
     }
 }
 
@@ -955,6 +1635,16 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
 
     if (should_sync_to_fm && new_gfile_location && (priv->current_location == NULL || !g_file_equal(new_gfile_location, priv->current_location)))
     {
+        /*
+         * If the right-click popover is open, suppress FM navigation: in SSH the
+         * remote prompt re-emits OSC 7 on every redraw (oh-my-zsh, async prompts,
+         * etc.). Each navigation rebuilds the FM view and grabs focus, which
+         * dismisses the popover within milliseconds. The location will resync on
+         * the next OSC 7 once the popover is closed.
+         */
+        if (priv->popup_pending)
+            return;
+
         g_set_object(&priv->current_location, new_gfile_location);
         g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_CURRENT_LOCATION]);
 
@@ -1034,6 +1724,22 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
             case GDK_KEY_A:
             case GDK_KEY_a:
                 vte_terminal_select_all (priv->terminal);
+                return TRUE;
+            case GDK_KEY_F:
+            case GDK_KEY_f:
+                action_search_toggle (NULL, NULL, self);
+                return TRUE;
+            case GDK_KEY_O:
+            case GDK_KEY_o:
+                action_split_horizontal (NULL, NULL, self);
+                return TRUE;
+            case GDK_KEY_E:
+            case GDK_KEY_e:
+                action_split_vertical (NULL, NULL, self);
+                return TRUE;
+            case GDK_KEY_W:
+            case GDK_KEY_w:
+                action_close_pane (NULL, NULL, self);
                 return TRUE;
         }
     }
@@ -1153,6 +1859,9 @@ update_popup_menu_model (NautilusTerminalWidget *self)
         g_clear_object (&item);
         item = _menu_item_with_accel (_T("Select All"), "terminal.select-all", "<Ctrl><Shift>a");
         g_menu_append_item (clipboard_section, item);
+        g_clear_object (&item);
+        item = _menu_item_with_accel (_T("Find…"), "terminal.search-toggle", "<Ctrl><Shift>f");
+        g_menu_append_item (clipboard_section, item);
     }
     g_menu_append_section (menu, NULL, G_MENU_MODEL (clipboard_section));
 
@@ -1189,7 +1898,31 @@ update_popup_menu_model (NautilusTerminalWidget *self)
     }
     g_menu_append_section (menu, NULL, G_MENU_MODEL (sync_section));
 
+    /* Section 4 — split panes. */
+    {
+        g_autoptr (GMenu) split_section = g_menu_new ();
+        if (priv->split_paned == NULL) {
+            g_autoptr (GMenuItem) it = NULL;
+            it = _menu_item_with_accel (_T("Split Horizontally"), "terminal.split-horizontal", "<Ctrl><Shift>o");
+            g_menu_append_item (split_section, it);
+            g_clear_object (&it);
+            it = _menu_item_with_accel (_T("Split Vertically"), "terminal.split-vertical", "<Ctrl><Shift>e");
+            g_menu_append_item (split_section, it);
+        } else {
+            g_autoptr (GMenuItem) it = _menu_item_with_accel (_T("Close Pane"), "terminal.close-pane", "<Ctrl><Shift>w");
+            g_menu_append_item (split_section, it);
+        }
+        g_menu_append_section (menu, NULL, G_MENU_MODEL (split_section));
+    }
+
     gtk_popover_menu_set_menu_model (GTK_POPOVER_MENU (priv->popup_menu), G_MENU_MODEL (menu));
+}
+
+static void
+on_popup_menu_closed (GtkPopover *popover, gpointer user_data)
+{
+    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
+    self->priv->popup_pending = FALSE;
 }
 
 static void
@@ -1197,9 +1930,27 @@ on_terminal_button_pressed(GtkGestureClick *gesture, int n_press, double x, doub
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *clicked_widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (gesture));
 
+    gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+
+    /* Translate click coords to widget-self coordinates: the popover is
+     * parented on `self`, not on the inner VteTerminal. */
+    double sx = x, sy = y;
+    if (clicked_widget != GTK_WIDGET (self))
+    {
+        graphene_point_t pt = GRAPHENE_POINT_INIT ((float) x, (float) y);
+        graphene_point_t out;
+        if (gtk_widget_compute_point (clicked_widget, GTK_WIDGET (self), &pt, &out))
+        {
+            sx = out.x;
+            sy = out.y;
+        }
+    }
+
+    priv->popup_pending = TRUE;
     update_popup_menu_model(self);
-    gtk_popover_set_pointing_to(GTK_POPOVER(priv->popup_menu), &(GdkRectangle){x, y, 1, 1});
+    gtk_popover_set_pointing_to(GTK_POPOVER(priv->popup_menu), &(GdkRectangle){(int) sx, (int) sy, 1, 1});
     gtk_popover_popup(GTK_POPOVER(priv->popup_menu));
 }
 
@@ -1478,12 +2229,20 @@ nautilus_terminal_widget_apply_color_scheme(NautilusTerminalWidget *self)
             ansi_palette[15] = (GdkRGBA){ 0.90, 0.90, 0.90, 1.0 }; /* Bright White */
         }
         vte_terminal_set_colors(priv->terminal, &fg, &bg, ansi_palette, 16);
+        if (priv->secondary_terminal != NULL)
+            vte_terminal_set_colors(priv->secondary_terminal, &fg, &bg, ansi_palette, 16);
     } else {
         vte_terminal_set_colors(priv->terminal,
                                 &scheme->palette.foreground,
                                 &scheme->palette.background,
                                 (GdkRGBA *)scheme->palette.palette,
                                 G_N_ELEMENTS(scheme->palette.palette));
+        if (priv->secondary_terminal != NULL)
+            vte_terminal_set_colors(priv->secondary_terminal,
+                                    &scheme->palette.foreground,
+                                    &scheme->palette.background,
+                                    (GdkRGBA *)scheme->palette.palette,
+                                    G_N_ELEMENTS(scheme->palette.palette));
     }
 }
 

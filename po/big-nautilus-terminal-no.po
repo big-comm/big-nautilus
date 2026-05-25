@@ -108,3 +108,33 @@ msgstr "Lokal mappesynkronisering"
 msgid "SSH Connection to %s"
 msgstr "SSH-tilkobling til %s"
 
+msgid "Find…"
+msgstr "Søk…"
+
+msgid "Search terminal scrollback"
+msgstr "Søk i terminalhistorikk"
+
+msgid "Previous match"
+msgstr "Forrige treff"
+
+msgid "Next match"
+msgstr "Neste treff"
+
+msgid "Match Case"
+msgstr "Skill mellom store/små bokstaver"
+
+msgid "Regular Expression"
+msgstr "Regulært uttrykk"
+
+msgid "Close search"
+msgstr "Lukk søk"
+
+msgid "Split Horizontally"
+msgstr "Del horisontalt"
+
+msgid "Split Vertically"
+msgstr "Del vertikalt"
+
+msgid "Close Pane"
+msgstr "Lukk panel"
+

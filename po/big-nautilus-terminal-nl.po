@@ -108,3 +108,33 @@ msgstr "Lokale map synchroniseren"
 msgid "SSH Connection to %s"
 msgstr "SSH-verbinding met %s"
 
+msgid "Find…"
+msgstr "Zoeken…"
+
+msgid "Search terminal scrollback"
+msgstr "Zoeken in terminalgeschiedenis"
+
+msgid "Previous match"
+msgstr "Vorige overeenkomst"
+
+msgid "Next match"
+msgstr "Volgende overeenkomst"
+
+msgid "Match Case"
+msgstr "Hoofdlettergevoelig"
+
+msgid "Regular Expression"
+msgstr "Reguliere expressie"
+
+msgid "Close search"
+msgstr "Zoeken sluiten"
+
+msgid "Split Horizontally"
+msgstr "Horizontaal splitsen"
+
+msgid "Split Vertically"
+msgstr "Verticaal splitsen"
+
+msgid "Close Pane"
+msgstr "Paneel sluiten"
+

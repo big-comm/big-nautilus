@@ -108,3 +108,33 @@ msgstr "Синхронізація локальної теки"
 msgid "SSH Connection to %s"
 msgstr "SSH-підключення до %s"
 
+msgid "Find…"
+msgstr "Знайти…"
+
+msgid "Search terminal scrollback"
+msgstr "Пошук в історії термінала"
+
+msgid "Previous match"
+msgstr "Попередній збіг"
+
+msgid "Next match"
+msgstr "Наступний збіг"
+
+msgid "Match Case"
+msgstr "Враховувати регістр"
+
+msgid "Regular Expression"
+msgstr "Регулярний вираз"
+
+msgid "Close search"
+msgstr "Закрити пошук"
+
+msgid "Split Horizontally"
+msgstr "Розділити горизонтально"
+
+msgid "Split Vertically"
+msgstr "Розділити вертикально"
+
+msgid "Close Pane"
+msgstr "Закрити панель"
+

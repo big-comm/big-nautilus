@@ -108,3 +108,33 @@ msgstr "로컬 폴더 동기화"
 msgid "SSH Connection to %s"
 msgstr "%s 에 SSH 연결"
 
+msgid "Find…"
+msgstr "찾기…"
+
+msgid "Search terminal scrollback"
+msgstr "터미널 스크롤백 검색"
+
+msgid "Previous match"
+msgstr "이전 일치"
+
+msgid "Next match"
+msgstr "다음 일치"
+
+msgid "Match Case"
+msgstr "대소문자 구분"
+
+msgid "Regular Expression"
+msgstr "정규 표현식"
+
+msgid "Close search"
+msgstr "검색 닫기"
+
+msgid "Split Horizontally"
+msgstr "수평으로 분할"
+
+msgid "Split Vertically"
+msgstr "수직으로 분할"
+
+msgid "Close Pane"
+msgstr "창 닫기"
+

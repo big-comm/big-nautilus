@@ -108,3 +108,33 @@ msgstr "Sincronizare folder local"
 msgid "SSH Connection to %s"
 msgstr "Conexiune SSH la %s"
 
+msgid "Find…"
+msgstr "Caută…"
+
+msgid "Search terminal scrollback"
+msgstr "Caută în istoricul terminalului"
+
+msgid "Previous match"
+msgstr "Potrivirea anterioară"
+
+msgid "Next match"
+msgstr "Potrivirea următoare"
+
+msgid "Match Case"
+msgstr "Diferențiere majuscule"
+
+msgid "Regular Expression"
+msgstr "Expresie regulată"
+
+msgid "Close search"
+msgstr "Închide căutarea"
+
+msgid "Split Horizontally"
+msgstr "Împarte orizontal"
+
+msgid "Split Vertically"
+msgstr "Împarte vertical"
+
+msgid "Close Pane"
+msgstr "Închide panoul"
+

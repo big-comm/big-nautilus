@@ -108,3 +108,33 @@ msgstr "Τοπικός συγχρονισμός φακέλου"
 msgid "SSH Connection to %s"
 msgstr "Σύνδεση SSH σε %s"
 
+msgid "Find…"
+msgstr "Εύρεση…"
+
+msgid "Search terminal scrollback"
+msgstr "Αναζήτηση στο ιστορικό τερματικού"
+
+msgid "Previous match"
+msgstr "Προηγούμενο ταίριασμα"
+
+msgid "Next match"
+msgstr "Επόμενο ταίριασμα"
+
+msgid "Match Case"
+msgstr "Διάκριση πεζών-κεφαλαίων"
+
+msgid "Regular Expression"
+msgstr "Κανονική έκφραση"
+
+msgid "Close search"
+msgstr "Κλείσιμο αναζήτησης"
+
+msgid "Split Horizontally"
+msgstr "Οριζόντιος διαχωρισμός"
+
+msgid "Split Vertically"
+msgstr "Κατακόρυφος διαχωρισμός"
+
+msgid "Close Pane"
+msgstr "Κλείσιμο πίνακα"
+

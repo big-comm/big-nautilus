@@ -108,3 +108,33 @@ msgstr "Synchronizácia miestneho priečinka"
 msgid "SSH Connection to %s"
 msgstr "SSH pripojenie k %s"
 
+msgid "Find…"
+msgstr "Nájsť…"
+
+msgid "Search terminal scrollback"
+msgstr "Hľadať v histórii terminálu"
+
+msgid "Previous match"
+msgstr "Predchádzajúca zhoda"
+
+msgid "Next match"
+msgstr "Ďalšia zhoda"
+
+msgid "Match Case"
+msgstr "Rozlišovať veľkosť písmen"
+
+msgid "Regular Expression"
+msgstr "Regulárny výraz"
+
+msgid "Close search"
+msgstr "Zavrieť hľadanie"
+
+msgid "Split Horizontally"
+msgstr "Rozdeliť vodorovne"
+
+msgid "Split Vertically"
+msgstr "Rozdeliť zvisle"
+
+msgid "Close Pane"
+msgstr "Zavrieť panel"
+

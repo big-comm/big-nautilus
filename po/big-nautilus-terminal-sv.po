@@ -108,3 +108,33 @@ msgstr "Lokal mappsynkronisering"
 msgid "SSH Connection to %s"
 msgstr "SSH-anslutning till %s"
 
+msgid "Find…"
+msgstr "Sök…"
+
+msgid "Search terminal scrollback"
+msgstr "Sök i terminalhistoriken"
+
+msgid "Previous match"
+msgstr "Föregående träff"
+
+msgid "Next match"
+msgstr "Nästa träff"
+
+msgid "Match Case"
+msgstr "Skilj på små/stora bokstäver"
+
+msgid "Regular Expression"
+msgstr "Reguljärt uttryck"
+
+msgid "Close search"
+msgstr "Stäng sökning"
+
+msgid "Split Horizontally"
+msgstr "Dela horisontellt"
+
+msgid "Split Vertically"
+msgstr "Dela vertikalt"
+
+msgid "Close Pane"
+msgstr "Stäng panel"
+

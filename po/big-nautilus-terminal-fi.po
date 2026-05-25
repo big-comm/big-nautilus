@@ -108,3 +108,33 @@ msgstr "Paikallisen kansion synkronointi"
 msgid "SSH Connection to %s"
 msgstr "SSH-yhteys kohteeseen %s"
 
+msgid "Find…"
+msgstr "Etsi…"
+
+msgid "Search terminal scrollback"
+msgstr "Hae terminaalin historiasta"
+
+msgid "Previous match"
+msgstr "Edellinen osuma"
+
+msgid "Next match"
+msgstr "Seuraava osuma"
+
+msgid "Match Case"
+msgstr "Huomioi kirjainkoko"
+
+msgid "Regular Expression"
+msgstr "Säännöllinen lauseke"
+
+msgid "Close search"
+msgstr "Sulje haku"
+
+msgid "Split Horizontally"
+msgstr "Jaa vaakasuunnassa"
+
+msgid "Split Vertically"
+msgstr "Jaa pystysuunnassa"
+
+msgid "Close Pane"
+msgstr "Sulje paneeli"
+
