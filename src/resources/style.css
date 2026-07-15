@@ -389,3 +389,10 @@ rubberband {
 .toolbar.no-bottom-padding {
   padding-bottom: 0px;
 }
+
+.nautilus-terminal-ssh-indicator {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+  padding: 2px 5px;
+  font-weight: bold;
+}

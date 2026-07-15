@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Estonian\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Süsteem"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Tume"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Hele"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized tume"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized hele"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half tume"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half hele"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Sünkroniseeri mõlemas suunas"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Sünkroniseeri: Failihaldur → Terminal"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Sünkroniseeri: Terminal → Failihaldur"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Ei sünkroniseerimist"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Ära ühendu automaatselt"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Ühendu automaatselt ja sünkroniseeri mõlemas suunas"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Ühendu automaatselt ja sünkroniseeri: Failihaldur → Terminal"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Ühendu automaatselt ja sünkroniseeri: Terminal → Failihaldur"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Ühendu automaatselt ilma sünkroniseerimiseta"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Sünkroniseeri kaust mõlemas suunas"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Sünkroniseeri kaust: Failihaldur → Terminal"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Sünkroniseeri kaust: Terminal → Failihaldur"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Kausta ei sünkroniseerita"
 
-msgid "Copy"
-msgstr "Kopeeri"
-
-msgid "Paste"
-msgstr "Aseta"
-
-msgid "Select All"
-msgstr "Vali kõik"
-
-msgid "Color Scheme"
-msgstr "Värviskeem"
-
-msgid "Font Size"
-msgstr "Fondi suurus"
-
-msgid "SSH Auto-Connect"
-msgstr "SSH automaatühendus"
-
-msgid "Disconnect from SSH"
-msgstr "Katkesta SSH ühendus"
-
-msgid "Local Folder Sync"
-msgstr "Kohaliku kausta sünkroniseerimine"
-
-msgid "SSH Connection to %s"
-msgstr "SSH ühendus serveriga %s"
-
-msgid "Find…"
-msgstr "Otsi…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Otsi terminali ajaloost"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Eelmine vaste"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Järgmine vaste"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Tõstutundlik"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Regulaaravaldis"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Sulge otsing"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Kopeeri"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Aseta"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Vali kõik"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Otsi…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Värviskeem"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Fondi suurus"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "SSH automaatühendus"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Katkesta SSH ühendus"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Kohaliku kausta sünkroniseerimine"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH ühendus serveriga %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Tükelda horisontaalselt"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Tükelda vertikaalselt"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Sulge paan"
-

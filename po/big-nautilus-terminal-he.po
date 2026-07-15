@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Hebrew\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "מערכת"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "כהה"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "בהיר"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized כהה"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized בהיר"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "מטריקס"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half כהה"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half בהיר"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "סנכרון בשני הכיוונים"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "סנכרון: מנהל קבצים ← מסוף"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "סנכרון: מסוף ← מנהל קבצים"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "ללא סנכרון"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "אל תתחבר אוטומטית"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "התחבר אוטומטית וסנכרן בשני הכיוונים"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "התחבר אוטומטית וסנכרן: מנהל קבצים ← מסוף"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "התחבר אוטומטית וסנכרן: מסוף ← מנהל קבצים"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "התחבר אוטומטית ללא סנכרון"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "סנכרון תיקייה בשני הכיוונים"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "סנכרון תיקייה: מנהל קבצים ← מסוף"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "סנכרון תיקייה: מסוף ← מנהל קבצים"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "ללא סנכרון תיקייה"
 
-msgid "Copy"
-msgstr "העתקה"
-
-msgid "Paste"
-msgstr "הדבקה"
-
-msgid "Select All"
-msgstr "בחר הכל"
-
-msgid "Color Scheme"
-msgstr "ערכת צבעים"
-
-msgid "Font Size"
-msgstr "גודל גופן"
-
-msgid "SSH Auto-Connect"
-msgstr "חיבור SSH אוטומטי"
-
-msgid "Disconnect from SSH"
-msgstr "נתק מ-SSH"
-
-msgid "Local Folder Sync"
-msgstr "סנכרון תיקייה מקומית"
-
-msgid "SSH Connection to %s"
-msgstr "חיבור SSH ל-%s"
-
-msgid "Find…"
-msgstr "חיפוש…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "חיפוש בהיסטוריית המסוף"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "התאמה קודמת"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "התאמה הבאה"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "התאם רישיות"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "ביטוי רגולרי"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "סגירת חיפוש"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "העתקה"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "הדבקה"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "בחר הכל"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "חיפוש…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "ערכת צבעים"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "גודל גופן"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "חיבור SSH אוטומטי"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "נתק מ-SSH"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "סנכרון תיקייה מקומית"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "חיבור SSH ל-%s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "פיצול אופקי"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "פיצול אנכי"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "סגירת חלונית"
-

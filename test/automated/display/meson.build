@@ -12,6 +12,9 @@ tests = {
   'test-portal-file-chooser': {
     'is_parallel' : false,
   },
+  'test-terminal-widget': {
+    'is_parallel' : false,
+  },
 }
 
 foreach test_name, extra_args : tests

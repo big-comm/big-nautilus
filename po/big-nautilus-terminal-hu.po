@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Hungarian\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Rendszer"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Sötét"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Világos"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized sötét"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized világos"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Mátrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half sötét"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half világos"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Szinkronizálás mindkét irányba"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Szinkronizálás: Fájlkezelő → Terminál"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Szinkronizálás: Terminál → Fájlkezelő"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Nincs szinkronizálás"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Ne csatlakozz automatikusan"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Automatikus csatlakozás és szinkronizálás mindkét irányba"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Automatikus csatlakozás és szinkronizálás: Fájlkezelő → Terminál"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Automatikus csatlakozás és szinkronizálás: Terminál → Fájlkezelő"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Automatikus csatlakozás szinkronizálás nélkül"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Mappa szinkronizálása mindkét irányba"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Mappa szinkronizálása: Fájlkezelő → Terminál"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Mappa szinkronizálása: Terminál → Fájlkezelő"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Nincs mappa szinkronizálás"
 
-msgid "Copy"
-msgstr "Másolás"
-
-msgid "Paste"
-msgstr "Beillesztés"
-
-msgid "Select All"
-msgstr "Összes kijelölése"
-
-msgid "Color Scheme"
-msgstr "Színséma"
-
-msgid "Font Size"
-msgstr "Betűméret"
-
-msgid "SSH Auto-Connect"
-msgstr "Automatikus SSH csatlakozás"
-
-msgid "Disconnect from SSH"
-msgstr "SSH kapcsolat bontása"
-
-msgid "Local Folder Sync"
-msgstr "Helyi mappa szinkronizálás"
-
-msgid "SSH Connection to %s"
-msgstr "SSH kapcsolat: %s"
-
-msgid "Find…"
-msgstr "Keresés…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Keresés a terminál előzményeiben"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Előző találat"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Következő találat"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Kis- és nagybetűk megkülönböztetése"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Reguláris kifejezés"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Keresés bezárása"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Másolás"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Beillesztés"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Összes kijelölése"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Keresés…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Színséma"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Betűméret"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "Automatikus SSH csatlakozás"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "SSH kapcsolat bontása"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Helyi mappa szinkronizálás"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH kapcsolat: %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Vízszintes felosztás"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Függőleges felosztás"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Panel bezárása"
-

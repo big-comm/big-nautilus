@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Chinese\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "系统"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "深色"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "浅色"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized 深色"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized 浅色"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "黑客帝国"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half 深色"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half 浅色"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "双向同步"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "同步: 文件管理器 → 终端"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "同步: 终端 → 文件管理器"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "不同步"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "不自动连接"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "自动连接并双向同步"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "自动连接并同步: 文件管理器 → 终端"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "自动连接并同步: 终端 → 文件管理器"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "自动连接但不同步"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "双向同步文件夹"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "同步文件夹: 文件管理器 → 终端"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "同步文件夹: 终端 → 文件管理器"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "不同步文件夹"
 
-msgid "Copy"
-msgstr "复制"
-
-msgid "Paste"
-msgstr "粘贴"
-
-msgid "Select All"
-msgstr "全选"
-
-msgid "Color Scheme"
-msgstr "配色方案"
-
-msgid "Font Size"
-msgstr "字体大小"
-
-msgid "SSH Auto-Connect"
-msgstr "SSH自动连接"
-
-msgid "Disconnect from SSH"
-msgstr "断开SSH连接"
-
-msgid "Local Folder Sync"
-msgstr "本地文件夹同步"
-
-msgid "SSH Connection to %s"
-msgstr "SSH连接到 %s"
-
-msgid "Find…"
-msgstr "查找…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "搜索终端回滚"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "上一个匹配"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "下一个匹配"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "区分大小写"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "正则表达式"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "关闭搜索"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "复制"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "粘贴"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "全选"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "查找…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "配色方案"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "字体大小"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "SSH自动连接"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "断开SSH连接"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "本地文件夹同步"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH连接到 %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "水平拆分"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "垂直拆分"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "关闭面板"
-

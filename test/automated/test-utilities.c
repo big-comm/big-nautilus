@@ -49,6 +49,14 @@ test_init_config_dir (void)
 {
     if (config_dir_initialized == FALSE)
     {
+        g_autofree gchar *isolated_config_dir = g_build_filename (test_get_tmp_dir (),
+                                                                  "config",
+                                                                  NULL);
+
+        /* Never allow tests to modify the user's real configuration. */
+        g_assert_true (g_setenv ("XDG_CONFIG_HOME", isolated_config_dir, TRUE));
+        g_assert_cmpstr (g_get_user_config_dir (), ==, isolated_config_dir);
+
         /* Initialize bookmarks */
         g_autofree gchar *gtk3_dir = g_build_filename (g_get_user_config_dir (),
                                                        "gtk-3.0",

@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Turkish\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Sistem"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Koyu"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Açık"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized koyu"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized açık"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half koyu"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half açık"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Her iki yönde eşitle"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Eşitle: Dosya Yöneticisi → Terminal"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Eşitle: Terminal → Dosya Yöneticisi"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Eşitleme yok"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Otomatik bağlanma"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Otomatik bağlan ve her iki yönde eşitle"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Otomatik bağlan ve eşitle: Dosya Yöneticisi → Terminal"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Otomatik bağlan ve eşitle: Terminal → Dosya Yöneticisi"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Eşitlemeden otomatik bağlan"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Klasörü her iki yönde eşitle"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Klasörü eşitle: Dosya Yöneticisi → Terminal"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Klasörü eşitle: Terminal → Dosya Yöneticisi"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Klasör eşitlemesi yok"
 
-msgid "Copy"
-msgstr "Kopyala"
-
-msgid "Paste"
-msgstr "Yapıştır"
-
-msgid "Select All"
-msgstr "Tümünü seç"
-
-msgid "Color Scheme"
-msgstr "Renk şeması"
-
-msgid "Font Size"
-msgstr "Yazı tipi boyutu"
-
-msgid "SSH Auto-Connect"
-msgstr "SSH otomatik bağlantı"
-
-msgid "Disconnect from SSH"
-msgstr "SSH bağlantısını kes"
-
-msgid "Local Folder Sync"
-msgstr "Yerel klasör eşitleme"
-
-msgid "SSH Connection to %s"
-msgstr "%s için SSH bağlantısı"
-
-msgid "Find…"
-msgstr "Bul…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Uçbirim geçmişinde ara"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Önceki eşleşme"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Sonraki eşleşme"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Büyük/küçük harfe duyarlı"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Düzenli ifade"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Aramayı kapat"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Kopyala"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Yapıştır"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Tümünü seç"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Bul…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Renk şeması"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Yazı tipi boyutu"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "SSH otomatik bağlantı"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "SSH bağlantısını kes"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Yerel klasör eşitleme"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "%s için SSH bağlantısı"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Yatay böl"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Dikey böl"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Bölmeyi kapat"
-

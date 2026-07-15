@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Spanish\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Sistema"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Oscuro"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Claro"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized oscuro"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized claro"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half oscuro"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half claro"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Sincronizar en ambas direcciones"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Sincronizar: Gestor de archivos → Terminal"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Sincronizar: Terminal → Gestor de archivos"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Sin sincronización"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "No conectar automáticamente"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Conectar automáticamente y sincronizar en ambas direcciones"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Conectar automáticamente y sincronizar: Gestor de archivos → Terminal"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Conectar automáticamente y sincronizar: Terminal → Gestor de archivos"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Conectar automáticamente sin sincronizar"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Sincronizar carpeta en ambas direcciones"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Sincronizar carpeta: Gestor de archivos → Terminal"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Sincronizar carpeta: Terminal → Gestor de archivos"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Sin sincronización de carpeta"
 
-msgid "Copy"
-msgstr "Copiar"
-
-msgid "Paste"
-msgstr "Pegar"
-
-msgid "Select All"
-msgstr "Seleccionar todo"
-
-msgid "Color Scheme"
-msgstr "Esquema de colores"
-
-msgid "Font Size"
-msgstr "Tamaño de fuente"
-
-msgid "SSH Auto-Connect"
-msgstr "Conexión SSH automática"
-
-msgid "Disconnect from SSH"
-msgstr "Desconectar de SSH"
-
-msgid "Local Folder Sync"
-msgstr "Sincronización de carpeta local"
-
-msgid "SSH Connection to %s"
-msgstr "Conexión SSH a %s"
-
-msgid "Find…"
-msgstr "Buscar…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Buscar en el historial del terminal"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Coincidencia anterior"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Coincidencia siguiente"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Distinguir mayúsculas"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Expresión regular"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Cerrar búsqueda"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Copiar"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Pegar"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Seleccionar todo"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Buscar…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Esquema de colores"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Tamaño de fuente"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "Conexión SSH automática"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Desconectar de SSH"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Sincronización de carpeta local"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "Conexión SSH a %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Dividir horizontalmente"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Dividir verticalmente"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Cerrar panel"
-

@@ -82,6 +82,10 @@ enum
 
 static guint signals[LAST_SIGNAL];
 
+#define TERMINAL_PANE_MIN_SIZE 100
+#define TERMINAL_PANE_MAX_SIZE 4096
+#define TERMINAL_PANE_SAVE_DELAY_MS 150
+
 struct _NautilusWindowSlot
 {
     AdwBin parent_instance;
@@ -98,6 +102,9 @@ struct _NautilusWindowSlot
     GtkWidget *content_box;
     GtkWidget *terminal_pane_container; /* This will be the GtkPaned */
     NautilusTerminalWidget *terminal_widget;
+    GSettings *terminal_settings;
+    guint terminal_state_idle_id;
+    guint pane_size_save_timeout_id;
     AdwStatusPage *global_search_page;
 
     GtkWidget *extra_location_widgets;
@@ -193,6 +200,7 @@ static void nautilus_window_slot_set_viewed_file (NautilusWindowSlot *self,
 static void nautilus_window_slot_go_up (NautilusWindowSlot *self);
 static void nautilus_window_slot_go_down (NautilusWindowSlot *self);
 static void update_back_forward_actions (NautilusWindowSlot *self);
+static gboolean nautilus_window_slot_ensure_terminal_state (gpointer user_data);
 
 void nautilus_window_slot_init_terminal (NautilusWindowSlot *self);
 static void on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self);
@@ -793,19 +801,42 @@ nautilus_window_slot_is_selection_auto (NautilusWindowSlot *self)
     return nautilus_files_view_is_selection_auto (self->content_view);
 }
 
-static void
-on_paned_position_changed (GObject *object, GParamSpec *pspec, gpointer user_data)
+static gboolean
+save_terminal_pane_size (gpointer user_data)
 {
-    GtkPaned *paned = GTK_PANED(object);
-    g_autoptr(GSettings) settings = g_settings_new("org.gnome.nautilus.terminal");
-    int position = gtk_paned_get_position(paned);
-    int total_height = gtk_widget_get_height(GTK_WIDGET(paned));
+    NautilusWindowSlot *self = NAUTILUS_WINDOW_SLOT (user_data);
+    GtkPaned *paned = GTK_PANED (self->terminal_pane_container);
+    int position = gtk_paned_get_position (paned);
+    int total_height = gtk_widget_get_height (GTK_WIDGET (paned));
 
-    if (total_height > 0)
+    self->pane_size_save_timeout_id = 0;
+
+    if (total_height > 0 && self->terminal_settings != NULL)
     {
-        int height = total_height - position;
-        g_settings_set_int(settings, "pane-size", height);
+        int height = CLAMP (total_height - position,
+                            TERMINAL_PANE_MIN_SIZE,
+                            TERMINAL_PANE_MAX_SIZE);
+
+        g_settings_set_int (self->terminal_settings, "pane-size", height);
     }
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+on_paned_position_changed (GObject    *object,
+                           GParamSpec *pspec,
+                           gpointer    user_data)
+{
+    NautilusWindowSlot *self = NAUTILUS_WINDOW_SLOT (user_data);
+
+    g_clear_handle_id (&self->pane_size_save_timeout_id, g_source_remove);
+    self->pane_size_save_timeout_id =
+        g_timeout_add_full (G_PRIORITY_DEFAULT,
+                            TERMINAL_PANE_SAVE_DELAY_MS,
+                            save_terminal_pane_size,
+                            g_object_ref (self),
+                            g_object_unref);
 }
 
 static void
@@ -818,7 +849,12 @@ nautilus_window_slot_constructed (GObject *object)
 
     self->terminal_pane_container = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
     adw_bin_set_child (ADW_BIN (self), self->terminal_pane_container);
-    g_signal_connect (self->terminal_pane_container, "notify::position", G_CALLBACK (on_paned_position_changed), NULL);
+    self->terminal_settings = g_settings_new ("org.gnome.nautilus.terminal");
+    g_signal_connect_object (self->terminal_pane_container,
+                             "notify::position",
+                             G_CALLBACK (on_paned_position_changed),
+                             self,
+                             G_CONNECT_DEFAULT);
 
     self->stack = gtk_stack_new ();
     gtk_paned_set_start_child (GTK_PANED (self->terminal_pane_container), self->stack);
@@ -861,7 +897,11 @@ nautilus_window_slot_constructed (GObject *object)
     self->title = g_strdup (_("Loading…"));
     g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_TITLE]);
 
-    g_idle_add((GSourceFunc)nautilus_window_slot_ensure_terminal_state, self);
+    self->terminal_state_idle_id =
+        g_idle_add_full (G_PRIORITY_DEFAULT_IDLE,
+                         nautilus_window_slot_ensure_terminal_state,
+                         g_object_ref (self),
+                         g_object_unref);
 }
 
 static void
@@ -2553,6 +2593,16 @@ nautilus_window_slot_dispose (GObject *object)
     NautilusWindowSlot *self;
     self = NAUTILUS_WINDOW_SLOT (object);
 
+    g_clear_handle_id (&self->terminal_state_idle_id, g_source_remove);
+    g_clear_handle_id (&self->pane_size_save_timeout_id, g_source_remove);
+
+    if (self->terminal_widget != NULL)
+    {
+        g_signal_handlers_disconnect_by_data (self->terminal_widget, self);
+        gtk_paned_set_end_child (GTK_PANED (self->terminal_pane_container), NULL);
+        self->terminal_widget = NULL;
+    }
+
     g_signal_handlers_disconnect_by_data (nautilus_preferences, self);
 
     nautilus_window_slot_clear_forward_list (self);
@@ -2571,7 +2621,7 @@ nautilus_window_slot_dispose (GObject *object)
 
     if (self->content_view)
     {
-        gtk_box_remove (GTK_BOX (self->vbox), GTK_WIDGET (self->content_view));
+        gtk_box_remove (GTK_BOX (self->content_box), GTK_WIDGET (self->content_view));
         g_clear_object (&self->content_view);
     }
 
@@ -2588,6 +2638,7 @@ nautilus_window_slot_dispose (GObject *object)
     g_clear_object (&self->last_location_bookmark);
     g_clear_object (&self->slot_action_group);
     g_clear_object (&self->pending_search_query);
+    g_clear_object (&self->terminal_settings);
 
     g_cancellable_cancel (self->find_mount_cancellable);
     g_clear_object (&self->find_mount_cancellable);
@@ -3084,12 +3135,15 @@ nautilus_window_slot_init_terminal (NautilusWindowSlot *self)
     gtk_widget_set_vexpand(GTK_WIDGET(self->terminal_widget), TRUE);
     gtk_widget_set_hexpand(GTK_WIDGET(self->terminal_widget), TRUE);
 
-    g_signal_connect(self->terminal_widget, "change-directory",
-                     G_CALLBACK(on_terminal_directory_changed), self);
-    g_signal_connect(self->terminal_widget, "toggle-visibility",
-                     G_CALLBACK(on_terminal_visibility_changed), self);
-    g_signal_connect(self->terminal_widget, "running-command-changed",
-                     G_CALLBACK(on_terminal_running_command_changed), self);
+    g_signal_connect_object (self->terminal_widget, "change-directory",
+                             G_CALLBACK (on_terminal_directory_changed), self,
+                             G_CONNECT_DEFAULT);
+    g_signal_connect_object (self->terminal_widget, "toggle-visibility",
+                             G_CALLBACK (on_terminal_visibility_changed), self,
+                             G_CONNECT_DEFAULT);
+    g_signal_connect_object (self->terminal_widget, "running-command-changed",
+                             G_CALLBACK (on_terminal_running_command_changed), self,
+                             G_CONNECT_DEFAULT);
 
     nautilus_terminal_widget_set_container_paned(self->terminal_widget, self->terminal_pane_container);
 }
@@ -3136,10 +3190,12 @@ on_terminal_running_command_changed(NautilusTerminalWidget *terminal, gboolean r
     nautilus_window_slot_update_title (self);
 }
 
-gboolean
+static gboolean
 nautilus_window_slot_ensure_terminal_state (gpointer user_data)
 {
     NautilusWindowSlot *self = user_data;
+
+    self->terminal_state_idle_id = 0;
     /* The persisted "visible" setting represents user intent across app
      * sessions, not a shared live state. Restore it only on the very first slot
      * of the process; later tabs (Ctrl+T) start with terminal hidden and the

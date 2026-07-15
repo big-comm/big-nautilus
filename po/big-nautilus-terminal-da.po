@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Danish\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "System"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Mørk"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Lys"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized mørk"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized lys"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half mørk"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half lys"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Synkroniser begge veje"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Synkroniser: Filhåndtering → Terminal"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Synkroniser: Terminal → Filhåndtering"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Ingen synkronisering"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Forbind ikke automatisk"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Forbind automatisk og synkroniser begge veje"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Forbind automatisk og synkroniser: Filhåndtering → Terminal"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Forbind automatisk og synkroniser: Terminal → Filhåndtering"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Forbind automatisk uden synkronisering"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Synkroniser mappe begge veje"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Synkroniser mappe: Filhåndtering → Terminal"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Synkroniser mappe: Terminal → Filhåndtering"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Ingen mappesynkronisering"
 
-msgid "Copy"
-msgstr "Kopiér"
-
-msgid "Paste"
-msgstr "Indsæt"
-
-msgid "Select All"
-msgstr "Vælg alt"
-
-msgid "Color Scheme"
-msgstr "Farveskema"
-
-msgid "Font Size"
-msgstr "Skriftstørrelse"
-
-msgid "SSH Auto-Connect"
-msgstr "SSH auto-forbindelse"
-
-msgid "Disconnect from SSH"
-msgstr "Afbryd SSH-forbindelse"
-
-msgid "Local Folder Sync"
-msgstr "Lokal mappesynkronisering"
-
-msgid "SSH Connection to %s"
-msgstr "SSH-forbindelse til %s"
-
-msgid "Find…"
-msgstr "Find…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Søg i terminalens historik"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Forrige match"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Næste match"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Forskel på små/store bogstaver"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Regulært udtryk"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Luk søgning"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Kopiér"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Indsæt"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Vælg alt"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Find…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Farveskema"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Skriftstørrelse"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "SSH auto-forbindelse"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Afbryd SSH-forbindelse"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Lokal mappesynkronisering"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH-forbindelse til %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Opdel vandret"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Opdel lodret"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Luk panel"
-

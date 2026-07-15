@@ -21,3 +21,6 @@ build/
 # Ignore build directory and maintenance scripts
 /builddir
 /update-nautilus-fork.sh
+
+# Local machine diagnostics
+/NAUTILUS-LOCAL-DIAGNOSTICS.md

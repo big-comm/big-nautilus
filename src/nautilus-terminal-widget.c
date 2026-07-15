@@ -31,16 +31,17 @@
 #include <unistd.h>
 #include <signal.h>
 
-/* Terminal-widget strings live in their own gettext domain so they can be
- * shipped independently of the main nautilus.mo (see po/big-nautilus-terminal-*.po
- * and po/generate_terminal_translations.py). */
+/* Terminal-widget strings use a separate gettext domain. Catalogs are built
+ * from po/big-nautilus-terminal-*.po by Meson. */
 #define GETTEXT_PACKAGE_TERMINAL "nautilus-terminal"
 #define _T(s) dgettext (GETTEXT_PACKAGE_TERMINAL, (s))
 
 /* UI constants */
 #define MIN_TERMINAL_HEIGHT 100
+#define MAX_TERMINAL_HEIGHT 4096
 #define MIN_FONT_SIZE 6
 #define MAX_FONT_SIZE 72
+#define MAX_COMMAND_TITLE_CHARS 80
 
 /* GObject properties */
 enum
@@ -62,8 +63,24 @@ enum
 typedef enum
 {
   NAUTILUS_TERMINAL_STATE_LOCAL,
+  NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH,
   NAUTILUS_TERMINAL_STATE_IN_SSH,
+  NAUTILUS_TERMINAL_STATE_SWITCHING_TO_LOCAL,
 } NautilusTerminalState;
+
+typedef enum
+{
+  NAUTILUS_TERMINAL_SPAWN_LOCAL,
+  NAUTILUS_TERMINAL_SPAWN_SSH,
+  NAUTILUS_TERMINAL_SPAWN_SECONDARY,
+} NautilusTerminalSpawnKind;
+
+typedef struct
+{
+  GWeakRef widget_ref;
+  NautilusTerminalSpawnKind kind;
+  guint generation;
+} NautilusTerminalSpawnData;
 
 struct _NautilusTerminalWidgetPrivate
 {
@@ -79,10 +96,16 @@ struct _NautilusTerminalWidgetPrivate
   gboolean            ignore_next_terminal_cd_signal;
   gboolean            just_synced_directory;
   gboolean            refocus_after_paste;
+  gboolean            disposing;
+  gboolean            primary_spawn_pending;
+  gboolean            secondary_spawn_pending;
   guint               focus_timeout_id;
+  guint               primary_spawn_generation;
+  guint               secondary_spawn_generation;
   GPid                child_pid;
   GCancellable       *spawn_cancellable;
   GWeakRef            paned_weak_ref;
+  GWeakRef            focus_target_weak_ref;
 
   GSettings            *settings;
   gchar                *color_scheme;
@@ -306,6 +329,9 @@ static void on_popup_menu_closed (GtkPopover *popover, gpointer user_data);
 static void on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data);
 static gboolean on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint keycode, GdkModifierType state, gpointer user_data);
 static gboolean _ensure_focus_timeout(gpointer user_data);
+static void schedule_terminal_focus (NautilusTerminalWidget *self,
+                                     VteTerminal           *terminal,
+                                     guint                  delay_ms);
 static void on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data);
 static void on_terminal_preference_changed(GSettings *settings, const gchar *key, gpointer user_data);
 static void setup_terminal_font(VteTerminal *terminal, GSettings *settings);
@@ -316,21 +342,45 @@ static gboolean parse_gvfs_ssh_path(GFile *location, gchar **hostname, gchar **u
 static void change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location);
 static void _clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv);
 static void _reset_to_local_state(NautilusTerminalWidget *self);
+static void spawn_pending_ssh_connection (NautilusTerminalWidget *self);
 static const gchar * nautilus_terminal_widget_get_color_scheme(NautilusTerminalWidget *self);
 static void nautilus_terminal_widget_set_color_scheme(NautilusTerminalWidget *self, const gchar *scheme);
 static void update_popup_menu_model (NautilusTerminalWidget *self);
 static GtkWidget *_build_search_bar (NautilusTerminalWidget *self);
-static void _install_drop_target (NautilusTerminalWidget *self);
+static void _install_drop_target (NautilusTerminalWidget *self,
+                                  VteTerminal           *terminal);
 static void _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data);
 static void action_split_horizontal (GSimpleAction *action, GVariant *parameter, gpointer user_data);
 static void action_split_vertical   (GSimpleAction *action, GVariant *parameter, gpointer user_data);
 static void action_close_pane       (GSimpleAction *action, GVariant *parameter, gpointer user_data);
 static void _attach_focus_tracker   (NautilusTerminalWidget *self, VteTerminal *term);
+static void switch_to_local_terminal (NautilusTerminalWidget *self);
 
 static GParamSpec *properties[N_PROPS];
 static guint       signals[LAST_SIGNAL];
 
 G_DEFINE_TYPE_WITH_PRIVATE(NautilusTerminalWidget, nautilus_terminal_widget, GTK_TYPE_BOX)
+
+static NautilusTerminalSpawnData *
+terminal_spawn_data_new (NautilusTerminalWidget    *self,
+                         NautilusTerminalSpawnKind  kind,
+                         guint                      generation)
+{
+    NautilusTerminalSpawnData *data = g_new0 (NautilusTerminalSpawnData, 1);
+
+    g_weak_ref_init (&data->widget_ref, self);
+    data->kind = kind;
+    data->generation = generation;
+
+    return data;
+}
+
+static void
+terminal_spawn_data_free (NautilusTerminalSpawnData *data)
+{
+    g_weak_ref_clear (&data->widget_ref);
+    g_free (data);
+}
 
 static void
 nautilus_terminal_widget_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec)
@@ -372,6 +422,10 @@ nautilus_terminal_widget_dispose(GObject *object)
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GtkWidget) paned = g_weak_ref_get(&priv->paned_weak_ref);
 
+    priv->disposing = TRUE;
+    priv->primary_spawn_generation++;
+    priv->secondary_spawn_generation++;
+
     /* Widget cleanup must happen in dispose, not finalize: by the time finalize
      * runs, the GtkBox parent dispose has already unparented our children and
      * priv->terminal is no longer a valid GObject. */
@@ -394,6 +448,7 @@ nautilus_terminal_widget_dispose(GObject *object)
         g_source_remove(priv->focus_timeout_id);
         priv->focus_timeout_id = 0;
     }
+    g_weak_ref_set (&priv->focus_target_weak_ref, NULL);
 
     if (priv->spawn_cancellable) {
         g_cancellable_cancel(priv->spawn_cancellable);
@@ -405,6 +460,10 @@ nautilus_terminal_widget_dispose(GObject *object)
         kill (priv->secondary_pid, SIGHUP);
         priv->secondary_pid = -1;
     }
+    if (priv->child_pid > 0) {
+        kill (priv->child_pid, SIGHUP);
+        priv->child_pid = -1;
+    }
 
     /* popup_menu is parented to `self` via gtk_widget_set_parent (not added to
      * the box), so the GtkBox dispose chain won't auto-unparent it. */
@@ -412,6 +471,14 @@ nautilus_terminal_widget_dispose(GObject *object)
         gtk_widget_unparent(priv->popup_menu);
         priv->popup_menu = NULL;
     }
+
+    priv->terminal = NULL;
+    priv->secondary_terminal = NULL;
+    priv->active_terminal = NULL;
+    priv->primary_pane_box = NULL;
+    priv->secondary_pane_box = NULL;
+    priv->secondary_scrolled = NULL;
+    priv->split_paned = NULL;
 
     G_OBJECT_CLASS(nautilus_terminal_widget_parent_class)->dispose(object);
 }
@@ -423,6 +490,7 @@ nautilus_terminal_widget_finalize(GObject *object)
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
     g_weak_ref_clear(&priv->paned_weak_ref);
+    g_weak_ref_clear(&priv->focus_target_weak_ref);
     g_clear_object(&priv->settings);
     g_clear_object(&priv->action_group);
     g_clear_object(&priv->spawn_cancellable);
@@ -456,9 +524,7 @@ action_paste (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 
     /* Directly schedule a focus grab after paste. The focus-leave handler
      * is unreliable because focus may not always leave during paste. */
-    if (priv->focus_timeout_id > 0)
-        g_source_remove (priv->focus_timeout_id);
-    priv->focus_timeout_id = g_timeout_add (50, _ensure_focus_timeout, self);
+    schedule_terminal_focus (self, _active_terminal (self), 50);
 }
 
 static void
@@ -483,9 +549,7 @@ action_set_font_size_state (GSimpleAction *action, GVariant *state, gpointer use
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
     int font_size_pts = g_variant_get_int32 (state);
-    g_autoptr(PangoFontDescription) font_desc = pango_font_description_copy(vte_terminal_get_font(priv->terminal));
-    pango_font_description_set_size(font_desc, font_size_pts * PANGO_SCALE);
-    vte_terminal_set_font(priv->terminal, font_desc);
+
     g_settings_set_int(priv->settings, "font-size", font_size_pts);
     g_simple_action_set_state (action, state);
 }
@@ -514,11 +578,8 @@ static void
 action_ssh_disconnect (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    NautilusTerminalWidgetPrivate *priv = self->priv;
-    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
-    {
-        vte_terminal_feed_child (priv->terminal, " exit\n", -1);
-    }
+
+    switch_to_local_terminal (self);
 }
 
 static void _terminal_search_update_regex (NautilusTerminalWidget *self);
@@ -559,8 +620,16 @@ action_manual_ssh_connect (GSimpleAction *action, GVariant *parameter, gpointer 
         const gchar *hostname = parts[0];
         const gchar *username = parts[1][0] ? parts[1] : NULL;
         const gchar *port = parts[2][0] ? parts[2] : NULL;
-        NautilusTerminalSyncMode sync_mode = (NautilusTerminalSyncMode) g_ascii_strtoull(parts[3], NULL, 10);
-        _initiate_ssh_connection(self, hostname, username, port, sync_mode);
+        guint64 mode = g_ascii_strtoull (parts[3], NULL, 10);
+
+        if (mode <= NAUTILUS_TERMINAL_SYNC_BOTH)
+        {
+            _initiate_ssh_connection (self,
+                                      hostname,
+                                      username,
+                                      port,
+                                      (NautilusTerminalSyncMode) mode);
+        }
     }
 }
 
@@ -636,7 +705,6 @@ static void
 nautilus_terminal_widget_init(NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = nautilus_terminal_widget_get_instance_private(self);
-    g_autoptr(GtkCssProvider) provider = NULL;
     GtkGesture *click;
     GtkGesture *primary_click;
     GtkEventController *key_controller;
@@ -664,6 +732,7 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     priv->child_pid = -1;
     priv->spawn_cancellable = g_cancellable_new();
     g_weak_ref_init(&priv->paned_weak_ref, NULL);
+    g_weak_ref_init(&priv->focus_target_weak_ref, NULL);
 
     priv->scrolled_window = gtk_scrolled_window_new();
     gtk_widget_set_vexpand(priv->scrolled_window, TRUE);
@@ -676,15 +745,11 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_widget_set_can_focus(GTK_WIDGET(priv->terminal), TRUE);
 
     priv->ssh_indicator = gtk_label_new("SSH");
-    gtk_widget_set_name(priv->ssh_indicator, "ssh-indicator");
+    gtk_widget_add_css_class (priv->ssh_indicator, "nautilus-terminal-ssh-indicator");
     gtk_widget_set_visible(priv->ssh_indicator, FALSE);
     gtk_widget_set_vexpand(priv->ssh_indicator, FALSE);
     gtk_widget_set_hexpand(priv->ssh_indicator, TRUE);
     gtk_label_set_xalign(GTK_LABEL(priv->ssh_indicator), 0.5);
-
-    provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_string(provider, "label#ssh-indicator { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; padding: 2px 5px; margin: 0; font-weight: bold; }");
-    gtk_style_context_add_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
 
     gtk_box_append(GTK_BOX(self), priv->ssh_indicator);
     priv->search_revealer = _build_search_bar (self);
@@ -712,8 +777,11 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     nautilus_terminal_widget_apply_color_scheme(self);
 
     /* Listen for system dark/light theme changes */
-    g_signal_connect(adw_style_manager_get_default(), "notify::dark",
-                     G_CALLBACK(on_system_dark_changed), self);
+    g_signal_connect_object (adw_style_manager_get_default (),
+                             "notify::dark",
+                             G_CALLBACK (on_system_dark_changed),
+                             self,
+                             0);
 
     priv->action_group = G_ACTION_GROUP(g_simple_action_group_new());
     g_action_map_add_action_entries(G_ACTION_MAP(priv->action_group), terminal_actions, G_N_ELEMENTS(terminal_actions), self);
@@ -732,32 +800,64 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
 
     gtk_widget_insert_action_group(GTK_WIDGET(self), "terminal", priv->action_group);
 
-    g_signal_connect(priv->settings, "changed", G_CALLBACK(on_terminal_preference_changed), self);
+    g_signal_connect_object (priv->settings,
+                             "changed",
+                             G_CALLBACK (on_terminal_preference_changed),
+                             self,
+                             0);
 
-    g_signal_connect(priv->terminal, "child-exited", G_CALLBACK(on_terminal_child_exited), self);
-    g_signal_connect(priv->terminal, "current-directory-uri-changed", G_CALLBACK(on_terminal_directory_changed), self);
-    g_signal_connect(priv->terminal, "termprop-changed", G_CALLBACK(_on_termprop_changed), self);
+    g_signal_connect_object (priv->terminal,
+                             "child-exited",
+                             G_CALLBACK (on_terminal_child_exited),
+                             self,
+                             0);
+    g_signal_connect_object (priv->terminal,
+                             "current-directory-uri-changed",
+                             G_CALLBACK (on_terminal_directory_changed),
+                             self,
+                             0);
+    g_signal_connect_object (priv->terminal,
+                             "termprop-changed",
+                             G_CALLBACK (_on_termprop_changed),
+                             self,
+                             0);
 
     click = gtk_gesture_click_new();
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), GDK_BUTTON_SECONDARY);
-    g_signal_connect(click, "pressed", G_CALLBACK(on_terminal_button_pressed), self);
+    g_signal_connect_object (click,
+                             "pressed",
+                             G_CALLBACK (on_terminal_button_pressed),
+                             self,
+                             0);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), GTK_EVENT_CONTROLLER(click));
 
     /* Primary click handler to ensure terminal gets focus when clicked */
     primary_click = gtk_gesture_click_new();
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(primary_click), GDK_BUTTON_PRIMARY);
-    g_signal_connect(primary_click, "pressed", G_CALLBACK(on_terminal_primary_click), self);
+    g_signal_connect_object (primary_click,
+                             "pressed",
+                             G_CALLBACK (on_terminal_primary_click),
+                             self,
+                             0);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), GTK_EVENT_CONTROLLER(primary_click));
 
     key_controller = gtk_event_controller_key_new();
-    g_signal_connect(key_controller, "key-pressed", G_CALLBACK(on_terminal_key_pressed), self);
+    g_signal_connect_object (key_controller,
+                             "key-pressed",
+                             G_CALLBACK (on_terminal_key_pressed),
+                             self,
+                             0);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), key_controller);
 
     focus_controller = gtk_event_controller_focus_new();
-    g_signal_connect(focus_controller, "leave", G_CALLBACK(on_terminal_focus_leave), self);
+    g_signal_connect_object (focus_controller,
+                             "leave",
+                             G_CALLBACK (on_terminal_focus_leave),
+                             self,
+                             0);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), focus_controller);
 
-    _install_drop_target (self);
+    _install_drop_target (self, priv->terminal);
 
     /* Submenus open as nested popovers rather than sliding pages so the parent
      * width is dictated by its own top-level items, not by the longest label
@@ -766,7 +866,11 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_popover_set_has_arrow (GTK_POPOVER (priv->popup_menu), FALSE);
     gtk_widget_add_css_class (priv->popup_menu, "menu");
     gtk_widget_set_parent(priv->popup_menu, GTK_WIDGET(self));
-    g_signal_connect (priv->popup_menu, "closed", G_CALLBACK (on_popup_menu_closed), self);
+    g_signal_connect_object (priv->popup_menu,
+                             "closed",
+                             G_CALLBACK (on_popup_menu_closed),
+                             self,
+                             0);
 
     gtk_widget_set_visible(GTK_WIDGET(self), FALSE);
 }
@@ -793,26 +897,71 @@ static void
 _attach_focus_tracker (NautilusTerminalWidget *self, VteTerminal *term)
 {
     GtkEventController *fc = gtk_event_controller_focus_new ();
-    g_signal_connect (fc, "enter", G_CALLBACK (_on_pane_focus_enter), self);
+    g_signal_connect_object (fc,
+                             "enter",
+                             G_CALLBACK (_on_pane_focus_enter),
+                             self,
+                             0);
     gtk_widget_add_controller (GTK_WIDGET (term), fc);
 }
 
 static void
 _secondary_spawn_cb (VteTerminal *terminal, GPid pid, GError *error, gpointer user_data)
 {
-    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    if (gtk_widget_in_destruction (GTK_WIDGET (self))) return;
-    if (pid == -1) {
-        g_warning ("split pane: failed to spawn: %s", error ? error->message : "?");
+    NautilusTerminalSpawnData *data = user_data;
+    NautilusTerminalWidget *self = g_weak_ref_get (&data->widget_ref);
+
+    if (self == NULL)
+    {
+        if (pid > 0)
+        {
+            kill (pid, SIGHUP);
+        }
+        terminal_spawn_data_free (data);
         return;
     }
-    self->priv->secondary_pid = pid;
+
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    gboolean stale = priv->disposing ||
+                     data->generation != priv->secondary_spawn_generation ||
+                     terminal != priv->secondary_terminal;
+
+    if (stale)
+    {
+        if (pid > 0)
+        {
+            kill (pid, SIGHUP);
+        }
+    }
+    else
+    {
+        priv->secondary_spawn_pending = FALSE;
+        if (pid == -1)
+        {
+            g_warning ("split pane: failed to spawn: %s",
+                       error != NULL ? error->message : "unknown error");
+        }
+        else
+        {
+            priv->secondary_pid = pid;
+        }
+    }
+
+    g_object_unref (self);
+    terminal_spawn_data_free (data);
 }
 
 static void
 _on_secondary_child_exited (VteTerminal *terminal, gint status, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
+
+    if (self->priv->disposing || terminal != self->priv->secondary_terminal ||
+        self->priv->split_paned == NULL)
+    {
+        return;
+    }
+
     /* Mirror primary behaviour: when the shell exits, collapse the split. */
     self->priv->secondary_pid = -1;
     g_action_group_activate_action (self->priv->action_group, "close-pane", NULL);
@@ -867,20 +1016,35 @@ _build_secondary_pane (NautilusTerminalWidget *self)
     {
         GtkGesture *click = gtk_gesture_click_new ();
         gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (click), GDK_BUTTON_SECONDARY);
-        g_signal_connect (click, "pressed", G_CALLBACK (on_terminal_button_pressed), self);
+        g_signal_connect_object (click,
+                                 "pressed",
+                                 G_CALLBACK (on_terminal_button_pressed),
+                                 self,
+                                 0);
         gtk_widget_add_controller (GTK_WIDGET (priv->secondary_terminal), GTK_EVENT_CONTROLLER (click));
 
         GtkGesture *primary_click = gtk_gesture_click_new ();
         gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (primary_click), GDK_BUTTON_PRIMARY);
-        g_signal_connect (primary_click, "pressed", G_CALLBACK (on_terminal_primary_click), self);
+        g_signal_connect_object (primary_click,
+                                 "pressed",
+                                 G_CALLBACK (on_terminal_primary_click),
+                                 self,
+                                 0);
         gtk_widget_add_controller (GTK_WIDGET (priv->secondary_terminal), GTK_EVENT_CONTROLLER (primary_click));
 
         GtkEventController *key_controller = gtk_event_controller_key_new ();
-        g_signal_connect (key_controller, "key-pressed", G_CALLBACK (on_terminal_key_pressed), self);
+        g_signal_connect_object (key_controller,
+                                 "key-pressed",
+                                 G_CALLBACK (on_terminal_key_pressed),
+                                 self,
+                                 0);
         gtk_widget_add_controller (GTK_WIDGET (priv->secondary_terminal), key_controller);
     }
 
+    g_clear_object (&priv->secondary_cancellable);
     priv->secondary_cancellable = g_cancellable_new ();
+    priv->secondary_spawn_pending = TRUE;
+    priv->secondary_spawn_generation++;
     vte_terminal_spawn_async (priv->secondary_terminal,
                               VTE_PTY_DEFAULT,
                               cwd,
@@ -891,11 +1055,17 @@ _build_secondary_pane (NautilusTerminalWidget *self)
                               -1,
                               priv->secondary_cancellable,
                               _secondary_spawn_cb,
-                              self);
+                              terminal_spawn_data_new (self,
+                                                       NAUTILUS_TERMINAL_SPAWN_SECONDARY,
+                                                       priv->secondary_spawn_generation));
 
-    g_signal_connect (priv->secondary_terminal, "child-exited",
-                      G_CALLBACK (_on_secondary_child_exited), self);
+    g_signal_connect_object (priv->secondary_terminal,
+                             "child-exited",
+                             G_CALLBACK (_on_secondary_child_exited),
+                             self,
+                             0);
     _attach_focus_tracker (self, priv->secondary_terminal);
+    _install_drop_target (self, priv->secondary_terminal);
 
     return box;
 }
@@ -909,6 +1079,7 @@ _split_pane (NautilusTerminalWidget *self, GtkOrientation orientation)
 
     if (priv->split_paned != NULL) return; /* max 2 panes */
     if (priv->primary_pane_box == NULL) return;
+    if (gtk_widget_get_parent (priv->primary_pane_box) != GTK_WIDGET (self)) return;
 
     new_pane = _build_secondary_pane (self);
 
@@ -946,6 +1117,14 @@ _close_secondary_pane (NautilusTerminalWidget *self)
 
     if (priv->split_paned == NULL || priv->primary_pane_box == NULL) return;
 
+    priv->secondary_spawn_generation++;
+    priv->secondary_spawn_pending = FALSE;
+
+    if (priv->secondary_terminal != NULL)
+    {
+        g_signal_handlers_disconnect_by_data (priv->secondary_terminal, self);
+    }
+
     if (priv->secondary_pid > 0) {
         kill (priv->secondary_pid, SIGHUP);
         priv->secondary_pid = -1;
@@ -956,15 +1135,28 @@ _close_secondary_pane (NautilusTerminalWidget *self)
     }
 
     g_object_ref (priv->primary_pane_box);
-    gtk_paned_set_start_child (GTK_PANED (priv->split_paned), NULL);
-    gtk_paned_set_end_child   (GTK_PANED (priv->split_paned), NULL);
-    gtk_box_remove (GTK_BOX (self), priv->split_paned);
+    if (gtk_widget_get_parent (priv->primary_pane_box) == priv->split_paned)
+    {
+        gtk_paned_set_start_child (GTK_PANED (priv->split_paned), NULL);
+    }
+    if (priv->secondary_pane_box != NULL &&
+        gtk_widget_get_parent (priv->secondary_pane_box) == priv->split_paned)
+    {
+        gtk_paned_set_end_child (GTK_PANED (priv->split_paned), NULL);
+    }
+    if (gtk_widget_get_parent (priv->split_paned) == GTK_WIDGET (self))
+    {
+        gtk_box_remove (GTK_BOX (self), priv->split_paned);
+    }
     priv->split_paned = NULL;
     priv->secondary_terminal = NULL;
     priv->secondary_scrolled = NULL;
     priv->secondary_pane_box = NULL;
 
-    gtk_box_append (GTK_BOX (self), priv->primary_pane_box);
+    if (gtk_widget_get_parent (priv->primary_pane_box) == NULL)
+    {
+        gtk_box_append (GTK_BOX (self), priv->primary_pane_box);
+    }
     g_object_unref (priv->primary_pane_box);
 
     priv->active_terminal = priv->terminal;
@@ -990,6 +1182,60 @@ action_close_pane (GSimpleAction *action, GVariant *parameter, gpointer user_dat
 }
 
 /* ---- Running-command tracking (OSC 133 via VTE termprops) -------------- */
+
+char *
+nautilus_terminal_sanitize_title (const char *title)
+{
+    g_autofree char *valid_title = NULL;
+    g_autoptr (GString) sanitized = NULL;
+    const char *cursor;
+    guint characters = 0;
+
+    if (title == NULL)
+    {
+        return NULL;
+    }
+
+    valid_title = g_utf8_make_valid (title, -1);
+    sanitized = g_string_new (NULL);
+
+    for (cursor = valid_title;
+         *cursor != '\0' && characters < MAX_COMMAND_TITLE_CHARS;
+         cursor = g_utf8_next_char (cursor))
+    {
+        gunichar character = g_utf8_get_char (cursor);
+        GUnicodeType character_type = g_unichar_type (character);
+
+        if (g_unichar_isspace (character))
+        {
+            if (sanitized->len > 0 &&
+                sanitized->str[sanitized->len - 1] != ' ')
+            {
+                g_string_append_c (sanitized, ' ');
+                characters++;
+            }
+            continue;
+        }
+
+        if (g_unichar_iscntrl (character) ||
+            character_type == G_UNICODE_FORMAT)
+        {
+            continue;
+        }
+
+        g_string_append_unichar (sanitized, character);
+        characters++;
+    }
+
+    g_strstrip (sanitized->str);
+    if (*sanitized->str == '\0')
+    {
+        return NULL;
+    }
+
+    g_string_truncate (sanitized, strlen (sanitized->str));
+    return g_string_free (g_steal_pointer (&sanitized), FALSE);
+}
 
 static void
 _emit_running_command_changed (NautilusTerminalWidget *self, gboolean running)
@@ -1022,8 +1268,7 @@ _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_dat
     {
         const char *title = vte_terminal_get_termprop_string (terminal, VTE_TERMPROP_XTERM_TITLE, NULL);
         g_clear_pointer (&priv->last_command_title, g_free);
-        if (title != NULL && *title != '\0')
-            priv->last_command_title = g_strdup (title);
+        priv->last_command_title = nautilus_terminal_sanitize_title (title);
         /* Re-emit so listeners can refresh the badge text. */
         g_signal_emit (self, signals[RUNNING_COMMAND_CHANGED], 0, priv->command_running);
     }
@@ -1045,6 +1290,29 @@ nautilus_terminal_widget_is_command_running (NautilusTerminalWidget *self)
 
 /* ---- Drag & drop into terminal ------------------------------------------ */
 
+gboolean
+nautilus_terminal_ssh_identity_equal (const char *hostname_a,
+                                      const char *username_a,
+                                      const char *port_a,
+                                      const char *hostname_b,
+                                      const char *username_b,
+                                      const char *port_b)
+{
+    const char *normalized_username_a =
+        username_a != NULL && *username_a != '\0' ? username_a : g_get_user_name ();
+    const char *normalized_username_b =
+        username_b != NULL && *username_b != '\0' ? username_b : g_get_user_name ();
+    const char *normalized_port_a =
+        port_a != NULL && *port_a != '\0' ? port_a : "22";
+    const char *normalized_port_b =
+        port_b != NULL && *port_b != '\0' ? port_b : "22";
+
+    return g_ascii_strcasecmp (hostname_a != NULL ? hostname_a : "",
+                               hostname_b != NULL ? hostname_b : "") == 0 &&
+           g_strcmp0 (normalized_username_a, normalized_username_b) == 0 &&
+           g_strcmp0 (normalized_port_a, normalized_port_b) == 0;
+}
+
 static gchar *
 _path_for_drop (NautilusTerminalWidget *self, GFile *file)
 {
@@ -1057,7 +1325,12 @@ _path_for_drop (NautilusTerminalWidget *self, GFile *file)
     {
         g_autofree gchar *hostname = NULL, *username = NULL, *port = NULL;
         if (parse_gvfs_ssh_path (file, &hostname, &username, &port) &&
-            g_strcmp0 (hostname, priv->ssh_hostname) == 0)
+            nautilus_terminal_ssh_identity_equal (hostname,
+                                                  username,
+                                                  port,
+                                                  priv->ssh_hostname,
+                                                  priv->ssh_username,
+                                                  priv->ssh_port))
         {
             g_autofree gchar *uri = g_file_get_uri (file);
             g_autoptr (GUri) parsed = g_uri_parse (uri, G_URI_FLAGS_NONE, NULL);
@@ -1086,9 +1359,16 @@ _on_terminal_drop (GtkDropTarget *target,
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *drop_widget =
+        gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (target));
+    VteTerminal *terminal = VTE_IS_TERMINAL (drop_widget)
+                            ? VTE_TERMINAL (drop_widget)
+                            : _active_terminal (self);
     g_autoptr (GString) feed = g_string_new (NULL);
 
-    if (priv->terminal == NULL || priv->child_pid == -1)
+    if (terminal == NULL ||
+        (terminal == priv->terminal && priv->child_pid == -1) ||
+        (terminal == priv->secondary_terminal && priv->secondary_pid == -1))
         return FALSE;
 
     if (G_VALUE_HOLDS (value, GDK_TYPE_FILE_LIST))
@@ -1124,22 +1404,26 @@ _on_terminal_drop (GtkDropTarget *target,
         return FALSE;
 
     /* Insert at the prompt without auto-executing. User reviews and presses Enter. */
-    vte_terminal_feed_child (priv->terminal, feed->str, feed->len);
-    gtk_widget_grab_focus (GTK_WIDGET (priv->terminal));
+    vte_terminal_feed_child (terminal, feed->str, feed->len);
+    gtk_widget_grab_focus (GTK_WIDGET (terminal));
     return TRUE;
 }
 
 static void
-_install_drop_target (NautilusTerminalWidget *self)
+_install_drop_target (NautilusTerminalWidget *self,
+                      VteTerminal           *terminal)
 {
-    NautilusTerminalWidgetPrivate *priv = self->priv;
     GtkDropTarget *target;
     GType types[] = { GDK_TYPE_FILE_LIST, G_TYPE_FILE, G_TYPE_STRING };
 
     target = gtk_drop_target_new (G_TYPE_INVALID, GDK_ACTION_COPY);
     gtk_drop_target_set_gtypes (target, types, G_N_ELEMENTS (types));
-    g_signal_connect (target, "drop", G_CALLBACK (_on_terminal_drop), self);
-    gtk_widget_add_controller (GTK_WIDGET (priv->terminal), GTK_EVENT_CONTROLLER (target));
+    g_signal_connect_object (target,
+                             "drop",
+                             G_CALLBACK (_on_terminal_drop),
+                             self,
+                             0);
+    gtk_widget_add_controller (GTK_WIDGET (terminal), GTK_EVENT_CONTROLLER (target));
 }
 
 /* ---- Scrollback search bar ---------------------------------------------- */
@@ -1236,8 +1520,10 @@ _terminal_search_set_visible (NautilusTerminalWidget *self, gboolean visible)
     } else {
         /* Clear highlight and return focus to the active pane's terminal. */
         VteTerminal *t = _active_terminal (self);
-        vte_terminal_search_set_regex (t, NULL, 0);
-        vte_terminal_unselect_all (t);
+        if (t != NULL) {
+            vte_terminal_search_set_regex (t, NULL, 0);
+            vte_terminal_unselect_all (t);
+        }
         if (t != NULL && !gtk_widget_in_destruction (GTK_WIDGET (self))) {
             gtk_widget_grab_focus (GTK_WIDGET (t));
         }
@@ -1269,9 +1555,21 @@ _build_search_bar (NautilusTerminalWidget *self)
     priv->search_entry = gtk_search_entry_new ();
     gtk_widget_set_hexpand (priv->search_entry, TRUE);
     gtk_widget_set_tooltip_text (priv->search_entry, _T("Search terminal scrollback"));
-    g_signal_connect (priv->search_entry, "search-changed", G_CALLBACK (_on_search_entry_changed), self);
-    g_signal_connect (priv->search_entry, "activate",       G_CALLBACK (_on_search_entry_activate), self);
-    g_signal_connect (priv->search_entry, "stop-search",    G_CALLBACK (_on_search_stop), self);
+    g_signal_connect_object (priv->search_entry,
+                             "search-changed",
+                             G_CALLBACK (_on_search_entry_changed),
+                             self,
+                             0);
+    g_signal_connect_object (priv->search_entry,
+                             "activate",
+                             G_CALLBACK (_on_search_entry_activate),
+                             self,
+                             0);
+    g_signal_connect_object (priv->search_entry,
+                             "stop-search",
+                             G_CALLBACK (_on_search_stop),
+                             self,
+                             0);
     gtk_box_append (GTK_BOX (bar), priv->search_entry);
 
     prev_btn = gtk_button_new_from_icon_name ("go-up-symbolic");
@@ -1286,12 +1584,20 @@ _build_search_bar (NautilusTerminalWidget *self)
 
     priv->search_case_toggle = gtk_toggle_button_new_with_label ("Aa");
     gtk_widget_set_tooltip_text (priv->search_case_toggle, _T("Match Case"));
-    g_signal_connect (priv->search_case_toggle, "toggled", G_CALLBACK (_on_search_toggle_clicked), self);
+    g_signal_connect_object (priv->search_case_toggle,
+                             "toggled",
+                             G_CALLBACK (_on_search_toggle_clicked),
+                             self,
+                             0);
     gtk_box_append (GTK_BOX (bar), priv->search_case_toggle);
 
     priv->search_regex_toggle = gtk_toggle_button_new_with_label (".*");
     gtk_widget_set_tooltip_text (priv->search_regex_toggle, _T("Regular Expression"));
-    g_signal_connect (priv->search_regex_toggle, "toggled", G_CALLBACK (_on_search_toggle_clicked), self);
+    g_signal_connect_object (priv->search_regex_toggle,
+                             "toggled",
+                             G_CALLBACK (_on_search_toggle_clicked),
+                             self,
+                             0);
     gtk_box_append (GTK_BOX (bar), priv->search_regex_toggle);
 
     close_btn = gtk_button_new_from_icon_name ("window-close-symbolic");
@@ -1302,19 +1608,6 @@ _build_search_bar (NautilusTerminalWidget *self)
     gtk_revealer_set_child (GTK_REVEALER (revealer), bar);
     return revealer;
 }
-
-// Helper to defer focus grab safely
-static void
-_deferred_focus_grab(gpointer user_data) {
-    GtkWidget *widget = GTK_WIDGET(user_data);
-    if (widget != NULL &&
-        !gtk_widget_in_destruction(widget) &&
-        gtk_widget_get_realized(widget) &&
-        gtk_widget_get_visible(widget)) {
-        gtk_widget_grab_focus(widget);
-    }
-}
-
 
 static void
 on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
@@ -1347,7 +1640,12 @@ on_terminal_focus_leave(GtkEventControllerFocus *controller, gpointer user_data)
          * processing cycle has completed, ensuring our action is the final one and
          * reliably returns focus to the terminal.
          */
-        g_timeout_add_once(50, _deferred_focus_grab, priv->terminal);
+        GtkWidget *terminal = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
+
+        if (VTE_IS_TERMINAL (terminal))
+        {
+            schedule_terminal_focus (self, VTE_TERMINAL (terminal), 50);
+        }
     }
 }
 
@@ -1367,26 +1665,68 @@ on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, doubl
 static void
 spawn_async_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer user_data)
 {
-    NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
-    NautilusTerminalWidgetPrivate *priv = self->priv;
+    NautilusTerminalSpawnData *data = user_data;
+    NautilusTerminalWidget *self = g_weak_ref_get (&data->widget_ref);
 
-    if (gtk_widget_in_destruction(GTK_WIDGET(self)))
+    if (self == NULL)
     {
-        priv->child_pid = -1;
+        if (pid > 0)
+        {
+            kill (pid, SIGHUP);
+        }
+        terminal_spawn_data_free (data);
         return;
     }
 
-    if (pid == -1)
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    gboolean stale = priv->disposing ||
+                     data->generation != priv->primary_spawn_generation ||
+                     terminal != priv->terminal;
+
+    if (stale)
     {
-        g_warning("Failed to spawn terminal: %s", error ? error->message : "Unknown error");
-        priv->needs_respawn = TRUE;
-        priv->child_pid = -1;
+        if (pid > 0)
+        {
+            kill (pid, SIGHUP);
+        }
     }
     else
     {
-        priv->child_pid = pid;
-        priv->needs_respawn = FALSE;
+        priv->primary_spawn_pending = FALSE;
+        if (pid == -1)
+        {
+            g_warning ("Failed to spawn terminal: %s",
+                       error != NULL ? error->message : "unknown error");
+            priv->needs_respawn = TRUE;
+            priv->child_pid = -1;
+
+            if (data->kind == NAUTILUS_TERMINAL_SPAWN_SSH)
+            {
+                _reset_to_local_state (self);
+                if (priv->is_visible)
+                {
+                    spawn_terminal_async (self);
+                }
+            }
+        }
+        else
+        {
+            priv->child_pid = pid;
+            priv->needs_respawn = FALSE;
+            priv->state = data->kind == NAUTILUS_TERMINAL_SPAWN_SSH
+                          ? NAUTILUS_TERMINAL_STATE_IN_SSH
+                          : NAUTILUS_TERMINAL_STATE_LOCAL;
+
+            if (data->kind == NAUTILUS_TERMINAL_SPAWN_SSH &&
+                priv->current_location != NULL)
+            {
+                change_directory_in_terminal (self, priv->current_location);
+            }
+        }
     }
+
+    g_object_unref (self);
+    terminal_spawn_data_free (data);
 }
 
 static void
@@ -1394,13 +1734,14 @@ spawn_terminal_async (NautilusTerminalWidget *self)
 {
   NautilusTerminalWidgetPrivate *priv = self->priv;
   g_autofree gchar            *working_directory = NULL;
+  g_autofree gchar            *shell_basename = NULL;
   const gchar                 *shell_executable;
   gchar                      **argv = NULL;
   gchar                      **envp = NULL;
 
   g_return_if_fail (NAUTILUS_IS_TERMINAL_WIDGET (self));
 
-  if (priv->child_pid != -1)
+  if (priv->child_pid != -1 || priv->primary_spawn_pending || priv->disposing)
     return;
 
   if (g_cancellable_is_cancelled (priv->spawn_cancellable))
@@ -1411,54 +1752,102 @@ spawn_terminal_async (NautilusTerminalWidget *self)
 
   if (priv->pending_ssh_hostname != NULL)
     {
-      _initiate_ssh_connection (self, priv->pending_ssh_hostname, priv->pending_ssh_username, priv->pending_ssh_port, priv->pending_ssh_sync_mode);
-      g_clear_pointer (&priv->pending_ssh_hostname, g_free);
-      g_clear_pointer (&priv->pending_ssh_username, g_free);
-      g_clear_pointer (&priv->pending_ssh_port, g_free);
+      spawn_pending_ssh_connection (self);
       return;
     }
 
   shell_executable = g_getenv ("SHELL");
   if (!shell_executable || *shell_executable == '\0')
     shell_executable = "/bin/sh";
+  shell_basename = g_path_get_basename (shell_executable);
+  envp = g_get_environ ();
+  envp = g_environ_setenv (envp, "TERM", "xterm-256color", TRUE);
+  envp = g_environ_setenv (envp, "COLORTERM", "truecolor", TRUE);
 
-  if (priv->current_location && g_file_query_exists (priv->current_location, NULL))
+  if (priv->current_location != NULL && g_file_is_native (priv->current_location))
     {
       working_directory = g_file_get_path (priv->current_location);
     }
 
-  if (g_str_has_suffix (shell_executable, "zsh"))
+  if (g_strcmp0 (shell_basename, "zsh") == 0)
     {
       g_autofree gchar *config_dir = g_build_filename (g_get_user_config_dir (), "nautilus", "terminal", NULL);
       g_autofree gchar *zshrc_path = g_build_filename (config_dir, ".zshrc", NULL);
       g_autofree gchar *zshrc_content = NULL;
+      g_autofree gchar *old_zshrc_content = NULL;
+      g_autofree gchar *original_zdotdir_quoted = NULL;
       g_autofree gchar *zdotdir_env = NULL;
+      g_autoptr (GError) error = NULL;
+      const gchar *original_zdotdir = g_getenv ("ZDOTDIR");
+      gboolean wrapper_ready = FALSE;
 
-      g_mkdir_with_parents (config_dir, 0700);
+      if (original_zdotdir == NULL || *original_zdotdir == '\0' ||
+          g_strcmp0 (original_zdotdir, config_dir) == 0)
+        original_zdotdir = g_get_home_dir ();
+      original_zdotdir_quoted = g_shell_quote (original_zdotdir);
 
-      zshrc_content = g_strdup_printf ("_nautilus_vte_update_cwd() { echo -en \"\\033]7;file://$PWD\\007\"; };\n"
-                                       "typeset -a precmd_functions;\n"
-                                       "precmd_functions+=(_nautilus_vte_update_cwd);\n"
-                                       "[ -f \"$HOME/.zshrc\" ] && . \"$HOME/.zshrc\";\n");
+      zshrc_content = g_strdup_printf ("typeset -g _NAUTILUS_ORIGINAL_ZDOTDIR=%s\n"
+                                       "if [[ -r \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\" ]]; then\n"
+                                       "  source \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\"\n"
+                                       "fi\n"
+                                       "autoload -Uz add-zsh-hook\n"
+                                       "_nautilus_vte_update_cwd() { printf '\\033]7;file://%%s\\007' \"$PWD\"; }\n"
+                                       "add-zsh-hook precmd _nautilus_vte_update_cwd\n",
+                                       original_zdotdir_quoted);
 
-      g_file_set_contents (zshrc_path, zshrc_content, -1, NULL);
+      if (g_mkdir_with_parents (config_dir, 0700) == 0)
+        {
+          g_file_get_contents (zshrc_path, &old_zshrc_content, NULL, NULL);
+          wrapper_ready = g_strcmp0 (old_zshrc_content, zshrc_content) == 0 ||
+                          g_file_set_contents (zshrc_path, zshrc_content, -1, &error);
+        }
 
-      zdotdir_env = g_strdup_printf ("ZDOTDIR=%s", config_dir);
-      gchar *zsh_envp[] = { "TERM=xterm-256color", "COLORTERM=truecolor", zdotdir_env, NULL };
-      envp = g_strdupv (zsh_envp);
-      argv = g_strsplit (shell_executable, " ", -1);
+      if (!wrapper_ready)
+        {
+          g_warning ("Failed to prepare zsh integration: %s",
+                     error != NULL ? error->message : g_strerror (errno));
+        }
+
+      zdotdir_env = g_strdup (config_dir);
+      if (wrapper_ready)
+        {
+          envp = g_environ_setenv (envp, "ZDOTDIR", zdotdir_env, TRUE);
+        }
+      argv = g_new0 (gchar *, 2);
+      argv[0] = g_strdup (shell_executable);
     }
-  else /* Assume bash or other compatible shells */
+  else if (g_strcmp0 (shell_basename, "fish") == 0)
     {
-      argv = g_strsplit (shell_executable, " ", -1);
-      gchar *bash_envp[] = {
-        "TERM=xterm-256color",
-        "PROMPT_COMMAND=echo -en \"\\033]7;file://$PWD\\007\"",
-        "COLORTERM=truecolor",
-        NULL
-      };
-      envp = g_strdupv (bash_envp);
+      argv = g_new0 (gchar *, 4);
+      argv[0] = g_strdup (shell_executable);
+      argv[1] = g_strdup ("--init-command");
+      argv[2] = g_strdup ("function _nautilus_vte_update_cwd --on-event fish_prompt; printf '\\033]7;file://%s\\007' $PWD; end");
     }
+  else
+    {
+      g_autofree gchar *prompt_command_env = NULL;
+      const gchar *existing_prompt_command = g_getenv ("PROMPT_COMMAND");
+
+      argv = g_new0 (gchar *, 2);
+      argv[0] = g_strdup (shell_executable);
+
+      if (g_strcmp0 (shell_basename, "bash") == 0)
+        {
+          prompt_command_env = g_strdup_printf (
+              "printf '\\033]7;file://%%s\\007' \"$PWD\"%s%s",
+              existing_prompt_command != NULL && *existing_prompt_command != '\0' ? ";" : "",
+              existing_prompt_command != NULL ? existing_prompt_command : "");
+          envp = g_environ_setenv (envp,
+                                   "PROMPT_COMMAND",
+                                   prompt_command_env,
+                                   TRUE);
+        }
+    }
+
+  g_clear_object (&priv->spawn_cancellable);
+  priv->spawn_cancellable = g_cancellable_new ();
+  priv->primary_spawn_pending = TRUE;
+  priv->primary_spawn_generation++;
 
   vte_terminal_spawn_async (priv->terminal,
                             VTE_PTY_DEFAULT,
@@ -1471,11 +1860,21 @@ spawn_terminal_async (NautilusTerminalWidget *self)
                             NULL, /* child_setup_data_destroy */
                             -1,   /* timeout */
                             priv->spawn_cancellable,
-                            (VteTerminalSpawnAsyncCallback) spawn_async_callback,
-                            self);
+                            spawn_async_callback,
+                            terminal_spawn_data_new (self,
+                                                     NAUTILUS_TERMINAL_SPAWN_LOCAL,
+                                                     priv->primary_spawn_generation));
 
   g_strfreev (argv);
   g_strfreev (envp);
+}
+
+static void
+clear_pending_ssh_connection_data (NautilusTerminalWidgetPrivate *priv)
+{
+    g_clear_pointer (&priv->pending_ssh_hostname, g_free);
+    g_clear_pointer (&priv->pending_ssh_username, g_free);
+    g_clear_pointer (&priv->pending_ssh_port, g_free);
 }
 
 static void
@@ -1485,9 +1884,20 @@ _clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv)
     g_clear_pointer(&priv->ssh_username, g_free);
     g_clear_pointer(&priv->ssh_port, g_free);
     g_clear_pointer(&priv->ssh_remote_path, g_free);
-    g_clear_pointer(&priv->pending_ssh_hostname, g_free);
-    g_clear_pointer(&priv->pending_ssh_username, g_free);
-    g_clear_pointer(&priv->pending_ssh_port, g_free);
+    clear_pending_ssh_connection_data (priv);
+}
+
+static void
+cancel_primary_spawn (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    priv->primary_spawn_generation++;
+    priv->primary_spawn_pending = FALSE;
+    if (priv->spawn_cancellable != NULL)
+    {
+        g_cancellable_cancel (priv->spawn_cancellable);
+    }
 }
 
 static void
@@ -1511,33 +1921,31 @@ on_terminal_child_exited (VteTerminal *terminal,
   NautilusTerminalWidget        *self = NAUTILUS_TERMINAL_WIDGET (user_data);
   NautilusTerminalWidgetPrivate *priv = self->priv;
 
-  if (gtk_widget_in_destruction (GTK_WIDGET (self)))
+  if (priv->disposing || terminal != priv->terminal)
     {
       priv->child_pid = -1;
       return;
     }
 
   priv->child_pid = -1;
+  priv->needs_respawn = TRUE;
+  _emit_running_command_changed (self, FALSE);
 
-  /* If the terminal was in an SSH session, the end of the ssh process
-   * triggers this signal. We reset the state back to local, which flags
-   * the terminal for respawning a new local shell below. */
-  if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
+  if (priv->state == NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH)
     {
-      _reset_to_local_state (self); /* This sets needs_respawn = TRUE */
+      spawn_pending_ssh_connection (self);
+    }
+  else if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH ||
+           priv->state == NAUTILUS_TERMINAL_STATE_SWITCHING_TO_LOCAL)
+    {
+      _reset_to_local_state (self);
       if (priv->is_visible)
         {
           spawn_terminal_async (self);
         }
     }
-  /*
-   * If the local shell exits (e.g., user types 'exit'), we hide the
-   * terminal widget and ensure it's marked for a full respawn on next show.
-   */
   else if (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL)
     {
-      priv->needs_respawn = TRUE;
-
       /* If the user saw it exit, hide the pane. */
       if (priv->is_visible)
         {
@@ -1568,6 +1976,10 @@ on_terminal_preference_changed(GSettings *settings, const gchar *key, gpointer u
     else if (g_strcmp0(key, "font") == 0 || g_strcmp0(key, "font-size") == 0)
     {
         setup_terminal_font(priv->terminal, priv->settings);
+        if (priv->secondary_terminal != NULL)
+        {
+            setup_terminal_font (priv->secondary_terminal, priv->settings);
+        }
         action = G_SIMPLE_ACTION(g_action_map_lookup_action(G_ACTION_MAP(priv->action_group), "set-font-size"));
         g_simple_action_set_state(action, g_variant_new_int32(g_settings_get_int(priv->settings, "font-size")));
     }
@@ -1587,14 +1999,18 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GFile) new_gfile_location = NULL;
+    g_autoptr (GUri) cwd = NULL;
+    g_autofree gchar *cwd_uri = NULL;
     gboolean should_sync_to_fm = FALSE;
-    const gchar *cwd_uri;
 
     if (gtk_widget_in_destruction(GTK_WIDGET(self)))
         return;
 
-    cwd_uri = vte_terminal_get_current_directory_uri(terminal);
-    if (!cwd_uri) return;
+    cwd = vte_terminal_ref_termprop_uri (terminal,
+                                         VTE_TERMPROP_CURRENT_DIRECTORY_URI);
+    if (cwd == NULL)
+        return;
+    cwd_uri = g_uri_to_string (cwd);
 
     if (priv->ignore_next_terminal_cd_signal)
     {
@@ -1612,14 +2028,23 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
                 g_autofree gchar *local_path = g_filename_from_uri(cwd_uri, NULL, NULL);
                 if (local_path && priv->ssh_hostname)
                 {
-                    g_autoptr(GString) sftp_uri = g_string_new("sftp://");
-                    if (priv->ssh_username && *priv->ssh_username)
-                        g_string_append_printf(sftp_uri, "%s@", priv->ssh_username);
-                    g_string_append(sftp_uri, priv->ssh_hostname);
-                    if (priv->ssh_port && *priv->ssh_port)
-                        g_string_append_printf(sftp_uri, ":%s", priv->ssh_port);
-                    g_string_append(sftp_uri, local_path);
-                    new_gfile_location = g_file_new_for_uri(sftp_uri->str);
+                    gint port = priv->ssh_port != NULL
+                                ? (gint) g_ascii_strtoll (priv->ssh_port, NULL, 10)
+                                : -1;
+                    g_autoptr (GUri) sftp_uri =
+                        g_uri_build_with_user (G_URI_FLAGS_NONE,
+                                               "sftp",
+                                               priv->ssh_username,
+                                               NULL,
+                                               NULL,
+                                               priv->ssh_hostname,
+                                               port,
+                                               local_path,
+                                               NULL,
+                                               NULL);
+                    g_autofree gchar *sftp_uri_string = g_uri_to_string (sftp_uri);
+
+                    new_gfile_location = g_file_new_for_uri (sftp_uri_string);
                 }
             }
         }
@@ -1703,6 +2128,12 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET(user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
+    GtkWidget *controller_widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
+    VteTerminal *terminal = VTE_IS_TERMINAL (controller_widget)
+                            ? VTE_TERMINAL (controller_widget)
+                            : _active_terminal (self);
+
+    priv->active_terminal = terminal;
 
     if ((state & GDK_CONTROL_MASK) && (state & GDK_SHIFT_MASK))
     {
@@ -1710,20 +2141,18 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
         {
             case GDK_KEY_C:
             case GDK_KEY_c:
-                vte_terminal_copy_clipboard_format(priv->terminal, VTE_FORMAT_TEXT);
+                vte_terminal_copy_clipboard_format (terminal, VTE_FORMAT_TEXT);
                 return TRUE;
             case GDK_KEY_V:
             case GDK_KEY_v:
                 priv->refocus_after_paste = TRUE;
-                vte_terminal_paste_clipboard(priv->terminal);
+                vte_terminal_paste_clipboard (terminal);
                 /* Directly schedule focus grab after keyboard paste */
-                if (priv->focus_timeout_id > 0)
-                    g_source_remove (priv->focus_timeout_id);
-                priv->focus_timeout_id = g_timeout_add (50, _ensure_focus_timeout, self);
+                schedule_terminal_focus (self, terminal, 50);
                 return TRUE;
             case GDK_KEY_A:
             case GDK_KEY_a:
-                vte_terminal_select_all (priv->terminal);
+                vte_terminal_select_all (terminal);
                 return TRUE;
             case GDK_KEY_F:
             case GDK_KEY_f:
@@ -1992,7 +2421,7 @@ change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location)
     {
         if (priv->local_sync_mode == NAUTILUS_TERMINAL_SYNC_BOTH || priv->local_sync_mode == NAUTILUS_TERMINAL_SYNC_FM_TO_TERM)
         {
-            if (g_file_query_exists(location, NULL))
+            if (g_file_is_native (location))
             {
                 target_path = g_file_get_path(location);
                 if (target_path != NULL)
@@ -2005,8 +2434,13 @@ change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location)
 
     if (should_sync && target_path)
     {
-        const gchar *term_uri = vte_terminal_get_current_directory_uri(priv->terminal);
-        g_autoptr(GFile) term_gfile = term_uri ? g_file_new_for_uri(term_uri) : NULL;
+        g_autoptr (GUri) term_uri =
+            vte_terminal_ref_termprop_uri (priv->terminal,
+                                           VTE_TERMPROP_CURRENT_DIRECTORY_URI);
+        g_autofree gchar *term_uri_string =
+            term_uri != NULL ? g_uri_to_string (term_uri) : NULL;
+        g_autoptr(GFile) term_gfile =
+            term_uri_string != NULL ? g_file_new_for_uri (term_uri_string) : NULL;
         g_autofree gchar *term_path = term_gfile ? g_file_get_path(term_gfile) : NULL;
 
         if (term_path == NULL || g_strcmp0(term_path, target_path) != 0)
@@ -2034,8 +2468,8 @@ parse_gvfs_ssh_path(GFile *location, gchar **hostname, gchar **username, gchar *
     if (uri && g_strcmp0(g_uri_get_scheme(uri), "sftp") == 0)
     {
         *hostname = g_strdup(g_uri_get_host(uri));
-        if (g_uri_get_userinfo(uri))
-            *username = g_strdup(g_uri_get_userinfo(uri));
+        if (g_uri_get_user (uri) != NULL)
+            *username = g_strdup (g_uri_get_user (uri));
         if (g_uri_get_port(uri) > 0)
             *port = g_strdup_printf("%d", g_uri_get_port(uri));
         return (*hostname != NULL);
@@ -2044,48 +2478,99 @@ parse_gvfs_ssh_path(GFile *location, gchar **hostname, gchar **username, gchar *
     return FALSE;
 }
 
+gchar *
+nautilus_terminal_build_remote_shell_command (const gchar *remote_path,
+                                              gboolean     sync_to_file_manager)
+{
+    g_autoptr (GString) script = g_string_new ("_nvshell=${SHELL:-/bin/sh}; ");
+    g_autofree gchar *quoted_script = NULL;
+
+    if (remote_path != NULL && *remote_path != '\0')
+    {
+        g_autofree gchar *quoted_remote_path = g_shell_quote (remote_path);
+
+        g_string_append_printf (script, "cd %s; ", quoted_remote_path);
+    }
+
+    if (!sync_to_file_manager)
+    {
+        g_string_append (script, "exec \"$_nvshell\" -l");
+    }
+    else
+    {
+        g_string_append (
+            script,
+            "_nvbase=${_nvshell##*/}; case \"$_nvbase\" in "
+            "bash) "
+            "_nvpc='printf \"\\033]7;file://%s\\007\" \"$PWD\"'; "
+            "if [ -n \"${PROMPT_COMMAND:-}\" ]; then "
+            "PROMPT_COMMAND=\"$_nvpc;$PROMPT_COMMAND\"; "
+            "else PROMPT_COMMAND=\"$_nvpc\"; fi; "
+            "export PROMPT_COMMAND; exec \"$_nvshell\" -l ;; "
+            "fish) exec \"$_nvshell\" -l --init-command "
+            "'function _nautilus_vte_update_cwd --on-event fish_prompt; "
+            "printf \"\\033]7;file://%s\\007\" $PWD; end' ;; "
+            "zsh) "
+            "_nvd=\"${TMPDIR:-/tmp}/nautilus-vte-${USER:-user}-$$\"; "
+            "if mkdir -m 700 \"$_nvd\"; then "
+            "_NAUTILUS_ORIGINAL_ZDOTDIR=${ZDOTDIR:-$HOME}; "
+            "_NAUTILUS_VTE_ZDOTDIR=$_nvd; "
+            "export _NAUTILUS_ORIGINAL_ZDOTDIR _NAUTILUS_VTE_ZDOTDIR; "
+            "printf '%s\\n' "
+            "'if [[ -r \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\" ]]; then' "
+            "'  source \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\"' "
+            "'fi' "
+            "'autoload -Uz add-zsh-hook' "
+            "'_nautilus_vte_update_cwd() { printf \"\\033]7;file://%s\\007\" \"$PWD\"; }' "
+            "'_nautilus_vte_cleanup() { command rm -f -- \"$_NAUTILUS_VTE_ZDOTDIR/.zshrc\"; command rmdir -- \"$_NAUTILUS_VTE_ZDOTDIR\"; }' "
+            "'add-zsh-hook precmd _nautilus_vte_update_cwd' "
+            "'add-zsh-hook zshexit _nautilus_vte_cleanup' "
+            "> \"$_nvd/.zshrc\"; "
+            "ZDOTDIR=$_nvd; export ZDOTDIR; fi; "
+            "exec \"$_nvshell\" -l ;; "
+            "*) exec \"$_nvshell\" -l ;; esac");
+    }
+
+    quoted_script = g_shell_quote (script->str);
+    return g_strdup_printf ("exec sh -c %s", quoted_script);
+}
+
 static void
-_initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port, NautilusTerminalSyncMode sync_mode)
+spawn_pending_ssh_connection (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GPtrArray) argv_array = g_ptr_array_new_with_free_func(g_free);
     g_autofree gchar *remote_cmd = NULL;
-    GString *remote_cmd_builder;
+    const gchar *hostname;
+    const gchar *username;
+    const gchar *port;
 
-    if (priv->child_pid != -1)
+    if (priv->disposing || priv->child_pid != -1 ||
+        priv->primary_spawn_pending || priv->pending_ssh_hostname == NULL)
     {
-        kill(priv->child_pid, SIGTERM);
-        priv->child_pid = -1;
+        return;
     }
 
-    priv->state = NAUTILUS_TERMINAL_STATE_IN_SSH;
-    priv->ssh_sync_mode = sync_mode;
-    priv->ssh_hostname = g_strdup(hostname);
-    priv->ssh_username = g_strdup(username);
-    priv->ssh_port = g_strdup(port);
+    g_clear_pointer (&priv->ssh_hostname, g_free);
+    g_clear_pointer (&priv->ssh_username, g_free);
+    g_clear_pointer (&priv->ssh_port, g_free);
+    g_clear_pointer (&priv->ssh_remote_path, g_free);
+    priv->ssh_hostname = g_steal_pointer (&priv->pending_ssh_hostname);
+    priv->ssh_username = g_steal_pointer (&priv->pending_ssh_username);
+    priv->ssh_port = g_steal_pointer (&priv->pending_ssh_port);
+    priv->ssh_sync_mode = priv->pending_ssh_sync_mode;
+
+    hostname = priv->ssh_hostname;
+    username = priv->ssh_username;
+    port = priv->ssh_port;
 
     if (priv->current_location)
         priv->ssh_remote_path = get_remote_path_from_sftp_gfile(priv->current_location);
 
-    remote_cmd_builder = g_string_new("");
-    if (priv->ssh_remote_path && *priv->ssh_remote_path)
-    {
-        g_autofree gchar *quoted_remote_path = g_shell_quote(priv->ssh_remote_path);
-        g_string_append_printf(remote_cmd_builder, " cd %s; ", quoted_remote_path);
-    }
-    /*
-     * To enable directory synchronization from terminal to file manager, we need the shell
-     * to notify us of its current working directory. This is achieved by setting
-     * PROMPT_COMMAND, which is a bash-specific feature. It executes the 'echo' command
-     * before each prompt, sending a special OSC 7 escape sequence with the current directory URI.
-     * Note: This will not work for other shells like zsh (which uses `precmd` hooks) or fish.
-     */
-    if (priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_BOTH || priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_TERM_TO_FM)
-    {
-        g_string_append(remote_cmd_builder, " export PROMPT_COMMAND='echo -en \"\\033]7;file://$PWD\\007\"'; ");
-    }
-    g_string_append(remote_cmd_builder, "$SHELL -l");
-    remote_cmd = g_string_free(remote_cmd_builder, FALSE);
+    remote_cmd = nautilus_terminal_build_remote_shell_command (
+        priv->ssh_remote_path,
+        priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_BOTH ||
+        priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_TERM_TO_FM);
 
     g_ptr_array_add(argv_array, g_strdup("ssh"));
     g_ptr_array_add(argv_array, g_strdup("-t"));
@@ -2105,6 +2590,11 @@ _initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, co
     gtk_widget_set_visible(priv->ssh_indicator, TRUE);
 
     priv->ignore_next_terminal_cd_signal = TRUE;
+    priv->state = NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH;
+    g_clear_object (&priv->spawn_cancellable);
+    priv->spawn_cancellable = g_cancellable_new ();
+    priv->primary_spawn_pending = TRUE;
+    priv->primary_spawn_generation++;
 
     vte_terminal_spawn_async(priv->terminal,
                             VTE_PTY_DEFAULT,
@@ -2115,8 +2605,87 @@ _initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, co
                             NULL, NULL, NULL,
                             -1,
                             priv->spawn_cancellable,
-                            (VteTerminalSpawnAsyncCallback)spawn_async_callback,
-                            self);
+                            spawn_async_callback,
+                            terminal_spawn_data_new (self,
+                                                     NAUTILUS_TERMINAL_SPAWN_SSH,
+                                                     priv->primary_spawn_generation));
+}
+
+static void
+_initiate_ssh_connection (NautilusTerminalWidget *self,
+                          const gchar            *hostname,
+                          const gchar            *username,
+                          const gchar            *port,
+                          NautilusTerminalSyncMode sync_mode)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (hostname == NULL || *hostname == '\0' || priv->disposing)
+    {
+        return;
+    }
+
+    clear_pending_ssh_connection_data (priv);
+    priv->pending_ssh_hostname = g_strdup (hostname);
+    priv->pending_ssh_username = g_strdup (username);
+    priv->pending_ssh_port = g_strdup (port);
+    priv->pending_ssh_sync_mode = sync_mode;
+
+    if (priv->primary_spawn_pending)
+    {
+        cancel_primary_spawn (self);
+    }
+
+    if (priv->child_pid > 0)
+    {
+        priv->state = NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH;
+        if (kill (priv->child_pid, SIGHUP) == -1 && errno == ESRCH)
+        {
+            priv->child_pid = -1;
+            spawn_pending_ssh_connection (self);
+        }
+        return;
+    }
+
+    spawn_pending_ssh_connection (self);
+}
+
+static void
+switch_to_local_terminal (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (priv->disposing ||
+        (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL &&
+         !priv->primary_spawn_pending))
+    {
+        return;
+    }
+
+    clear_pending_ssh_connection_data (priv);
+    if (priv->primary_spawn_pending)
+    {
+        cancel_primary_spawn (self);
+    }
+
+    if (priv->child_pid > 0)
+    {
+        priv->state = NAUTILUS_TERMINAL_STATE_SWITCHING_TO_LOCAL;
+        if (kill (priv->child_pid, SIGHUP) == -1 && errno == ESRCH)
+        {
+            priv->child_pid = -1;
+        }
+        else
+        {
+            return;
+        }
+    }
+
+    _reset_to_local_state (self);
+    if (priv->is_visible)
+    {
+        spawn_terminal_async (self);
+    }
 }
 
 static void
@@ -2147,9 +2716,27 @@ static const gchar *
 nautilus_terminal_widget_get_color_scheme(NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
+    gboolean valid = FALSE;
+
     if (priv->color_scheme == NULL) {
         priv->color_scheme = g_settings_get_string(priv->settings, "color-scheme");
     }
+
+    for (gsize i = 0; i < G_N_ELEMENTS (COLOR_SCHEME_ENTRIES); i++)
+    {
+        if (g_strcmp0 (priv->color_scheme, COLOR_SCHEME_ENTRIES[i].id) == 0)
+        {
+            valid = TRUE;
+            break;
+        }
+    }
+
+    if (!valid)
+    {
+        g_free (priv->color_scheme);
+        priv->color_scheme = g_strdup ("system");
+    }
+
     return priv->color_scheme;
 }
 
@@ -2289,52 +2876,85 @@ nautilus_terminal_widget_set_current_location(NautilusTerminalWidget *self, GFil
         return;
     }
 
-    /*
-     * If this is the first time we're setting the location, it's part of the
-     * initial setup. If the terminal should be visible but hasn't spawned, trigger the spawn now.
-     * This ensures the terminal starts in the correct directory from the very beginning.
-     */
-    if (is_first_location_set && priv->is_visible && priv->needs_respawn) {
-        spawn_terminal_async(self);
-        return;
-    }
-
     scheme = g_file_get_uri_scheme(location);
     if (scheme == NULL) {
         return;
     }
 
-    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH) {
-        if (g_strcmp0(scheme, "sftp") == 0 &&
-            parse_gvfs_ssh_path(location, &hostname, &username, &port) &&
-            priv->ssh_hostname && g_strcmp0(hostname, priv->ssh_hostname) == 0)
+    if (g_strcmp0 (scheme, "sftp") == 0 &&
+        parse_gvfs_ssh_path (location, &hostname, &username, &port))
+    {
+        if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH &&
+            nautilus_terminal_ssh_identity_equal (hostname,
+                                                  username,
+                                                  port,
+                                                  priv->ssh_hostname,
+                                                  priv->ssh_username,
+                                                  priv->ssh_port))
         {
-            change_directory_in_terminal(self, location);
+            change_directory_in_terminal (self, location);
+            return;
         }
-    } else { /* Local state */
-        if (g_strcmp0(scheme, "sftp") == 0 &&
-            priv->ssh_auto_connect_mode != NAUTILUS_TERMINAL_SSH_AUTOCONNECT_OFF &&
-            parse_gvfs_ssh_path(location, &hostname, &username, &port)) {
 
+        if (priv->state == NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH)
+        {
+            const gchar *target_hostname = priv->pending_ssh_hostname != NULL
+                                           ? priv->pending_ssh_hostname
+                                           : priv->ssh_hostname;
+            const gchar *target_username = priv->pending_ssh_hostname != NULL
+                                           ? priv->pending_ssh_username
+                                           : priv->ssh_username;
+            const gchar *target_port = priv->pending_ssh_hostname != NULL
+                                       ? priv->pending_ssh_port
+                                       : priv->ssh_port;
+
+            if (nautilus_terminal_ssh_identity_equal (hostname,
+                                                       username,
+                                                       port,
+                                                       target_hostname,
+                                                       target_username,
+                                                       target_port))
+            {
+                return;
+            }
+        }
+
+        if (priv->ssh_auto_connect_mode != NAUTILUS_TERMINAL_SSH_AUTOCONNECT_OFF)
+        {
             NautilusTerminalSyncMode sync_mode;
-            switch (priv->ssh_auto_connect_mode) {
+
+            switch (priv->ssh_auto_connect_mode)
+            {
                 case NAUTILUS_TERMINAL_SSH_AUTOCONNECT_SYNC_BOTH: sync_mode = NAUTILUS_TERMINAL_SYNC_BOTH; break;
                 case NAUTILUS_TERMINAL_SSH_AUTOCONNECT_SYNC_FM_TO_TERM: sync_mode = NAUTILUS_TERMINAL_SYNC_FM_TO_TERM; break;
                 case NAUTILUS_TERMINAL_SSH_AUTOCONNECT_SYNC_TERM_TO_FM: sync_mode = NAUTILUS_TERMINAL_SYNC_TERM_TO_FM; break;
                 default: sync_mode = NAUTILUS_TERMINAL_SYNC_NONE; break;
             }
 
-            if (priv->child_pid != -1) {
-                _initiate_ssh_connection(self, hostname, username, port, sync_mode);
-            } else {
-                priv->pending_ssh_hostname = g_strdup(hostname);
-                priv->pending_ssh_username = g_strdup(username);
-                priv->pending_ssh_port = g_strdup(port);
-                priv->pending_ssh_sync_mode = sync_mode;
-            }
-        } else {
-            change_directory_in_terminal(self, location);
+            _initiate_ssh_connection (self, hostname, username, port, sync_mode);
         }
+        else if (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL &&
+                 priv->is_visible && priv->needs_respawn)
+        {
+            spawn_terminal_async (self);
+        }
+
+        return;
+    }
+
+    if (priv->state != NAUTILUS_TERMINAL_STATE_LOCAL)
+    {
+        switch_to_local_terminal (self);
+        return;
+    }
+
+    if (is_first_location_set && priv->is_visible && priv->needs_respawn)
+    {
+        spawn_terminal_async (self);
+    }
+    else
+    {
+        change_directory_in_terminal (self, location);
     }
 }
 
@@ -2363,7 +2983,11 @@ nautilus_terminal_widget_toggle_visible(NautilusTerminalWidget *self)
             int position = gtk_paned_get_position(GTK_PANED(paned));
             int total_height = gtk_widget_get_height(paned);
             if (total_height > 0) {
-                g_settings_set_int(priv->settings, "pane-size", total_height - position);
+                int pane_size = CLAMP (total_height - position,
+                                       MIN_TERMINAL_HEIGHT,
+                                       MAX_TERMINAL_HEIGHT);
+
+                g_settings_set_int (priv->settings, "pane-size", pane_size);
             }
         }
     }
@@ -2413,24 +3037,50 @@ _ensure_focus_timeout(gpointer user_data)
 {
     NautilusTerminalWidget *self = user_data;
     NautilusTerminalWidgetPrivate *priv = self->priv;
+    VteTerminal *terminal = g_weak_ref_get (&priv->focus_target_weak_ref);
+
     priv->focus_timeout_id = 0;
-    if (!gtk_widget_in_destruction(GTK_WIDGET(self)) && priv->is_visible && priv->terminal) {
-        gtk_widget_grab_focus(GTK_WIDGET(priv->terminal));
+    g_weak_ref_set (&priv->focus_target_weak_ref, NULL);
+
+    if (!priv->disposing && priv->is_visible && terminal != NULL &&
+        gtk_widget_get_realized (GTK_WIDGET (terminal)) &&
+        gtk_widget_get_visible (GTK_WIDGET (terminal)))
+    {
+        gtk_widget_grab_focus (GTK_WIDGET (terminal));
     }
+
+    g_clear_object (&terminal);
     return G_SOURCE_REMOVE;
+}
+
+static void
+schedule_terminal_focus (NautilusTerminalWidget *self,
+                         VteTerminal           *terminal,
+                         guint                  delay_ms)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (priv->disposing || terminal == NULL)
+    {
+        return;
+    }
+
+    g_clear_handle_id (&priv->focus_timeout_id, g_source_remove);
+    g_weak_ref_set (&priv->focus_target_weak_ref, terminal);
+    priv->focus_timeout_id =
+        g_timeout_add_full (G_PRIORITY_DEFAULT,
+                            delay_ms,
+                            _ensure_focus_timeout,
+                            g_object_ref (self),
+                            g_object_unref);
 }
 
 void
 nautilus_terminal_widget_ensure_terminal_focus(NautilusTerminalWidget *self)
 {
-    NautilusTerminalWidgetPrivate *priv;
     g_return_if_fail(NAUTILUS_IS_TERMINAL_WIDGET(self));
-    priv = self->priv;
 
-    if (priv->focus_timeout_id > 0) {
-        g_source_remove(priv->focus_timeout_id);
-    }
-    priv->focus_timeout_id = g_timeout_add(100, _ensure_focus_timeout, self);
+    schedule_terminal_focus (self, _active_terminal (self), 100);
 }
 
 gboolean
@@ -2459,9 +3109,8 @@ nautilus_terminal_widget_apply_new_size(NautilusTerminalWidget *self)
         gint total_height = gtk_widget_get_height(paned);
         term_size = g_settings_get_int(priv->settings, "pane-size");
 
-        if (term_size < MIN_TERMINAL_HEIGHT) {
-            term_size = MIN_TERMINAL_HEIGHT;
-        }
-        gtk_paned_set_position(GTK_PANED(paned), total_height - term_size);
+        term_size = CLAMP (term_size, MIN_TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT);
+        term_size = MIN (term_size, total_height);
+        gtk_paned_set_position(GTK_PANED(paned), MAX (0, total_height - term_size));
     }
 }

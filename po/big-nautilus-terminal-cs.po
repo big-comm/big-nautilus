@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Czech\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Systém"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Tmavé"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Světlé"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized tmavé"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized světlé"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half tmavé"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half světlé"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Synchronizovat obousměrně"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Synchronizovat: Správce souborů → Terminál"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Synchronizovat: Terminál → Správce souborů"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Bez synchronizace"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Nepřipojovat automaticky"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Automaticky připojit a synchronizovat obousměrně"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Automaticky připojit a synchronizovat: Správce souborů → Terminál"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Automaticky připojit a synchronizovat: Terminál → Správce souborů"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Automaticky připojit bez synchronizace"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Synchronizovat složku obousměrně"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Synchronizovat složku: Správce souborů → Terminál"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Synchronizovat složku: Terminál → Správce souborů"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Bez synchronizace složky"
 
-msgid "Copy"
-msgstr "Kopírovat"
-
-msgid "Paste"
-msgstr "Vložit"
-
-msgid "Select All"
-msgstr "Vybrat vše"
-
-msgid "Color Scheme"
-msgstr "Barevné schéma"
-
-msgid "Font Size"
-msgstr "Velikost písma"
-
-msgid "SSH Auto-Connect"
-msgstr "Automatické SSH připojení"
-
-msgid "Disconnect from SSH"
-msgstr "Odpojit od SSH"
-
-msgid "Local Folder Sync"
-msgstr "Synchronizace místní složky"
-
-msgid "SSH Connection to %s"
-msgstr "SSH připojení k %s"
-
-msgid "Find…"
-msgstr "Najít…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Hledat v historii terminálu"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Předchozí shoda"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Další shoda"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Rozlišovat velikost"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Regulární výraz"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Zavřít hledání"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Kopírovat"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Vložit"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Vybrat vše"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Najít…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Barevné schéma"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Velikost písma"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "Automatické SSH připojení"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Odpojit od SSH"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Synchronizace místní složky"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH připojení k %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Rozdělit vodorovně"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Rozdělit svisle"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Zavřít panel"
-

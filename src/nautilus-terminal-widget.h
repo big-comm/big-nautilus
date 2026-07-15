@@ -84,4 +84,14 @@ void nautilus_terminal_widget_apply_new_size (NautilusTerminalWidget *self);
 const char *nautilus_terminal_widget_get_last_command_title (NautilusTerminalWidget *self);
 gboolean    nautilus_terminal_widget_is_command_running     (NautilusTerminalWidget *self);
 
+gboolean nautilus_terminal_ssh_identity_equal (const char *hostname_a,
+                                               const char *username_a,
+                                               const char *port_a,
+                                               const char *hostname_b,
+                                               const char *username_b,
+                                               const char *port_b);
+char *nautilus_terminal_sanitize_title (const char *title);
+char *nautilus_terminal_build_remote_shell_command (const char *remote_path,
+                                                    gboolean    sync_to_file_manager);
+
 G_END_DECLS

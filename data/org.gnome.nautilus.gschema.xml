@@ -281,6 +281,7 @@
     </key>
     <key name="pane-size" type="i">
         <default>200</default>
+        <range min="100" max="4096"/>
         <summary>Terminal panel height</summary>
         <description>Height of the terminal panel in pixels.</description>
     </key>
@@ -291,6 +292,7 @@
     </key>
     <key name="font-size" type="i">
       <default>12</default>
+      <range min="6" max="72"/>
       <summary>Terminal font size</summary>
       <description>The font size to use for the embedded terminal in point units.</description>
     </key>

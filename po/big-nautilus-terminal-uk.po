@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Ukrainian\n"
@@ -15,126 +15,169 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Системна"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Темна"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Світла"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized темна"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized світла"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Матриця"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half темна"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half світла"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Синхронізувати в обох напрямках"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Синхронізувати: Файловий менеджер → Термінал"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Синхронізувати: Термінал → Файловий менеджер"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Без синхронізації"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Не підключатися автоматично"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Підключатися автоматично та синхронізувати в обох напрямках"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
-msgstr "Підключатися автоматично та синхронізувати: Файловий менеджер → Термінал"
+msgstr ""
+"Підключатися автоматично та синхронізувати: Файловий менеджер → Термінал"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
-msgstr "Підключатися автоматично та синхронізувати: Термінал → Файловий менеджер"
+msgstr ""
+"Підключатися автоматично та синхронізувати: Термінал → Файловий менеджер"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Підключатися автоматично без синхронізації"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Синхронізувати теку в обох напрямках"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Синхронізувати теку: Файловий менеджер → Термінал"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Синхронізувати теку: Термінал → Файловий менеджер"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Без синхронізації теки"
 
-msgid "Copy"
-msgstr "Копіювати"
-
-msgid "Paste"
-msgstr "Вставити"
-
-msgid "Select All"
-msgstr "Вибрати все"
-
-msgid "Color Scheme"
-msgstr "Кольорова схема"
-
-msgid "Font Size"
-msgstr "Розмір шрифту"
-
-msgid "SSH Auto-Connect"
-msgstr "Автоматичне підключення SSH"
-
-msgid "Disconnect from SSH"
-msgstr "Від'єднатися від SSH"
-
-msgid "Local Folder Sync"
-msgstr "Синхронізація локальної теки"
-
-msgid "SSH Connection to %s"
-msgstr "SSH-підключення до %s"
-
-msgid "Find…"
-msgstr "Знайти…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Пошук в історії термінала"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Попередній збіг"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Наступний збіг"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Враховувати регістр"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Регулярний вираз"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Закрити пошук"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Копіювати"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Вставити"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Вибрати все"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Знайти…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Кольорова схема"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Розмір шрифту"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "Автоматичне підключення SSH"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Від'єднатися від SSH"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Синхронізація локальної теки"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH-підключення до %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Розділити горизонтально"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Розділити вертикально"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Закрити панель"
-

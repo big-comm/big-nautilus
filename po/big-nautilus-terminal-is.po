@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Icelandic\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Kerfi"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Dökkt"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Ljóst"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized dökkt"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized ljóst"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half dökkt"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half ljóst"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Samstilla báðar leiðir"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Samstilla: Skráastjóri → Skelja"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Samstilla: Skelja → Skráastjóri"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Engin samstilling"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Ekki tengjast sjálfkrafa"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Tengjast sjálfkrafa og samstilla báðar leiðir"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Tengjast sjálfkrafa og samstilla: Skráastjóri → Skelja"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Tengjast sjálfkrafa og samstilla: Skelja → Skráastjóri"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Tengjast sjálfkrafa án samstillingar"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Samstilla möppu báðar leiðir"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Samstilla möppu: Skráastjóri → Skelja"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Samstilla möppu: Skelja → Skráastjóri"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Engin möppusamstilling"
 
-msgid "Copy"
-msgstr "Afrita"
-
-msgid "Paste"
-msgstr "Líma"
-
-msgid "Select All"
-msgstr "Velja allt"
-
-msgid "Color Scheme"
-msgstr "Litaþema"
-
-msgid "Font Size"
-msgstr "Leturstærð"
-
-msgid "SSH Auto-Connect"
-msgstr "Sjálfvirk SSH tenging"
-
-msgid "Disconnect from SSH"
-msgstr "Aftengja SSH"
-
-msgid "Local Folder Sync"
-msgstr "Staðbundin möppusamstilling"
-
-msgid "SSH Connection to %s"
-msgstr "SSH tenging við %s"
-
-msgid "Find…"
-msgstr "Finna…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Leita í skjáminni skjáhermis"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Fyrra samsvörun"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Næsta samsvörun"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Næmt fyrir há-/lágstöfum"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Reglulega segð"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Loka leit"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Afrita"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Líma"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Velja allt"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Finna…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Litaþema"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Leturstærð"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "Sjálfvirk SSH tenging"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Aftengja SSH"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Staðbundin möppusamstilling"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "SSH tenging við %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Skipta lárétt"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Skipta lóðrétt"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Loka spjaldi"
-

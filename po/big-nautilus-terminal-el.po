@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: nautilus-terminal 49.4\n"
+"Project-Id-Version: nautilus-terminal 50.2.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-14 19:07-0300\n"
+"POT-Creation-Date: 2026-07-15 19:43-0300\n"
 "PO-Revision-Date: 2026-03-14 19:07-0300\n"
 "Last-Translator: Auto-generated\n"
 "Language-Team: Greek\n"
@@ -15,126 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: src/nautilus-terminal-widget.c:197
 msgid "System"
 msgstr "Σύστημα"
 
+#: src/nautilus-terminal-widget.c:198
 msgid "Dark"
 msgstr "Σκοτεινό"
 
+#: src/nautilus-terminal-widget.c:208
 msgid "Light"
 msgstr "Φωτεινό"
 
+#: src/nautilus-terminal-widget.c:218
 msgid "Solarized Dark"
 msgstr "Solarized σκοτεινό"
 
+#: src/nautilus-terminal-widget.c:228
 msgid "Solarized Light"
 msgstr "Solarized φωτεινό"
 
+#: src/nautilus-terminal-widget.c:238
 msgid "Matrix"
 msgstr "Matrix"
 
+#: src/nautilus-terminal-widget.c:248
 msgid "One Half Dark"
 msgstr "One Half σκοτεινό"
 
+#: src/nautilus-terminal-widget.c:258
 msgid "One Half Light"
 msgstr "One Half φωτεινό"
 
+#: src/nautilus-terminal-widget.c:268
 msgid "Monokai"
 msgstr "Monokai"
 
+#: src/nautilus-terminal-widget.c:298
 msgid "Sync Both Ways"
 msgstr "Συγχρονισμός αμφίδρομα"
 
+#: src/nautilus-terminal-widget.c:299
 msgid "Sync File Manager → Terminal"
 msgstr "Συγχρονισμός: Διαχείριση αρχείων → Τερματικό"
 
+#: src/nautilus-terminal-widget.c:300
 msgid "Sync Terminal → File Manager"
 msgstr "Συγχρονισμός: Τερματικό → Διαχείριση αρχείων"
 
+#: src/nautilus-terminal-widget.c:301
 msgid "No Sync"
 msgstr "Χωρίς συγχρονισμό"
 
+#: src/nautilus-terminal-widget.c:311
 msgid "Do not connect automatically"
 msgstr "Να μη γίνεται αυτόματη σύνδεση"
 
+#: src/nautilus-terminal-widget.c:312
 msgid "Automatically connect and sync both ways"
 msgstr "Αυτόματη σύνδεση και αμφίδρομος συγχρονισμός"
 
+#: src/nautilus-terminal-widget.c:313
 msgid "Automatically connect and sync: File Manager → Terminal"
 msgstr "Αυτόματη σύνδεση και συγχρονισμός: Διαχείριση αρχείων → Τερματικό"
 
+#: src/nautilus-terminal-widget.c:314
 msgid "Automatically connect and sync: Terminal → File Manager"
 msgstr "Αυτόματη σύνδεση και συγχρονισμός: Τερματικό → Διαχείριση αρχείων"
 
+#: src/nautilus-terminal-widget.c:315
 msgid "Automatically connect without syncing"
 msgstr "Αυτόματη σύνδεση χωρίς συγχρονισμό"
 
+#: src/nautilus-terminal-widget.c:319
 msgid "Sync folder both ways"
 msgstr "Συγχρονισμός φακέλου αμφίδρομα"
 
+#: src/nautilus-terminal-widget.c:320
 msgid "Sync folder from File Manager → Terminal"
 msgstr "Συγχρονισμός φακέλου: Διαχείριση αρχείων → Τερματικό"
 
+#: src/nautilus-terminal-widget.c:321
 msgid "Sync folder from Terminal → File Manager"
 msgstr "Συγχρονισμός φακέλου: Τερματικό → Διαχείριση αρχείων"
 
+#: src/nautilus-terminal-widget.c:322
 msgid "No folder sync"
 msgstr "Χωρίς συγχρονισμό φακέλου"
 
-msgid "Copy"
-msgstr "Αντιγραφή"
-
-msgid "Paste"
-msgstr "Επικόλληση"
-
-msgid "Select All"
-msgstr "Επιλογή όλων"
-
-msgid "Color Scheme"
-msgstr "Χρωματικό σχήμα"
-
-msgid "Font Size"
-msgstr "Μέγεθος γραμματοσειράς"
-
-msgid "SSH Auto-Connect"
-msgstr "Αυτόματη σύνδεση SSH"
-
-msgid "Disconnect from SSH"
-msgstr "Αποσύνδεση από SSH"
-
-msgid "Local Folder Sync"
-msgstr "Τοπικός συγχρονισμός φακέλου"
-
-msgid "SSH Connection to %s"
-msgstr "Σύνδεση SSH σε %s"
-
-msgid "Find…"
-msgstr "Εύρεση…"
-
+#: src/nautilus-terminal-widget.c:1557
 msgid "Search terminal scrollback"
 msgstr "Αναζήτηση στο ιστορικό τερματικού"
 
+#: src/nautilus-terminal-widget.c:1576
 msgid "Previous match"
 msgstr "Προηγούμενο ταίριασμα"
 
+#: src/nautilus-terminal-widget.c:1581
 msgid "Next match"
 msgstr "Επόμενο ταίριασμα"
 
+#: src/nautilus-terminal-widget.c:1586
 msgid "Match Case"
 msgstr "Διάκριση πεζών-κεφαλαίων"
 
+#: src/nautilus-terminal-widget.c:1595
 msgid "Regular Expression"
 msgstr "Κανονική έκφραση"
 
+#: src/nautilus-terminal-widget.c:1604
 msgid "Close search"
 msgstr "Κλείσιμο αναζήτησης"
 
+#: src/nautilus-terminal-widget.c:2283
+msgid "Copy"
+msgstr "Αντιγραφή"
+
+#: src/nautilus-terminal-widget.c:2286
+msgid "Paste"
+msgstr "Επικόλληση"
+
+#: src/nautilus-terminal-widget.c:2289
+msgid "Select All"
+msgstr "Επιλογή όλων"
+
+#: src/nautilus-terminal-widget.c:2292
+msgid "Find…"
+msgstr "Εύρεση…"
+
+#: src/nautilus-terminal-widget.c:2298
+msgid "Color Scheme"
+msgstr "Χρωματικό σχήμα"
+
+#: src/nautilus-terminal-widget.c:2299
+msgid "Font Size"
+msgstr "Μέγεθος γραμματοσειράς"
+
+#: src/nautilus-terminal-widget.c:2310
+msgid "SSH Auto-Connect"
+msgstr "Αυτόματη σύνδεση SSH"
+
+#: src/nautilus-terminal-widget.c:2313
+msgid "Disconnect from SSH"
+msgstr "Αποσύνδεση από SSH"
+
+#: src/nautilus-terminal-widget.c:2317
+msgid "Local Folder Sync"
+msgstr "Τοπικός συγχρονισμός φακέλου"
+
+#: src/nautilus-terminal-widget.c:2323
+#, c-format
+msgid "SSH Connection to %s"
+msgstr "Σύνδεση SSH σε %s"
+
+#: src/nautilus-terminal-widget.c:2335
 msgid "Split Horizontally"
 msgstr "Οριζόντιος διαχωρισμός"
 
+#: src/nautilus-terminal-widget.c:2338
 msgid "Split Vertically"
 msgstr "Κατακόρυφος διαχωρισμός"
 
+#: src/nautilus-terminal-widget.c:2341
 msgid "Close Pane"
 msgstr "Κλείσιμο πίνακα"
-

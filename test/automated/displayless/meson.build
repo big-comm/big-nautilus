@@ -25,6 +25,7 @@ tests = {
   'test-nautilus-search-engine-simple': {},
   'test-ui-utilities': {},
   'test-thumbnails': {},
+  'test-terminal-utils': {},
 }
 
 foreach test_name, extra_args : tests
