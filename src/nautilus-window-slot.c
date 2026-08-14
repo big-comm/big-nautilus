@@ -848,6 +848,14 @@ nautilus_window_slot_constructed (GObject *object)
     G_OBJECT_CLASS (nautilus_window_slot_parent_class)->constructed (object);
 
     self->terminal_pane_container = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
+    /* The file view must never collapse to zero: GtkPaned defaults
+     * shrink-start-child to TRUE, which lets a bogus position (0) hide the view
+     * entirely with the drag handle stuck under the header bar. Extra space
+     * goes to the view; the terminal keeps the height the user chose. */
+    gtk_paned_set_shrink_start_child (GTK_PANED (self->terminal_pane_container), FALSE);
+    gtk_paned_set_shrink_end_child (GTK_PANED (self->terminal_pane_container), FALSE);
+    gtk_paned_set_resize_start_child (GTK_PANED (self->terminal_pane_container), TRUE);
+    gtk_paned_set_resize_end_child (GTK_PANED (self->terminal_pane_container), FALSE);
     adw_bin_set_child (ADW_BIN (self), self->terminal_pane_container);
     self->terminal_settings = g_settings_new ("org.gnome.nautilus.terminal");
     g_signal_connect_object (self->terminal_pane_container,

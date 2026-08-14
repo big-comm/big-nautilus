@@ -100,6 +100,8 @@ struct _NautilusTerminalWidgetPrivate
   gboolean            primary_spawn_pending;
   gboolean            secondary_spawn_pending;
   guint               focus_timeout_id;
+  guint               apply_size_retry_id;
+  guint               apply_size_retries;
   guint               primary_spawn_generation;
   guint               secondary_spawn_generation;
   GPid                child_pid;
@@ -448,6 +450,7 @@ nautilus_terminal_widget_dispose(GObject *object)
         g_source_remove(priv->focus_timeout_id);
         priv->focus_timeout_id = 0;
     }
+    g_clear_handle_id (&priv->apply_size_retry_id, g_source_remove);
     g_weak_ref_set (&priv->focus_target_weak_ref, NULL);
 
     if (priv->spawn_cancellable) {
@@ -3090,6 +3093,42 @@ nautilus_terminal_widget_get_visible(NautilusTerminalWidget *self)
     return self->priv->is_visible;
 }
 
+/* Number of idle turns to wait for the paned allocation before giving up. */
+#define APPLY_SIZE_MAX_RETRIES 30
+
+static gboolean
+_apply_size_retry (gpointer user_data)
+{
+    NautilusTerminalWidget *self = user_data;
+
+    self->priv->apply_size_retry_id = 0;
+    if (!self->priv->disposing) {
+        nautilus_terminal_widget_apply_new_size (self);
+    }
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+schedule_apply_size_retry (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (priv->disposing || priv->apply_size_retry_id != 0) {
+        return;
+    }
+    if (priv->apply_size_retries >= APPLY_SIZE_MAX_RETRIES) {
+        return;
+    }
+
+    priv->apply_size_retries++;
+    priv->apply_size_retry_id =
+        g_idle_add_full (G_PRIORITY_DEFAULT_IDLE,
+                         _apply_size_retry,
+                         g_object_ref (self),
+                         g_object_unref);
+}
+
 void
 nautilus_terminal_widget_apply_new_size(NautilusTerminalWidget *self)
 {
@@ -3107,6 +3146,17 @@ nautilus_terminal_widget_apply_new_size(NautilusTerminalWidget *self)
 
     if (priv->is_visible) {
         gint total_height = gtk_widget_get_height(paned);
+
+        /* Realized does not imply allocated. With total_height == 0 the maths
+         * below collapse to position 0, which hides the file view for good once
+         * the real allocation arrives. Retry on idle until the paned has a real
+         * height, giving up rather than looping if it never gets one. */
+        if (total_height <= 0) {
+            schedule_apply_size_retry (self);
+            return;
+        }
+
+        priv->apply_size_retries = 0;
         term_size = g_settings_get_int(priv->settings, "pane-size");
 
         term_size = CLAMP (term_size, MIN_TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT);
