@@ -295,6 +295,10 @@ thumbnail_from_stream_async (GInputStream        *stream,
 {
     g_autoptr (GTask) task = g_task_new (stream, cancellable, callback, user_data);
 
+    /* We're potentially starving other important threads from reaching the thread pool,
+     * so lets reduce the priority. */
+    g_task_set_priority (task, G_PRIORITY_LOW);
+
     g_task_run_in_thread (task, thumbnail_from_stream_thread);
 }
 
@@ -379,6 +383,7 @@ file_info_ready_callback (GObject      *source_object,
 
     self->is_loading_attributes = FALSE;
     self->error = g_steal_pointer (&error);
+    gtk_widget_queue_draw (GTK_WIDGET (self));
 
     if (info == NULL || self->error != NULL)
     {
