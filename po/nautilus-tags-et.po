@@ -1,0 +1,45 @@
+# Color tags -- et
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: et\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Punane"
+
+msgid "Orange"
+msgstr "Oranž"
+
+msgid "Yellow"
+msgstr "Kollane"
+
+msgid "Green"
+msgstr "Roheline"
+
+msgid "Blue"
+msgstr "Sinine"
+
+msgid "Purple"
+msgstr "Lilla"
+
+msgid "Brown"
+msgstr "Pruun"
+
+msgid "Gray"
+msgstr "Hall"
+
+msgid "None"
+msgstr "Puudub"
+
+msgid "Tag With Color"
+msgstr "Märgi värviga"
+
+msgid "Files tagged %s"
+msgstr "Failid märkega %s"
+

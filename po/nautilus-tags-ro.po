@@ -1,0 +1,45 @@
+# Color tags -- ro
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: ro\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Roșu"
+
+msgid "Orange"
+msgstr "Portocaliu"
+
+msgid "Yellow"
+msgstr "Galben"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Blue"
+msgstr "Albastru"
+
+msgid "Purple"
+msgstr "Mov"
+
+msgid "Brown"
+msgstr "Maro"
+
+msgid "Gray"
+msgstr "Gri"
+
+msgid "None"
+msgstr "Niciuna"
+
+msgid "Tag With Color"
+msgstr "Etichetează cu culoare"
+
+msgid "Files tagged %s"
+msgstr "Fișiere etichetate %s"
+

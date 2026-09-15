@@ -34,6 +34,8 @@
 #include "nautilus-global-preferences.h"
 #include "nautilus-properties.h"
 #include "nautilus-scheme.h"
+#include "nautilus-tag-colors.h"
+#include "nautilus-tag-directory.h"
 #include "nautilus-sidebar-row.h"
 #include "nautilus-trash-monitor.h"
 #include "nautilus-ui-utilities.h"
@@ -138,6 +140,9 @@ struct _NautilusSidebar
     int drag_row_y;
     GtkWidget *row_placeholder;
     DropState drop_state;
+
+    /* Bitmask of colors currently in use, to skip needless rebuilds. */
+    guint tag_colors_mask;
     guint hover_timer_id;
     graphene_point_t hover_start_point;
     GtkListBoxRow *hover_row;
@@ -640,6 +645,89 @@ on_account_updated (GObject    *object,
 
 #endif
 
+
+
+static void update_places (NautilusSidebar *sidebar);
+
+/* Rebuilding the whole sidebar on every tag assignment would be wasteful --
+ * tagging a multi-file selection fires once per file. Only the set of colors
+ * actually in use affects the sidebar, so rebuild when that set changes. */
+static guint
+used_tag_colors_mask (void)
+{
+    NautilusTagColors *colors = nautilus_tag_colors_get ();
+    guint mask = 0;
+
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        GList *uris = nautilus_tag_colors_get_uris (colors, i);
+
+        if (uris != NULL)
+        {
+            mask |= 1u << i;
+            g_list_free_full (uris, g_free);
+        }
+    }
+
+    return mask;
+}
+
+static void
+on_tag_colors_changed (NautilusTagColors *colors,
+                       const char        *uri,
+                       gpointer           user_data)
+{
+    NautilusSidebar *sidebar = NAUTILUS_PLACES_SIDEBAR (user_data);
+    guint mask = used_tag_colors_mask ();
+
+    if (mask == sidebar->tag_colors_mask)
+    {
+        return;
+    }
+
+    sidebar->tag_colors_mask = mask;
+    update_places (sidebar);
+}
+
+
+static void
+add_tag_places (NautilusSidebar *sidebar)
+{
+    NautilusTagColors *colors = nautilus_tag_colors_get ();
+
+    /* One row per color, but only for colors actually in use: an empty list of
+     * eight fixed entries would be noise in every window. */
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        GList *uris = NULL;
+        g_autoptr (GIcon) icon = NULL;
+        g_autofree char *uri = NULL;
+        g_autofree char *tooltip = NULL;
+        GtkWidget *row;
+
+        uris = nautilus_tag_colors_get_uris (colors, i);
+        if (uris == NULL)
+        {
+            continue;
+        }
+        g_list_free_full (g_steal_pointer (&uris), g_free);
+
+        /* A filled circle, recolored by CSS through the class added below. */
+        icon = g_themed_icon_new_with_default_fallbacks ("media-record-symbolic");
+        uri = nautilus_tag_directory_get_uri_for_color (i);
+        tooltip = g_strdup_printf (_TAG ("Files tagged %s"), nautilus_tag_color_get_label (i));
+
+        row = add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
+                         NAUTILUS_SIDEBAR_SECTION_TAGS,
+                         nautilus_tag_color_get_label (i), icon, NULL, uri,
+                         NULL, NULL, NULL, NULL, i,
+                         tooltip);
+
+        gtk_widget_add_css_class (row, nautilus_tag_color_get_css_class (i));
+    }
+}
+
+
 static void
 update_places (NautilusSidebar *sidebar)
 {
@@ -1101,6 +1189,8 @@ update_places (NautilusSidebar *sidebar)
 
     g_list_free_full (network_volumes, g_object_unref);
     g_list_free_full (network_mounts, g_object_unref);
+
+    add_tag_places (sidebar);
 
     /* We want this hidden by default, but need to do it after the show_all call */
     nautilus_sidebar_row_hide (NAUTILUS_SIDEBAR_ROW (sidebar->new_bookmark_row), TRUE);
@@ -3675,7 +3765,12 @@ nautilus_sidebar_init (NautilusSidebar *sidebar)
 
     sidebar->show_trash = TRUE;
 
+    g_signal_connect_object (nautilus_tag_colors_get (), "changed",
+                             G_CALLBACK (on_tag_colors_changed), sidebar,
+                             G_CONNECT_DEFAULT);
+
     /* populate the sidebar */
+    sidebar->tag_colors_mask = used_tag_colors_mask ();
     update_places (sidebar);
 
     sidebar->row_actions = G_ACTION_GROUP (g_simple_action_group_new ());

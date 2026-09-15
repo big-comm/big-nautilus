@@ -1,0 +1,45 @@
+# Color tags -- ru
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Красный"
+
+msgid "Orange"
+msgstr "Оранжевый"
+
+msgid "Yellow"
+msgstr "Жёлтый"
+
+msgid "Green"
+msgstr "Зелёный"
+
+msgid "Blue"
+msgstr "Синий"
+
+msgid "Purple"
+msgstr "Фиолетовый"
+
+msgid "Brown"
+msgstr "Коричневый"
+
+msgid "Gray"
+msgstr "Серый"
+
+msgid "None"
+msgstr "Нет"
+
+msgid "Tag With Color"
+msgstr "Пометить цветом"
+
+msgid "Files tagged %s"
+msgstr "Файлы с меткой %s"
+

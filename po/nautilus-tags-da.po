@@ -1,0 +1,45 @@
+# Color tags -- da
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Rød"
+
+msgid "Orange"
+msgstr "Orange"
+
+msgid "Yellow"
+msgstr "Gul"
+
+msgid "Green"
+msgstr "Grøn"
+
+msgid "Blue"
+msgstr "Blå"
+
+msgid "Purple"
+msgstr "Lilla"
+
+msgid "Brown"
+msgstr "Brun"
+
+msgid "Gray"
+msgstr "Grå"
+
+msgid "None"
+msgstr "Ingen"
+
+msgid "Tag With Color"
+msgstr "Mærk med farve"
+
+msgid "Files tagged %s"
+msgstr "Filer mærket %s"
+

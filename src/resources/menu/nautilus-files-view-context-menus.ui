@@ -263,6 +263,7 @@
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>
+    <section id="tag-colors-section"/>
     <section id="network-view-section">
       <attribute name="show-in-view">network</attribute>
       <item>

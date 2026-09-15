@@ -1,0 +1,45 @@
+# Color tags -- nl
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Rood"
+
+msgid "Orange"
+msgstr "Oranje"
+
+msgid "Yellow"
+msgstr "Geel"
+
+msgid "Green"
+msgstr "Groen"
+
+msgid "Blue"
+msgstr "Blauw"
+
+msgid "Purple"
+msgstr "Paars"
+
+msgid "Brown"
+msgstr "Bruin"
+
+msgid "Gray"
+msgstr "Grijs"
+
+msgid "None"
+msgstr "Geen"
+
+msgid "Tag With Color"
+msgstr "Labelen met kleur"
+
+msgid "Files tagged %s"
+msgstr "Bestanden met label %s"
+

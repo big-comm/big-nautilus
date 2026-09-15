@@ -1,0 +1,45 @@
+# Color tags -- ja
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "赤"
+
+msgid "Orange"
+msgstr "オレンジ"
+
+msgid "Yellow"
+msgstr "黄"
+
+msgid "Green"
+msgstr "緑"
+
+msgid "Blue"
+msgstr "青"
+
+msgid "Purple"
+msgstr "紫"
+
+msgid "Brown"
+msgstr "茶"
+
+msgid "Gray"
+msgstr "グレー"
+
+msgid "None"
+msgstr "なし"
+
+msgid "Tag With Color"
+msgstr "色でタグ付け"
+
+msgid "Files tagged %s"
+msgstr "%s のタグが付いたファイル"
+

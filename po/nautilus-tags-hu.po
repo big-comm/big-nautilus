@@ -1,0 +1,45 @@
+# Color tags -- hu
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: hu\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Piros"
+
+msgid "Orange"
+msgstr "Narancssárga"
+
+msgid "Yellow"
+msgstr "Sárga"
+
+msgid "Green"
+msgstr "Zöld"
+
+msgid "Blue"
+msgstr "Kék"
+
+msgid "Purple"
+msgstr "Lila"
+
+msgid "Brown"
+msgstr "Barna"
+
+msgid "Gray"
+msgstr "Szürke"
+
+msgid "None"
+msgstr "Nincs"
+
+msgid "Tag With Color"
+msgstr "Címkézés színnel"
+
+msgid "Files tagged %s"
+msgstr "%s címkéjű fájlok"
+

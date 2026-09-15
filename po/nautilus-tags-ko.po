@@ -1,0 +1,45 @@
+# Color tags -- ko
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "빨강"
+
+msgid "Orange"
+msgstr "주황"
+
+msgid "Yellow"
+msgstr "노랑"
+
+msgid "Green"
+msgstr "초록"
+
+msgid "Blue"
+msgstr "파랑"
+
+msgid "Purple"
+msgstr "보라"
+
+msgid "Brown"
+msgstr "갈색"
+
+msgid "Gray"
+msgstr "회색"
+
+msgid "None"
+msgstr "없음"
+
+msgid "Tag With Color"
+msgstr "색으로 태그"
+
+msgid "Files tagged %s"
+msgstr "%s 태그가 붙은 파일"
+

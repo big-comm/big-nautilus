@@ -1,0 +1,45 @@
+# Color tags -- hr
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: hr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Crvena"
+
+msgid "Orange"
+msgstr "Narančasta"
+
+msgid "Yellow"
+msgstr "Žuta"
+
+msgid "Green"
+msgstr "Zelena"
+
+msgid "Blue"
+msgstr "Plava"
+
+msgid "Purple"
+msgstr "Ljubičasta"
+
+msgid "Brown"
+msgstr "Smeđa"
+
+msgid "Gray"
+msgstr "Siva"
+
+msgid "None"
+msgstr "Bez"
+
+msgid "Tag With Color"
+msgstr "Označi bojom"
+
+msgid "Files tagged %s"
+msgstr "Datoteke označene %s"
+

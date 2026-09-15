@@ -1,0 +1,45 @@
+# Color tags -- he
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: he\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "אדום"
+
+msgid "Orange"
+msgstr "כתום"
+
+msgid "Yellow"
+msgstr "צהוב"
+
+msgid "Green"
+msgstr "ירוק"
+
+msgid "Blue"
+msgstr "כחול"
+
+msgid "Purple"
+msgstr "סגול"
+
+msgid "Brown"
+msgstr "חום"
+
+msgid "Gray"
+msgstr "אפור"
+
+msgid "None"
+msgstr "ללא"
+
+msgid "Tag With Color"
+msgstr "תיוג בצבע"
+
+msgid "Files tagged %s"
+msgstr "קבצים מתויגים %s"
+

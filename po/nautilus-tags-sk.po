@@ -1,0 +1,45 @@
+# Color tags -- sk
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: sk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Červená"
+
+msgid "Orange"
+msgstr "Oranžová"
+
+msgid "Yellow"
+msgstr "Žltá"
+
+msgid "Green"
+msgstr "Zelená"
+
+msgid "Blue"
+msgstr "Modrá"
+
+msgid "Purple"
+msgstr "Fialová"
+
+msgid "Brown"
+msgstr "Hnedá"
+
+msgid "Gray"
+msgstr "Sivá"
+
+msgid "None"
+msgstr "Žiadna"
+
+msgid "Tag With Color"
+msgstr "Označiť farbou"
+
+msgid "Files tagged %s"
+msgstr "Súbory označené %s"
+

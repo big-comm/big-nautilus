@@ -16,6 +16,7 @@
 #define SCHEME_NETWORK_VIEW "x-network-view"
 #define SCHEME_RECENT "recent"
 #define SCHEME_STARRED "starred"
+#define SCHEME_TAG "tag"
 #define SCHEME_TRASH "trash"
 
 gboolean

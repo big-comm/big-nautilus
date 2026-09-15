@@ -1,0 +1,45 @@
+# Color tags -- el
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: el\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Κόκκινο"
+
+msgid "Orange"
+msgstr "Πορτοκαλί"
+
+msgid "Yellow"
+msgstr "Κίτρινο"
+
+msgid "Green"
+msgstr "Πράσινο"
+
+msgid "Blue"
+msgstr "Μπλε"
+
+msgid "Purple"
+msgstr "Μοβ"
+
+msgid "Brown"
+msgstr "Καφέ"
+
+msgid "Gray"
+msgstr "Γκρι"
+
+msgid "None"
+msgstr "Καμία"
+
+msgid "Tag With Color"
+msgstr "Επισήμανση με χρώμα"
+
+msgid "Files tagged %s"
+msgstr "Αρχεία με ετικέτα %s"
+
