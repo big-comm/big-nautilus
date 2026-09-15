@@ -95,6 +95,27 @@ const char *nautilus_tag_color_get_name      (NautilusTagColor color);
 const char *nautilus_tag_color_get_label     (NautilusTagColor color);
 
 /**
+ * nautilus_tag_colors_set_display_name:
+ * @name: (nullable): user-chosen name, or %NULL to fall back to the colour name
+ *
+ * The dot already shows which colour it is, so a named tag shows only the
+ * name. Everything that labels a tag goes through
+ * nautilus_tag_color_get_label(), so this reaches the sidebar, the context
+ * menu, the path bar and the undo labels at once.
+ */
+void nautilus_tag_colors_set_display_name (NautilusTagColors *self,
+                                           NautilusTagColor   color,
+                                           const char        *name);
+
+/**
+ * nautilus_tag_colors_get_display_name:
+ *
+ * The user-chosen name, or %NULL if the tag has never been renamed.
+ */
+const char *nautilus_tag_colors_get_display_name (NautilusTagColors *self,
+                                                  NautilusTagColor   color);
+
+/**
  * nautilus_tag_colors_apply_with_undo:
  * @uris: (element-type utf8): files to tag
  *

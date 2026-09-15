@@ -28,6 +28,10 @@ struct _NautilusTagColors
      * written back on a timeout. Cell drawing must stay allocation-free. */
     GHashTable *by_uri;
 
+    /* Per-colour user name, indexed by NautilusTagColor. NULL means the
+     * translated colour name is used instead. */
+    char *names[NAUTILUS_TAG_COLOR_LAST];
+
     char *path;
     guint save_timeout_id;
 };
@@ -94,6 +98,13 @@ nautilus_tag_color_get_name (NautilusTagColor color)
 const char *
 nautilus_tag_color_get_label (NautilusTagColor color)
 {
+    const char *custom = nautilus_tag_colors_get_display_name (nautilus_tag_colors_get (), color);
+
+    if (custom != NULL)
+    {
+        return custom;
+    }
+
     switch (color)
     {
         case NAUTILUS_TAG_COLOR_RED:
@@ -179,6 +190,21 @@ load (NautilusTagColors *self)
         return;
     }
 
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        char *name = g_key_file_get_string (keyfile, "names",
+                                            nautilus_tag_color_get_name (i), NULL);
+
+        if (name != NULL && *name != '\0')
+        {
+            self->names[i] = name;
+        }
+        else
+        {
+            g_free (name);
+        }
+    }
+
     uris = g_key_file_get_keys (keyfile, "tags", NULL, NULL);
     if (uris == NULL)
     {
@@ -218,6 +244,15 @@ save_cb (gpointer user_data)
                                nautilus_tag_color_get_name (GPOINTER_TO_UINT (value)));
     }
 
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        if (self->names[i] != NULL)
+        {
+            g_key_file_set_string (keyfile, "names",
+                                   nautilus_tag_color_get_name (i), self->names[i]);
+        }
+    }
+
     dir = g_path_get_dirname (self->path);
     if (g_mkdir_with_parents (dir, 0700) != 0)
     {
@@ -250,6 +285,11 @@ nautilus_tag_colors_finalize (GObject *object)
         /* Do not lose the last edits on shutdown. */
         g_clear_handle_id (&self->save_timeout_id, g_source_remove);
         save_cb (self);
+    }
+
+    for (int i = 0; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        g_clear_pointer (&self->names[i], g_free);
     }
 
     g_clear_pointer (&self->by_uri, g_hash_table_unref);
@@ -420,4 +460,42 @@ nautilus_tag_colors_apply_with_undo (GList            *uris,
 
     undo_info = nautilus_file_undo_info_tag_color_new (previous, color);
     nautilus_file_undo_manager_set_action (undo_info);
+}
+
+const char *
+nautilus_tag_colors_get_display_name (NautilusTagColors *self,
+                                      NautilusTagColor   color)
+{
+    g_return_val_if_fail (NAUTILUS_IS_TAG_COLORS (self), NULL);
+
+    if (color <= NAUTILUS_TAG_COLOR_NONE || color >= NAUTILUS_TAG_COLOR_LAST)
+    {
+        return NULL;
+    }
+
+    return self->names[color];
+}
+
+void
+nautilus_tag_colors_set_display_name (NautilusTagColors *self,
+                                      NautilusTagColor   color,
+                                      const char        *name)
+{
+    g_return_if_fail (NAUTILUS_IS_TAG_COLORS (self));
+
+    if (color <= NAUTILUS_TAG_COLOR_NONE || color >= NAUTILUS_TAG_COLOR_LAST)
+    {
+        return;
+    }
+
+    g_clear_pointer (&self->names[color], g_free);
+
+    /* An empty name clears the override rather than showing a blank row. */
+    if (name != NULL && *name != '\0')
+    {
+        self->names[color] = g_strdup (name);
+    }
+
+    schedule_save (self);
+    g_signal_emit (self, signals[CHANGED], 0, NULL);
 }

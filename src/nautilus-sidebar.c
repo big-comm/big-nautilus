@@ -141,8 +141,8 @@ struct _NautilusSidebar
     GtkWidget *row_placeholder;
     DropState drop_state;
 
-    /* Bitmask of colors currently in use, to skip needless rebuilds. */
-    guint tag_colors_mask;
+    /* Colours in use and their names, to skip needless rebuilds. */
+    char *tag_colors_signature;
     guint hover_timer_id;
     graphene_point_t hover_start_point;
     GtkListBoxRow *hover_row;
@@ -650,13 +650,15 @@ on_account_updated (GObject    *object,
 static void update_places (NautilusSidebar *sidebar);
 
 /* Rebuilding the whole sidebar on every tag assignment would be wasteful --
- * tagging a multi-file selection fires once per file. Only the set of colors
- * actually in use affects the sidebar, so rebuild when that set changes. */
-static guint
-used_tag_colors_mask (void)
+ * tagging a multi-file selection fires once per file. What the sidebar shows
+ * is the set of colours in use and the name of each, so rebuild only when that
+ * changes. Comparing just the set of colours is not enough: renaming a tag
+ * leaves the set identical and the old label would stay on screen. */
+static char *
+tag_colors_signature (void)
 {
     NautilusTagColors *colors = nautilus_tag_colors_get ();
-    guint mask = 0;
+    g_autoptr (GString) sig = g_string_new (NULL);
 
     for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
     {
@@ -664,12 +666,14 @@ used_tag_colors_mask (void)
 
         if (uris != NULL)
         {
-            mask |= 1u << i;
+            const char *name = nautilus_tag_colors_get_display_name (colors, i);
+
+            g_string_append_printf (sig, "%d:%s|", i, name != NULL ? name : "");
             g_list_free_full (uris, g_free);
         }
     }
 
-    return mask;
+    return g_string_free (g_steal_pointer (&sig), FALSE);
 }
 
 static void
@@ -678,17 +682,17 @@ on_tag_colors_changed (NautilusTagColors *colors,
                        gpointer           user_data)
 {
     NautilusSidebar *sidebar = NAUTILUS_PLACES_SIDEBAR (user_data);
-    guint mask = used_tag_colors_mask ();
+    g_autofree char *sig = tag_colors_signature ();
 
-    if (mask == sidebar->tag_colors_mask)
+    if (g_strcmp0 (sig, sidebar->tag_colors_signature) == 0)
     {
         return;
     }
 
-    sidebar->tag_colors_mask = mask;
+    g_free (sidebar->tag_colors_signature);
+    sidebar->tag_colors_signature = g_steal_pointer (&sig);
     update_places (sidebar);
 }
-
 
 static void
 add_tag_places (NautilusSidebar *sidebar)
@@ -2083,13 +2087,24 @@ do_rename (GtkButton       *button,
     g_autofree char *uri = g_steal_pointer (&sidebar->rename_uri);
     g_autofree char *new_text = g_strdup (gtk_editable_get_text (GTK_EDITABLE (sidebar->rename_entry)));
     g_autoptr (GFile) file = g_file_new_for_uri (uri);
-    NautilusBookmark *bookmark = nautilus_bookmark_list_get_bookmark (sidebar->bookmark_list,
-                                                                      file);
+    NautilusBookmark *bookmark = NULL;
 
     if (sidebar->rename_popover)
     {
         gtk_popover_popdown (GTK_POPOVER (sidebar->rename_popover));
     }
+
+    /* Renaming a colour stores a display name; there is no bookmark behind it.
+     * Handled first so the bookmark path below stays untouched. */
+    if (row_uri_is_tag (uri))
+    {
+        nautilus_tag_colors_set_display_name (nautilus_tag_colors_get (),
+                                              nautilus_tag_directory_get_color_for_location (file),
+                                              new_text);
+        return;
+    }
+
+    bookmark = nautilus_bookmark_list_get_bookmark (sidebar->bookmark_list, file);
 
     if (bookmark == NULL)
     {
@@ -2285,9 +2300,11 @@ rename_bookmark (NautilusSidebarRow *row)
 {
     NautilusSidebarRowType type;
 
-    g_object_get (row, "place-type", &type, NULL);
+    g_autofree char *row_uri = NULL;
 
-    if (type != NAUTILUS_SIDEBAR_ROW_BOOKMARK)
+    g_object_get (row, "place-type", &type, "uri", &row_uri, NULL);
+
+    if (type != NAUTILUS_SIDEBAR_ROW_BOOKMARK && !row_uri_is_tag (row_uri))
     {
         return;
     }
@@ -3084,7 +3101,16 @@ create_row_popover (NautilusSidebar    *sidebar,
     action = g_action_map_lookup_action (G_ACTION_MAP (sidebar->row_actions), "remove");
     g_simple_action_set_enabled (G_SIMPLE_ACTION (action), (type == NAUTILUS_SIDEBAR_ROW_BOOKMARK));
     action = g_action_map_lookup_action (G_ACTION_MAP (sidebar->row_actions), "rename");
-    g_simple_action_set_enabled (G_SIMPLE_ACTION (action), (type == NAUTILUS_SIDEBAR_ROW_BOOKMARK));
+    {
+        /* Colours can be renamed too: the dot carries the colour, so the label
+         * is free to say what the tag is actually for. */
+        g_autofree char *row_uri = NULL;
+
+        g_object_get (row, "uri", &row_uri, NULL);
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+                                     type == NAUTILUS_SIDEBAR_ROW_BOOKMARK ||
+                                     row_uri_is_tag (row_uri));
+    }
     action = g_action_map_lookup_action (G_ACTION_MAP (sidebar->row_actions), "open");
     g_simple_action_set_enabled (G_SIMPLE_ACTION (action), !gtk_list_box_row_is_selected (GTK_LIST_BOX_ROW (row)));
     action = g_action_map_lookup_action (G_ACTION_MAP (sidebar->row_actions), "empty-trash");
@@ -3827,7 +3853,7 @@ nautilus_sidebar_init (NautilusSidebar *sidebar)
                              G_CONNECT_DEFAULT);
 
     /* populate the sidebar */
-    sidebar->tag_colors_mask = used_tag_colors_mask ();
+    sidebar->tag_colors_signature = tag_colors_signature ();
     update_places (sidebar);
 
     sidebar->row_actions = G_ACTION_GROUP (g_simple_action_group_new ());
@@ -3998,6 +4024,8 @@ static void
 nautilus_sidebar_finalize (GObject *object)
 {
     NautilusSidebar *sidebar = NAUTILUS_PLACES_SIDEBAR (object);
+
+    g_clear_pointer (&sidebar->tag_colors_signature, g_free);
 
     g_clear_object (&sidebar->row_actions);
 
