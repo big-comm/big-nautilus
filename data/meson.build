@@ -134,6 +134,30 @@ meson.add_install_script(
   install_tag: 'runtime',
 )
 
+
+# Same treatment for the colour tag domain. Separate from the upstream catalog
+# so that merging a new Nautilus release cannot overwrite these strings.
+foreach lang : terminal_languages
+  custom_target(
+    'nautilus-tags-mo-' + lang,
+    input: meson.project_source_root() / 'po' / ('nautilus-tags-' + lang + '.po'),
+    output: 'tags-' + lang + '.mo',
+    command: [msgfmt, '--check', '-o', '@OUTPUT@', '@INPUT@'],
+    build_by_default: true,
+  )
+endforeach
+
+meson.add_install_script(
+  terminal_installer_python,
+  files('install-terminal-translations.py'),
+  meson.current_build_dir(),
+  localedir,
+  ','.join(terminal_languages),
+  'nautilus-tags',
+  'tags-',
+  install_tag: 'runtime',
+)
+
 desktop_file_validate = find_program('desktop-file-validate', required: false)
 if desktop_file_validate.found()
   test(

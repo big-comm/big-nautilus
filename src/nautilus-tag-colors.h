@@ -8,8 +8,15 @@
 #pragma once
 
 #include <glib-object.h>
+#include <glib/gi18n.h>
 
 G_BEGIN_DECLS
+
+/* Fork-local translation domain, mirroring the embedded terminal. Keeping
+ * these strings out of the upstream catalog means an upstream merge, which
+ * brings GNOME's own .po files, cannot wipe them. */
+#define GETTEXT_PACKAGE_TAGS "nautilus-tags"
+#define _TAG(s) dgettext (GETTEXT_PACKAGE_TAGS, (s))
 
 /**
  * NautilusTagColor:

@@ -1,0 +1,45 @@
+# Color tags -- is
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: is\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Rautt"
+
+msgid "Orange"
+msgstr "Appelsínugult"
+
+msgid "Yellow"
+msgstr "Gult"
+
+msgid "Green"
+msgstr "Grænt"
+
+msgid "Blue"
+msgstr "Blátt"
+
+msgid "Purple"
+msgstr "Fjólublátt"
+
+msgid "Brown"
+msgstr "Brúnt"
+
+msgid "Gray"
+msgstr "Grátt"
+
+msgid "None"
+msgstr "Ekkert"
+
+msgid "Tag With Color"
+msgstr "Merkja með lit"
+
+msgid "Files tagged %s"
+msgstr "Skrár merktar %s"
+

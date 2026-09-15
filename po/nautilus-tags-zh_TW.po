@@ -1,0 +1,45 @@
+# Color tags -- zh_TW
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "紅色"
+
+msgid "Orange"
+msgstr "橙色"
+
+msgid "Yellow"
+msgstr "黃色"
+
+msgid "Green"
+msgstr "綠色"
+
+msgid "Blue"
+msgstr "藍色"
+
+msgid "Purple"
+msgstr "紫色"
+
+msgid "Brown"
+msgstr "棕色"
+
+msgid "Gray"
+msgstr "灰色"
+
+msgid "None"
+msgstr "無"
+
+msgid "Tag With Color"
+msgstr "以顏色標記"
+
+msgid "Files tagged %s"
+msgstr "標記為 %s 的檔案"
+

@@ -715,7 +715,7 @@ add_tag_places (NautilusSidebar *sidebar)
         /* A filled circle, recolored by CSS through the class added below. */
         icon = g_themed_icon_new_with_default_fallbacks ("media-record-symbolic");
         uri = nautilus_tag_directory_get_uri_for_color (i);
-        tooltip = g_strdup_printf (_("Files tagged %s"), nautilus_tag_color_get_label (i));
+        tooltip = g_strdup_printf (_TAG ("Files tagged %s"), nautilus_tag_color_get_label (i));
 
         row = add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                          NAUTILUS_SIDEBAR_SECTION_TAGS,

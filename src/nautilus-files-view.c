@@ -4967,6 +4967,41 @@ build_menu_for_extension_menu_items (NautilusFilesView *view,
     return G_MENU_MODEL (gmenu);
 }
 
+static GMenuModel *
+build_tag_colors_menu (void)
+{
+    g_autoptr (GMenu) submenu = g_menu_new ();
+    g_autoptr (GMenu) colors = g_menu_new ();
+    g_autoptr (GMenu) clear = g_menu_new ();
+    g_autoptr (GMenu) section = g_menu_new ();
+    g_autoptr (GMenuItem) item = NULL;
+
+    /* Built here rather than in the .ui so that the colour names have a single
+     * source, nautilus_tag_color_get_label(), and so that this fork adds no
+     * translatable strings to an upstream file. */
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        g_autoptr (GMenuItem) color_item = NULL;
+
+        color_item = g_menu_item_new (nautilus_tag_color_get_label (i), NULL);
+        g_menu_item_set_action_and_target (color_item, "view.tag-color", "s",
+                                           nautilus_tag_color_get_name (i));
+        g_menu_append_item (colors, color_item);
+    }
+
+    item = g_menu_item_new (nautilus_tag_color_get_label (NAUTILUS_TAG_COLOR_NONE), NULL);
+    g_menu_item_set_action_and_target (item, "view.tag-color", "s",
+                                       nautilus_tag_color_get_name (NAUTILUS_TAG_COLOR_NONE));
+    g_menu_append_item (clear, item);
+
+    g_menu_append_section (submenu, NULL, G_MENU_MODEL (colors));
+    g_menu_append_section (submenu, NULL, G_MENU_MODEL (clear));
+
+    g_menu_append_submenu (section, _TAG ("Tag With Color"), G_MENU_MODEL (submenu));
+
+    return G_MENU_MODEL (g_steal_pointer (&section));
+}
+
 static void
 update_extensions_menus (NautilusFilesView *view,
                          GtkBuilder        *builder)
@@ -4981,6 +5016,14 @@ update_extensions_menus (NautilusFilesView *view,
     {
         selection_menu = build_menu_for_extension_menu_items (view, "extensions",
                                                               selection_items);
+
+        object = gtk_builder_get_object (builder, "tag-colors-section");
+        if (object != NULL)
+        {
+            g_autoptr (GMenuModel) tag_menu = build_tag_colors_menu ();
+
+            nautilus_gmenu_set_from_model (G_MENU (object), tag_menu);
+        }
 
         object = gtk_builder_get_object (builder, "selection-extensions-section");
         nautilus_gmenu_set_from_model (G_MENU (object), selection_menu);

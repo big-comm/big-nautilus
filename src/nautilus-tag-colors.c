@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <config.h>
+
 #include "nautilus-tag-colors.h"
 
 #include <glib/gi18n.h>
@@ -93,47 +95,47 @@ nautilus_tag_color_get_label (NautilusTagColor color)
     {
         case NAUTILUS_TAG_COLOR_RED:
         {
-            return _("Red");
+            return _TAG ("Red");
         }
 
         case NAUTILUS_TAG_COLOR_ORANGE:
         {
-            return _("Orange");
+            return _TAG ("Orange");
         }
 
         case NAUTILUS_TAG_COLOR_YELLOW:
         {
-            return _("Yellow");
+            return _TAG ("Yellow");
         }
 
         case NAUTILUS_TAG_COLOR_GREEN:
         {
-            return _("Green");
+            return _TAG ("Green");
         }
 
         case NAUTILUS_TAG_COLOR_BLUE:
         {
-            return _("Blue");
+            return _TAG ("Blue");
         }
 
         case NAUTILUS_TAG_COLOR_PURPLE:
         {
-            return _("Purple");
+            return _TAG ("Purple");
         }
 
         case NAUTILUS_TAG_COLOR_BROWN:
         {
-            return _("Brown");
+            return _TAG ("Brown");
         }
 
         case NAUTILUS_TAG_COLOR_GRAY:
         {
-            return _("Gray");
+            return _TAG ("Gray");
         }
 
         default:
         {
-            return _("None");
+            return _TAG ("None");
         }
     }
 }
@@ -291,6 +293,9 @@ nautilus_tag_colors_get (void)
 
     if (G_UNLIKELY (instance == NULL))
     {
+        bindtextdomain (GETTEXT_PACKAGE_TAGS, LOCALEDIR);
+        bind_textdomain_codeset (GETTEXT_PACKAGE_TAGS, "UTF-8");
+
         instance = g_object_new (NAUTILUS_TYPE_TAG_COLORS, NULL);
     }
 

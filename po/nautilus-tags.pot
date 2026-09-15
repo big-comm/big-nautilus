@@ -1,0 +1,45 @@
+# Color tags for the BigCommunity Nautilus fork.
+# Kept in a fork-local domain so upstream merges cannot overwrite it.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr ""
+
+msgid "Orange"
+msgstr ""
+
+msgid "Yellow"
+msgstr ""
+
+msgid "Green"
+msgstr ""
+
+msgid "Blue"
+msgstr ""
+
+msgid "Purple"
+msgstr ""
+
+msgid "Brown"
+msgstr ""
+
+msgid "Gray"
+msgstr ""
+
+msgid "None"
+msgstr ""
+
+msgid "Tag With Color"
+msgstr ""
+
+msgid "Files tagged %s"
+msgstr ""
+

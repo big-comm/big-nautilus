@@ -263,60 +263,7 @@
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>
-    <section>
-      <submenu>
-        <attribute name="label" translatable="yes" comments="Assigns a color tag to the selected files">Tag With _Color</attribute>
-        <section>
-        <item>
-          <attribute name="label" translatable="yes">Red</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">red</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Orange</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">orange</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Yellow</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">yellow</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Green</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">green</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Blue</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">blue</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Purple</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">purple</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Brown</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">brown</attribute>
-        </item>
-        <item>
-          <attribute name="label" translatable="yes">Gray</attribute>
-          <attribute name="action">view.tag-color</attribute>
-          <attribute name="target">gray</attribute>
-        </item>
-        </section>
-        <section>
-          <item>
-            <attribute name="label" translatable="yes" comments="Removes the color tag">_None</attribute>
-            <attribute name="action">view.tag-color</attribute>
-            <attribute name="target">none</attribute>
-          </item>
-        </section>
-      </submenu>
-    </section>
+    <section id="tag-colors-section"/>
     <section id="network-view-section">
       <attribute name="show-in-view">network</attribute>
       <item>

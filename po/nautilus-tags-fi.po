@@ -1,0 +1,45 @@
+# Color tags -- fi
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: fi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Punainen"
+
+msgid "Orange"
+msgstr "Oranssi"
+
+msgid "Yellow"
+msgstr "Keltainen"
+
+msgid "Green"
+msgstr "Vihreä"
+
+msgid "Blue"
+msgstr "Sininen"
+
+msgid "Purple"
+msgstr "Violetti"
+
+msgid "Brown"
+msgstr "Ruskea"
+
+msgid "Gray"
+msgstr "Harmaa"
+
+msgid "None"
+msgstr "Ei mitään"
+
+msgid "Tag With Color"
+msgstr "Merkitse värillä"
+
+msgid "Files tagged %s"
+msgstr "Tiedostot merkinnällä %s"
+

@@ -1,0 +1,45 @@
+# Color tags -- de
+# Machine-assisted translation, not reviewed by a native speaker.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nautilus-tags\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Red"
+msgstr "Rot"
+
+msgid "Orange"
+msgstr "Orange"
+
+msgid "Yellow"
+msgstr "Gelb"
+
+msgid "Green"
+msgstr "Grün"
+
+msgid "Blue"
+msgstr "Blau"
+
+msgid "Purple"
+msgstr "Violett"
+
+msgid "Brown"
+msgstr "Braun"
+
+msgid "Gray"
+msgstr "Grau"
+
+msgid "None"
+msgstr "Keine"
+
+msgid "Tag With Color"
+msgstr "Mit Farbe markieren"
+
+msgid "Files tagged %s"
+msgstr "Mit %s markierte Dateien"
+
