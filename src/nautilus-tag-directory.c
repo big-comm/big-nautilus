@@ -610,7 +610,12 @@ nautilus_tag_directory_get_uri_for_color (NautilusTagColor color)
         return NULL;
     }
 
-    return g_strconcat (SCHEME_TAG ":///", nautilus_tag_color_get_name (color), NULL);
+    /* The colour goes in the host, not the path, so that each colour is its
+     * own root. A location with a path component is treated as a file inside
+     * a directory, and opening it makes Nautilus try to mount the enclosing
+     * volume, which fails with G_IO_ERROR_NOT_SUPPORTED because no GVfs
+     * backend owns this scheme. starred:/// works for the same reason. */
+    return g_strconcat (SCHEME_TAG "://", nautilus_tag_color_get_name (color), "/", NULL);
 }
 
 NautilusTagColor
@@ -625,12 +630,23 @@ nautilus_tag_directory_get_color_for_location (GFile *location)
     }
 
     path = g_file_get_uri (location);
-    name = strrchr (path, '/');
+
+    /* "tag://red/" -> "red" */
+    name = strstr (path, "://");
     if (name == NULL)
     {
         return NAUTILUS_TAG_COLOR_NONE;
     }
-    name++;
+    name += 3;
+
+    {
+        char *end = strchr (name, '/');
+
+        if (end != NULL)
+        {
+            *end = '\0';
+        }
+    }
 
     for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
     {

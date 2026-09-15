@@ -43,3 +43,5 @@ msgstr "Označiť farbou"
 msgid "Files tagged %s"
 msgstr "Súbory označené %s"
 
+msgid "No Files With This Tag"
+msgstr "Žiadne súbory s týmto označením"

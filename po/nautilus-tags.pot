@@ -43,3 +43,5 @@ msgstr ""
 msgid "Files tagged %s"
 msgstr ""
 
+msgid "No Files With This Tag"
+msgstr ""

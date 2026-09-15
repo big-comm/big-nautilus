@@ -43,3 +43,5 @@ msgstr "Címkézés színnel"
 msgid "Files tagged %s"
 msgstr "%s címkéjű fájlok"
 
+msgid "No Files With This Tag"
+msgstr "Nincs fájl ezzel a címkével"

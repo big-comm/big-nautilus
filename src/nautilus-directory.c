@@ -34,6 +34,7 @@
 #include "nautilus-metadata.h"
 #include "nautilus-monitor.h"
 #include "nautilus-scheme.h"
+#include "nautilus-tag-directory.h"
 #include "nautilus-vfs-directory.h"
 #include "nautilus-vfs-file.h"
 
@@ -575,6 +576,16 @@ nautilus_directory_get_name_for_self_as_new_file (NautilusDirectory *directory)
     g_autofree char *hostname = NULL;
 
     directory_uri = nautilus_directory_get_uri (directory);
+
+    if (g_file_has_uri_scheme (directory->details->location, SCHEME_TAG))
+    {
+        /* Otherwise this would read "brown (tag)", since the colour lives in
+         * the host part of the URI. */
+        NautilusTagColor color =
+            nautilus_tag_directory_get_color_for_location (directory->details->location);
+
+        return g_strdup (nautilus_tag_color_get_label (color));
+    }
 
     g_uri_split (directory_uri, 0, &scheme, NULL, &hostname, NULL, NULL, NULL, NULL, NULL);
     if (hostname == NULL)

@@ -43,3 +43,5 @@ msgstr "Merkitse värillä"
 msgid "Files tagged %s"
 msgstr "Tiedostot merkinnällä %s"
 
+msgid "No Files With This Tag"
+msgstr "Ei tiedostoja tällä merkinnällä"

@@ -3748,6 +3748,12 @@ nautilus_files_view_update_status_overlay (NautilusFilesView *self)
             adw_status_page_set_title (status_page, _("No Starred Files"));
             adw_status_page_set_description (status_page, NULL);
         }
+        else if (g_file_has_uri_scheme (self->location, SCHEME_TAG))
+        {
+            adw_status_page_set_icon_name (status_page, "media-record-symbolic");
+            adw_status_page_set_title (status_page, _TAG ("No Files With This Tag"));
+            adw_status_page_set_description (status_page, NULL);
+        }
         else if (g_file_has_uri_scheme (self->location, SCHEME_RECENT))
         {
             adw_status_page_set_icon_name (status_page, "document-open-recent-symbolic");

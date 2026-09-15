@@ -43,3 +43,5 @@ msgstr "Επισήμανση με χρώμα"
 msgid "Files tagged %s"
 msgstr "Αρχεία με ετικέτα %s"
 
+msgid "No Files With This Tag"
+msgstr "Κανένα αρχείο με αυτήν την ετικέτα"

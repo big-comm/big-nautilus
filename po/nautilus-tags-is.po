@@ -43,3 +43,5 @@ msgstr "Merkja með lit"
 msgid "Files tagged %s"
 msgstr "Skrár merktar %s"
 
+msgid "No Files With This Tag"
+msgstr "Engar skrár með þessu merki"

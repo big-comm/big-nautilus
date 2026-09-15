@@ -43,3 +43,5 @@ msgstr "用颜色标记"
 msgid "Files tagged %s"
 msgstr "标记为 %s 的文件"
 
+msgid "No Files With This Tag"
+msgstr "没有带此标记的文件"

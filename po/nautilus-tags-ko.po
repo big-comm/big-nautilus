@@ -43,3 +43,5 @@ msgstr "색으로 태그"
 msgid "Files tagged %s"
 msgstr "%s 태그가 붙은 파일"
 
+msgid "No Files With This Tag"
+msgstr "이 태그가 붙은 파일이 없습니다"

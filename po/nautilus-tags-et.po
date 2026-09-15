@@ -43,3 +43,5 @@ msgstr "Märgi värviga"
 msgid "Files tagged %s"
 msgstr "Failid märkega %s"
 
+msgid "No Files With This Tag"
+msgstr "Selle märkega faile pole"

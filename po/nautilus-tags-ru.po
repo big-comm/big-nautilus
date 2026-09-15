@@ -43,3 +43,5 @@ msgstr "Пометить цветом"
 msgid "Files tagged %s"
 msgstr "Файлы с меткой %s"
 
+msgid "No Files With This Tag"
+msgstr "Нет файлов с этой меткой"

@@ -43,3 +43,5 @@ msgstr "Označi bojom"
 msgid "Files tagged %s"
 msgstr "Datoteke označene %s"
 
+msgid "No Files With This Tag"
+msgstr "Nema datoteka s ovom oznakom"

@@ -323,6 +323,7 @@ get_base_location (NautilusListView *self)
         if (location != NULL &&
             !g_file_has_uri_scheme (location, SCHEME_RECENT) &&
             !g_file_has_uri_scheme (location, SCHEME_STARRED) &&
+            !g_file_has_uri_scheme (location, SCHEME_TAG) &&
             !g_file_has_uri_scheme (location, SCHEME_TRASH))
         {
             base_location = g_steal_pointer (&location);

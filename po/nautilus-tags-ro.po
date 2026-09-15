@@ -43,3 +43,5 @@ msgstr "Etichetează cu culoare"
 msgid "Files tagged %s"
 msgstr "Fișiere etichetate %s"
 
+msgid "No Files With This Tag"
+msgstr "Niciun fișier cu această etichetă"

@@ -43,3 +43,5 @@ msgstr "תיוג בצבע"
 msgid "Files tagged %s"
 msgstr "קבצים מתויגים %s"
 
+msgid "No Files With This Tag"
+msgstr "אין קבצים עם תיוג זה"

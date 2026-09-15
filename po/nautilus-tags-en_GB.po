@@ -43,3 +43,5 @@ msgstr "Tag With Colour"
 msgid "Files tagged %s"
 msgstr "Files tagged %s"
 
+msgid "No Files With This Tag"
+msgstr "No Files With This Tag"

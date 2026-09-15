@@ -43,3 +43,5 @@ msgstr "Mærk med farve"
 msgid "Files tagged %s"
 msgstr "Filer mærket %s"
 
+msgid "No Files With This Tag"
+msgstr "Ingen filer med dette mærke"

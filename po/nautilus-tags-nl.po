@@ -43,3 +43,5 @@ msgstr "Labelen met kleur"
 msgid "Files tagged %s"
 msgstr "Bestanden met label %s"
 
+msgid "No Files With This Tag"
+msgstr "Geen bestanden met dit label"

@@ -43,3 +43,5 @@ msgstr "Етикет с цвят"
 msgid "Files tagged %s"
 msgstr "Файлове с етикет %s"
 
+msgid "No Files With This Tag"
+msgstr "Няма файлове с този етикет"

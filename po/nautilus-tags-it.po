@@ -43,3 +43,5 @@ msgstr "Etichetta con colore"
 msgid "Files tagged %s"
 msgstr "File etichettati %s"
 
+msgid "No Files With This Tag"
+msgstr "Nessun file con questa etichetta"

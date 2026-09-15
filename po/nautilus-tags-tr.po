@@ -43,3 +43,5 @@ msgstr "Renkle Etiketle"
 msgid "Files tagged %s"
 msgstr "%s etiketli dosyalar"
 
+msgid "No Files With This Tag"
+msgstr "Bu etikete sahip dosya yok"

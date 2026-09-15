@@ -17,5 +17,6 @@ nautilus_scheme_is_internal (const char *scheme)
            g_str_equal (scheme, SCHEME_RECENT) ||
            g_str_equal (scheme, SCHEME_SEARCH) ||
            g_str_equal (scheme, SCHEME_STARRED) ||
+           g_str_equal (scheme, SCHEME_TAG) ||
            g_str_equal (scheme, SCHEME_TRASH);
 }
