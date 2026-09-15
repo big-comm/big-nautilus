@@ -1261,6 +1261,21 @@ hover_timer (gpointer user_data)
 }
 
 static gboolean
+row_uri_is_tag (const char *uri)
+{
+    g_autoptr (GFile) location = NULL;
+
+    if (uri == NULL)
+    {
+        return FALSE;
+    }
+
+    location = g_file_new_for_uri (uri);
+
+    return g_file_has_uri_scheme (location, SCHEME_TAG);
+}
+
+static gboolean
 check_valid_drop_target (NautilusSidebar    *sidebar,
                          NautilusSidebarRow *row,
                          const GValue       *value)
@@ -1300,6 +1315,15 @@ check_valid_drop_target (NautilusSidebar    *sidebar,
             g_free (uri);
             return FALSE;
         }
+    }
+
+    /* Dropping files onto a colour assigns that tag. The usual action
+     * negotiation would refuse, since nothing can be copied into a location
+     * that has no backing storage. */
+    if (row_uri_is_tag (uri) && G_VALUE_HOLDS (value, GDK_TYPE_FILE_LIST))
+    {
+        g_free (uri);
+        return TRUE;
     }
 
     /* Dragging a bookmark? */
@@ -1538,6 +1562,13 @@ drag_motion_callback (GtkDropTarget   *target,
         {
             action = GDK_ACTION_COPY;
         }
+        else if (row_uri_is_tag (drop_target_uri))
+        {
+            /* LINK rather than COPY: nothing is duplicated, the file is only
+             * associated with a colour. Asking for COPY would also make the
+             * pointer promise a copy that never happens. */
+            action = GDK_ACTION_LINK;
+        }
         else
         {
             GSList *file_list = g_value_get_boxed (value);
@@ -1614,6 +1645,27 @@ drop_files_as_bookmarks (NautilusSidebar *sidebar,
     }
 }
 
+static void
+apply_tag_to_dropped_files (const char *target_uri,
+                            GSList     *file_list)
+{
+    g_autoptr (GFile) location = g_file_new_for_uri (target_uri);
+    NautilusTagColor color = nautilus_tag_directory_get_color_for_location (location);
+    NautilusTagColors *colors = nautilus_tag_colors_get ();
+
+    if (color == NAUTILUS_TAG_COLOR_NONE)
+    {
+        return;
+    }
+
+    for (GSList *l = file_list; l != NULL; l = l->next)
+    {
+        g_autofree char *uri = g_file_get_uri (G_FILE (l->data));
+
+        nautilus_tag_colors_set_color (colors, uri, color);
+    }
+}
+
 static gboolean
 drag_drop_callback (GtkDropTarget   *target,
                     const GValue    *value,
@@ -1681,6 +1733,10 @@ drag_drop_callback (GtkDropTarget   *target,
         if (target_place_type == NAUTILUS_SIDEBAR_ROW_NEW_BOOKMARK)
         {
             drop_files_as_bookmarks (sidebar, file_list, target_order_index);
+        }
+        else if (row_uri_is_tag (target_uri))
+        {
+            apply_tag_to_dropped_files (target_uri, file_list);
         }
         else
         {

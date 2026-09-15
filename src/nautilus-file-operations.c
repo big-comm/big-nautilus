@@ -58,6 +58,8 @@
 #include "nautilus-filename-utilities.h"
 #include "nautilus-operations-ui-manager.h"
 #include "nautilus-scheme.h"
+#include "nautilus-tag-colors.h"
+#include "nautilus-tag-directory.h"
 #include "nautilus-tag-manager.h"
 #include "nautilus-trash-monitor.h"
 #include "nautilus-ui-utilities.h"
@@ -6480,7 +6482,25 @@ nautilus_file_operations_copy_move (const GList                    *item_uris,
         parent_window = (GtkWindow *) gtk_widget_get_ancestor (parent_view, GTK_TYPE_WINDOW);
     }
 
-    if (g_file_has_uri_scheme (dest, SCHEME_STARRED))
+    if (g_file_has_uri_scheme (dest, SCHEME_TAG))
+    {
+        /* Same idea as starred below: the destination has no backing storage,
+         * so the drop is an instruction to tag rather than to copy bytes. */
+        NautilusTagColor color = nautilus_tag_directory_get_color_for_location (dest);
+
+        if (color != NAUTILUS_TAG_COLOR_NONE)
+        {
+            NautilusTagColors *colors = nautilus_tag_colors_get ();
+
+            for (const GList *l = locations; l != NULL; l = l->next)
+            {
+                g_autofree char *uri = g_file_get_uri (G_FILE (l->data));
+
+                nautilus_tag_colors_set_color (colors, uri, color);
+            }
+        }
+    }
+    else if (g_file_has_uri_scheme (dest, SCHEME_STARRED))
     {
         g_autolist (NautilusFile) source_file_list = NULL;
 
