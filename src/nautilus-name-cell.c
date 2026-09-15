@@ -11,6 +11,7 @@
 #include "nautilus-file-utilities.h"
 #include "nautilus-image.h"
 #include "nautilus-icon-info.h"
+#include "nautilus-tag-colors.h"
 #include "nautilus-thumbnails.h"
 #include "nautilus-ui-utilities.h"
 #include "nautilus-view-item.h"
@@ -191,6 +192,42 @@ update_icon (NautilusNameCell *self)
 }
 
 static void
+update_tag_color (NautilusNameCell *self)
+{
+    g_autoptr (NautilusViewItem) item = NULL;
+    g_autofree char *uri = NULL;
+    NautilusTagColor color;
+
+    item = nautilus_view_cell_get_item (NAUTILUS_VIEW_CELL (self));
+    if (item == NULL)
+    {
+        return;
+    }
+
+    uri = nautilus_file_get_uri (nautilus_view_item_get_file (item));
+    color = nautilus_tag_colors_get_color (nautilus_tag_colors_get (), uri);
+
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        gtk_widget_remove_css_class (GTK_WIDGET (self),
+                                     nautilus_tag_color_get_css_class (i));
+    }
+
+    if (color != NAUTILUS_TAG_COLOR_NONE)
+    {
+        gtk_widget_add_css_class (GTK_WIDGET (self),
+                                  nautilus_tag_color_get_css_class (color));
+    }
+
+}
+
+static void
+on_tag_colors_changed (NautilusNameCell *self)
+{
+    update_tag_color (self);
+}
+
+static void
 update_emblems (NautilusNameCell *self)
 {
     g_autoptr (NautilusViewItem) item = NULL;
@@ -234,6 +271,7 @@ on_file_changed (NautilusNameCell *self)
     update_icon (self);
     update_labels (self);
     update_emblems (self);
+    update_tag_color (self);
 
     self->in_file_change = FALSE;
 }
@@ -350,6 +388,9 @@ nautilus_name_cell_init (NautilusNameCell *self)
     g_signal_connect (self, "notify::icon-size",
                       G_CALLBACK (on_icon_size_changed), NULL);
     g_signal_connect (self, "notify::scale-factor", G_CALLBACK (on_icon_size_changed), NULL);
+
+    g_signal_connect_object (nautilus_tag_colors_get (), "changed",
+                             G_CALLBACK (on_tag_colors_changed), self, G_CONNECT_SWAPPED);
 
     /* Connect automatically to an item. */
     self->item_signal_group = g_signal_group_new (NAUTILUS_TYPE_VIEW_ITEM);

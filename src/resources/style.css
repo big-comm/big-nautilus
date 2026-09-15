@@ -396,3 +396,244 @@ rubberband {
   padding: 2px 5px;
   font-weight: bold;
 }
+
+/* Color tags.
+ *
+ * A small dot at the upper-left of the icon. Drawn as a background image
+ * rather than a child widget: the grid cell implements its own
+ * size_allocate() and only allocates icon, emblems and labels, so an extra
+ * child would never get an allocation.
+ *
+ * The emblems box already occupies the upper-right, so the dot goes left to
+ * avoid collision. */
+.nautilus-view-cell.nautilus-tag-red {
+  background-image: radial-gradient(circle, var(--red-3) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-red {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-orange {
+  background-image: radial-gradient(circle, var(--orange-3) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-orange {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-yellow {
+  background-image: radial-gradient(circle, var(--yellow-4) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-yellow {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-green {
+  background-image: radial-gradient(circle, var(--green-3) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-green {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-blue {
+  background-image: radial-gradient(circle, var(--blue-3) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-blue {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-purple {
+  background-image: radial-gradient(circle, var(--purple-3) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-purple {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-brown {
+  background-image: radial-gradient(circle, var(--brown-3) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-brown {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+.nautilus-view-cell.nautilus-tag-gray {
+  background-image: radial-gradient(circle, var(--dark-2) 42%, transparent 46%);
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  background-position: 6px 4px;
+}
+
+.nautilus-list-view .nautilus-view-cell.nautilus-tag-gray {
+  background-size: 10px 10px;
+  background-position: 2px 50%;
+}
+
+
+/* Name badge.
+ *
+ * Pairs with the dot: the dot is what you spot when scanning, the badge is
+ * what names the tag. The fill stays very light so it reads as a tint rather
+ * than a selection; the outline carries the colour instead, which keeps the
+ * badge legible without drowning the name. */
+.nautilus-cell-name {
+  border-radius: 10px;
+  padding: 1px 7px;
+  border: 1px solid transparent;
+}
+
+.nautilus-view-cell.nautilus-tag-red .nautilus-cell-name {
+  background-color: alpha(var(--red-3), 0.10);
+  border-color: alpha(var(--red-1), 0.85);
+  color: var(--red-1);
+}
+
+.nautilus-view-cell.nautilus-tag-red:selected .nautilus-cell-name {
+  background-color: alpha(var(--red-3), 0.18);
+  border-color: var(--red-1);
+  color: var(--red-1);
+}
+
+.nautilus-view-cell.nautilus-tag-orange .nautilus-cell-name {
+  background-color: alpha(var(--orange-3), 0.10);
+  border-color: alpha(var(--orange-1), 0.85);
+  color: var(--orange-1);
+}
+
+.nautilus-view-cell.nautilus-tag-orange:selected .nautilus-cell-name {
+  background-color: alpha(var(--orange-3), 0.18);
+  border-color: var(--orange-1);
+  color: var(--orange-1);
+}
+
+.nautilus-view-cell.nautilus-tag-yellow .nautilus-cell-name {
+  background-color: alpha(var(--yellow-4), 0.10);
+  border-color: alpha(var(--yellow-2), 0.85);
+  color: var(--yellow-2);
+}
+
+.nautilus-view-cell.nautilus-tag-yellow:selected .nautilus-cell-name {
+  background-color: alpha(var(--yellow-4), 0.18);
+  border-color: var(--yellow-2);
+  color: var(--yellow-2);
+}
+
+.nautilus-view-cell.nautilus-tag-green .nautilus-cell-name {
+  background-color: alpha(var(--green-3), 0.10);
+  border-color: alpha(var(--green-1), 0.85);
+  color: var(--green-1);
+}
+
+.nautilus-view-cell.nautilus-tag-green:selected .nautilus-cell-name {
+  background-color: alpha(var(--green-3), 0.18);
+  border-color: var(--green-1);
+  color: var(--green-1);
+}
+
+.nautilus-view-cell.nautilus-tag-blue .nautilus-cell-name {
+  background-color: alpha(var(--blue-3), 0.10);
+  border-color: alpha(var(--blue-1), 0.85);
+  color: var(--blue-1);
+}
+
+.nautilus-view-cell.nautilus-tag-blue:selected .nautilus-cell-name {
+  background-color: alpha(var(--blue-3), 0.18);
+  border-color: var(--blue-1);
+  color: var(--blue-1);
+}
+
+.nautilus-view-cell.nautilus-tag-purple .nautilus-cell-name {
+  background-color: alpha(var(--purple-3), 0.10);
+  border-color: alpha(var(--purple-1), 0.85);
+  color: var(--purple-1);
+}
+
+.nautilus-view-cell.nautilus-tag-purple:selected .nautilus-cell-name {
+  background-color: alpha(var(--purple-3), 0.18);
+  border-color: var(--purple-1);
+  color: var(--purple-1);
+}
+
+.nautilus-view-cell.nautilus-tag-brown .nautilus-cell-name {
+  background-color: alpha(var(--brown-3), 0.10);
+  border-color: alpha(var(--brown-1), 0.85);
+  color: var(--brown-1);
+}
+
+.nautilus-view-cell.nautilus-tag-brown:selected .nautilus-cell-name {
+  background-color: alpha(var(--brown-3), 0.18);
+  border-color: var(--brown-1);
+  color: var(--brown-1);
+}
+
+.nautilus-view-cell.nautilus-tag-gray .nautilus-cell-name {
+  background-color: alpha(var(--dark-2), 0.10);
+  border-color: alpha(var(--light-4), 0.85);
+  color: var(--light-4);
+}
+
+.nautilus-view-cell.nautilus-tag-gray:selected .nautilus-cell-name {
+  background-color: alpha(var(--dark-2), 0.18);
+  border-color: var(--light-4);
+  color: var(--light-4);
+}
+
+/* Sidebar tag swatches. Only the leading icon is recolored; tinting the whole
+ * row would fight with the selection styling of the sidebar. */
+row.nautilus-tag-red .sidebar-start-icon {
+  color: var(--red-3);
+}
+row.nautilus-tag-orange .sidebar-start-icon {
+  color: var(--orange-3);
+}
+row.nautilus-tag-yellow .sidebar-start-icon {
+  color: var(--yellow-4);
+}
+row.nautilus-tag-green .sidebar-start-icon {
+  color: var(--green-3);
+}
+row.nautilus-tag-blue .sidebar-start-icon {
+  color: var(--blue-3);
+}
+row.nautilus-tag-purple .sidebar-start-icon {
+  color: var(--purple-3);
+}
+row.nautilus-tag-brown .sidebar-start-icon {
+  color: var(--brown-3);
+}
+row.nautilus-tag-gray .sidebar-start-icon {
+  color: var(--dark-2);
+}

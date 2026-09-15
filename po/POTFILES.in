@@ -67,6 +67,7 @@ src/nautilus-search-popover.c
 src/nautilus-shell-search-provider.c
 src/nautilus-sidebar.c
 src/nautilus-star-cell.c
+src/nautilus-tag-colors.c
 src/nautilus-tag-manager.c
 src/nautilus-terminal-widget.c
 src/nautilus-toolbar.c

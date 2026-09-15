@@ -71,6 +71,7 @@
 #include "nautilus-scheme.h"
 #include "nautilus-search-directory.h"
 #include "nautilus-signaller.h"
+#include "nautilus-tag-colors.h"
 #include "nautilus-tag-manager.h"
 #include "nautilus-toolbar-menu-sections.h"
 #include "nautilus-trash-monitor.h"
@@ -1656,6 +1657,35 @@ action_delete (GSimpleAction *action,
                gpointer       user_data)
 {
     delete_selected_files (NAUTILUS_FILES_VIEW (user_data));
+}
+
+static void
+action_tag_color (GSimpleAction *action,
+                  GVariant      *parameter,
+                  gpointer       user_data)
+{
+    NautilusFilesView *view = NAUTILUS_FILES_VIEW (user_data);
+    g_autolist (NautilusFile) selection = NULL;
+    NautilusTagColors *tags = nautilus_tag_colors_get ();
+    const char *name = g_variant_get_string (parameter, NULL);
+    NautilusTagColor color = NAUTILUS_TAG_COLOR_NONE;
+
+    for (int i = NAUTILUS_TAG_COLOR_NONE; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        if (g_strcmp0 (name, nautilus_tag_color_get_name (i)) == 0)
+        {
+            color = (NautilusTagColor) i;
+            break;
+        }
+    }
+
+    selection = nautilus_files_view_get_selection (view);
+    for (GList *l = selection; l != NULL; l = l->next)
+    {
+        g_autofree char *uri = nautilus_file_get_uri (NAUTILUS_FILE (l->data));
+
+        nautilus_tag_colors_set_color (tags, uri, color);
+    }
 }
 
 static void
@@ -6844,6 +6874,7 @@ const GActionEntry view_entries[] =
     { .name = "copy-to", .activate = action_copy_to},
     { .name = "move-to-trash", .activate = action_move_to_trash},
     { .name = "delete-from-trash", .activate = action_delete },
+    { .name = "tag-color", .parameter_type = "s", .activate = action_tag_color },
     { .name = "star", .activate = action_star},
     { .name = "unstar", .activate = action_unstar},
     /* We separate the shortcut and the menu item since we want the shortcut
@@ -9389,6 +9420,27 @@ nautilus_files_view_class_init (NautilusFilesViewClass *klass)
      * delete or trash actions with the same shortcut without worrying: only the
      * enabled one will be activated.
      */
+    /* Ctrl+1..8 assign a color tag, Ctrl+0 clears it. Mirrors the order of the
+     * submenu so the shortcut is learnable from the menu itself. */
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_1, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "red");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_2, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "orange");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_3, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "yellow");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_4, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "green");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_5, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "blue");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_6, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "purple");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_7, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "brown");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_8, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "gray");
+    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_0, GDK_CONTROL_MASK,
+                                         "view.tag-color", "s", "none");
+
     gtk_widget_class_add_binding_action (widget_class, GDK_KEY_KP_Delete, GDK_SHIFT_MASK, "view.delete-permanently-shortcut", NULL);
     gtk_widget_class_add_binding_action (widget_class, GDK_KEY_Delete, GDK_SHIFT_MASK, "view.delete-permanently-shortcut", NULL);
     gtk_widget_class_add_binding_action (widget_class, GDK_KEY_KP_Delete, GDK_SHIFT_MASK, "view.permanent-delete-permanently-menu-item", NULL);
