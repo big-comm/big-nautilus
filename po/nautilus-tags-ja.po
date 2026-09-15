@@ -45,3 +45,15 @@ msgstr "%s のタグが付いたファイル"
 
 msgid "No Files With This Tag"
 msgstr "このタグが付いたファイルはありません"
+
+msgid "Restore previous tags"
+msgstr "以前のタグを復元"
+
+msgid "Tag files"
+msgstr "ファイルにタグ付け"
+
+msgid "_Undo Tagging"
+msgstr "タグ付けを元に戻す(_U)"
+
+msgid "_Redo Tagging"
+msgstr "タグ付けをやり直す(_R)"

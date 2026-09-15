@@ -45,3 +45,15 @@ msgstr "Skrár merktar %s"
 
 msgid "No Files With This Tag"
 msgstr "Engar skrár með þessu merki"
+
+msgid "Restore previous tags"
+msgstr "Endurheimta fyrri merki"
+
+msgid "Tag files"
+msgstr "Merkja skrár"
+
+msgid "_Undo Tagging"
+msgstr "_Afturkalla merkingu"
+
+msgid "_Redo Tagging"
+msgstr "_Endurtaka merkingu"

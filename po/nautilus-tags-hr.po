@@ -45,3 +45,15 @@ msgstr "Datoteke označene %s"
 
 msgid "No Files With This Tag"
 msgstr "Nema datoteka s ovom oznakom"
+
+msgid "Restore previous tags"
+msgstr "Vrati prethodne oznake"
+
+msgid "Tag files"
+msgstr "Označi datoteke"
+
+msgid "_Undo Tagging"
+msgstr "_Poništi označavanje"
+
+msgid "_Redo Tagging"
+msgstr "_Ponovi označavanje"

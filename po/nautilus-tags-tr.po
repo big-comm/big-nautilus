@@ -45,3 +45,15 @@ msgstr "%s etiketli dosyalar"
 
 msgid "No Files With This Tag"
 msgstr "Bu etikete sahip dosya yok"
+
+msgid "Restore previous tags"
+msgstr "Önceki etiketleri geri yükle"
+
+msgid "Tag files"
+msgstr "Dosyaları etiketle"
+
+msgid "_Undo Tagging"
+msgstr "Etiketlemeyi _geri al"
+
+msgid "_Redo Tagging"
+msgstr "Etiketlemeyi _yinele"

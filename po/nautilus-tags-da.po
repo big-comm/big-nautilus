@@ -45,3 +45,15 @@ msgstr "Filer mærket %s"
 
 msgid "No Files With This Tag"
 msgstr "Ingen filer med dette mærke"
+
+msgid "Restore previous tags"
+msgstr "Gendan tidligere mærker"
+
+msgid "Tag files"
+msgstr "Mærk filer"
+
+msgid "_Undo Tagging"
+msgstr "_Fortryd mærkning"
+
+msgid "_Redo Tagging"
+msgstr "_Gentag mærkning"

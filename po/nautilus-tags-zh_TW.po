@@ -45,3 +45,15 @@ msgstr "標記為 %s 的檔案"
 
 msgid "No Files With This Tag"
 msgstr "沒有帶此標記的檔案"
+
+msgid "Restore previous tags"
+msgstr "還原先前的標記"
+
+msgid "Tag files"
+msgstr "標記檔案"
+
+msgid "_Undo Tagging"
+msgstr "復原標記(_U)"
+
+msgid "_Redo Tagging"
+msgstr "重做標記(_R)"

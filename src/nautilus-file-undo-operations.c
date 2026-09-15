@@ -32,6 +32,7 @@
 #include "nautilus-file-undo-manager.h"
 #include "nautilus-batch-rename-dialog.h"
 #include "nautilus-scheme.h"
+#include "nautilus-tag-colors.h"
 #include "nautilus-tag-manager.h"
 
 
@@ -1582,6 +1583,178 @@ nautilus_file_undo_info_starred_new (GList    *files,
                          NULL);
 
     return NAUTILUS_FILE_UNDO_INFO (self);
+}
+
+
+/* colour tags */
+struct _NautilusFileUndoInfoTagColor
+{
+    NautilusFileUndoInfo parent_instance;
+
+    /* uri -> previous colour. Each file may have carried a different one, so
+     * undoing restores them individually instead of clearing everything. */
+    GHashTable *previous;
+    guint color;
+};
+
+G_DEFINE_TYPE (NautilusFileUndoInfoTagColor, nautilus_file_undo_info_tag_color, NAUTILUS_TYPE_FILE_UNDO_INFO);
+
+enum
+{
+    PROP_TAG_PREVIOUS = 1,
+    PROP_TAG_COLOR,
+    NUM_TAG_PROPERTIES
+};
+
+static void
+tag_color_strings_func (NautilusFileUndoInfo  *info,
+                        gchar                **undo_label,
+                        gchar                **undo_description,
+                        gchar                **redo_label,
+                        gchar                **redo_description)
+{
+    /* Deliberately not pluralised with a count: that would need correct
+     * Plural-Forms in all 33 fork catalogs, and the count adds little to an
+     * undo label. Strings use the fork domain so an upstream merge cannot
+     * drop them. */
+    *undo_description = g_strdup (_TAG ("Restore previous tags"));
+    *redo_description = g_strdup (_TAG ("Tag files"));
+    *undo_label = g_strdup (_TAG ("_Undo Tagging"));
+    *redo_label = g_strdup (_TAG ("_Redo Tagging"));
+}
+
+static void
+tag_color_undo_func (NautilusFileUndoInfo           *info,
+                     GtkWindow                      *parent_window,
+                     NautilusFileOperationsDBusData *dbus_data)
+{
+    NautilusFileUndoInfoTagColor *self = NAUTILUS_FILE_UNDO_INFO_TAG_COLOR (info);
+    NautilusTagColors *colors = nautilus_tag_colors_get ();
+    GHashTableIter iter;
+    gpointer key;
+    gpointer value;
+
+    g_hash_table_iter_init (&iter, self->previous);
+    while (g_hash_table_iter_next (&iter, &key, &value))
+    {
+        nautilus_tag_colors_set_color (colors, key, GPOINTER_TO_UINT (value));
+    }
+
+    file_undo_info_operation_callback (NULL, NULL, NULL, info);
+}
+
+static void
+tag_color_redo_func (NautilusFileUndoInfo           *info,
+                     GtkWindow                      *parent_window,
+                     NautilusFileOperationsDBusData *dbus_data)
+{
+    NautilusFileUndoInfoTagColor *self = NAUTILUS_FILE_UNDO_INFO_TAG_COLOR (info);
+    NautilusTagColors *colors = nautilus_tag_colors_get ();
+    GHashTableIter iter;
+    gpointer key;
+
+    g_hash_table_iter_init (&iter, self->previous);
+    while (g_hash_table_iter_next (&iter, &key, NULL))
+    {
+        nautilus_tag_colors_set_color (colors, key, self->color);
+    }
+
+    file_undo_info_operation_callback (NULL, NULL, NULL, info);
+}
+
+static void
+nautilus_file_undo_info_tag_color_set_property (GObject      *object,
+                                                guint         prop_id,
+                                                const GValue *value,
+                                                GParamSpec   *pspec)
+{
+    NautilusFileUndoInfoTagColor *self = NAUTILUS_FILE_UNDO_INFO_TAG_COLOR (object);
+
+    switch (prop_id)
+    {
+        case PROP_TAG_PREVIOUS:
+        {
+            GHashTable *given = g_value_get_pointer (value);
+            GHashTableIter iter;
+            gpointer key;
+            gpointer val;
+
+            self->previous = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+            if (given != NULL)
+            {
+                g_hash_table_iter_init (&iter, given);
+                while (g_hash_table_iter_next (&iter, &key, &val))
+                {
+                    g_hash_table_insert (self->previous, g_strdup (key), val);
+                }
+            }
+        }
+        break;
+
+        case PROP_TAG_COLOR:
+        {
+            self->color = g_value_get_uint (value);
+        }
+        break;
+
+        default:
+        {
+            G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+        }
+    }
+}
+
+static void
+nautilus_file_undo_info_tag_color_init (NautilusFileUndoInfoTagColor *self)
+{
+}
+
+static void
+nautilus_file_undo_info_tag_color_finalize (GObject *obj)
+{
+    NautilusFileUndoInfoTagColor *self = NAUTILUS_FILE_UNDO_INFO_TAG_COLOR (obj);
+
+    g_clear_pointer (&self->previous, g_hash_table_unref);
+
+    G_OBJECT_CLASS (nautilus_file_undo_info_tag_color_parent_class)->finalize (obj);
+}
+
+static void
+nautilus_file_undo_info_tag_color_class_init (NautilusFileUndoInfoTagColorClass *klass)
+{
+    GObjectClass *oclass = G_OBJECT_CLASS (klass);
+    NautilusFileUndoInfoClass *iclass = NAUTILUS_FILE_UNDO_INFO_CLASS (klass);
+
+    oclass->finalize = nautilus_file_undo_info_tag_color_finalize;
+    oclass->set_property = nautilus_file_undo_info_tag_color_set_property;
+
+    iclass->undo_func = tag_color_undo_func;
+    iclass->redo_func = tag_color_redo_func;
+    iclass->strings_func = tag_color_strings_func;
+
+    g_object_class_install_property (oclass, PROP_TAG_PREVIOUS,
+                                     g_param_spec_pointer ("previous", "previous",
+                                                           "Previous colour per uri",
+                                                           G_PARAM_WRITABLE |
+                                                           G_PARAM_CONSTRUCT_ONLY));
+    g_object_class_install_property (oclass, PROP_TAG_COLOR,
+                                     g_param_spec_uint ("color", "color",
+                                                        "Colour that was applied",
+                                                        0, G_MAXUINT, 0,
+                                                        G_PARAM_WRITABLE |
+                                                        G_PARAM_CONSTRUCT_ONLY));
+}
+
+NautilusFileUndoInfo *
+nautilus_file_undo_info_tag_color_new (GHashTable *previous,
+                                       guint       color)
+{
+    return g_object_new (NAUTILUS_TYPE_FILE_UNDO_INFO_TAG_COLOR,
+                         "op-type", NAUTILUS_FILE_UNDO_OP_TAG_COLOR,
+                         "item-count", (int) (previous != NULL ? g_hash_table_size (previous) : 0),
+                         "previous", previous,
+                         "color", color,
+                         NULL);
 }
 
 /* trash */

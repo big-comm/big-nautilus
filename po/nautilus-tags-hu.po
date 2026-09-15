@@ -45,3 +45,15 @@ msgstr "%s címkéjű fájlok"
 
 msgid "No Files With This Tag"
 msgstr "Nincs fájl ezzel a címkével"
+
+msgid "Restore previous tags"
+msgstr "Korábbi címkék visszaállítása"
+
+msgid "Tag files"
+msgstr "Fájlok címkézése"
+
+msgid "_Undo Tagging"
+msgstr "Címkézés _visszavonása"
+
+msgid "_Redo Tagging"
+msgstr "Címkézés _újra"

@@ -45,3 +45,15 @@ msgstr "Tiedostot merkinnällä %s"
 
 msgid "No Files With This Tag"
 msgstr "Ei tiedostoja tällä merkinnällä"
+
+msgid "Restore previous tags"
+msgstr "Palauta aiemmat merkinnät"
+
+msgid "Tag files"
+msgstr "Merkitse tiedostot"
+
+msgid "_Undo Tagging"
+msgstr "_Kumoa merkintä"
+
+msgid "_Redo Tagging"
+msgstr "_Tee merkintä uudelleen"

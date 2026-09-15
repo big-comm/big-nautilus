@@ -45,3 +45,15 @@ msgstr "Pliki oznaczone kolorem %s"
 
 msgid "No Files With This Tag"
 msgstr "Brak plików z tym oznaczeniem"
+
+msgid "Restore previous tags"
+msgstr "Przywróć poprzednie oznaczenia"
+
+msgid "Tag files"
+msgstr "Oznacz pliki"
+
+msgid "_Undo Tagging"
+msgstr "_Cofnij oznaczanie"
+
+msgid "_Redo Tagging"
+msgstr "_Ponów oznaczanie"

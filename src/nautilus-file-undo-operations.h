@@ -39,6 +39,7 @@ typedef enum
     NAUTILUS_FILE_UNDO_OP_RENAME,
     NAUTILUS_FILE_UNDO_OP_BATCH_RENAME,
     NAUTILUS_FILE_UNDO_OP_STARRED,
+    NAUTILUS_FILE_UNDO_OP_TAG_COLOR,
     NAUTILUS_FILE_UNDO_OP_CREATE_EMPTY_FILE,
     NAUTILUS_FILE_UNDO_OP_CREATE_FILE_FROM_TEMPLATE,
     NAUTILUS_FILE_UNDO_OP_CREATE_FOLDER,
@@ -158,6 +159,23 @@ NautilusFileUndoInfo *nautilus_file_undo_info_starred_new (GList   *files,
                                                            gboolean starred);
 GList *nautilus_file_undo_info_starred_get_files (NautilusFileUndoInfoStarred *self);
 gboolean nautilus_file_undo_info_starred_is_starred (NautilusFileUndoInfoStarred *self);
+
+/* colour tags */
+#define NAUTILUS_TYPE_FILE_UNDO_INFO_TAG_COLOR       (nautilus_file_undo_info_tag_color_get_type ())
+G_DECLARE_FINAL_TYPE (NautilusFileUndoInfoTagColor, nautilus_file_undo_info_tag_color,
+                      NAUTILUS, FILE_UNDO_INFO_TAG_COLOR,
+                      NautilusFileUndoInfo)
+
+/**
+ * nautilus_file_undo_info_tag_color_new:
+ * @previous: (transfer none): uri -> previous colour, as GUINT_TO_POINTER
+ * @color: the colour that was applied
+ *
+ * Unlike starring, which is a single boolean, each file may have carried a
+ * different colour before, so undoing has to restore them individually.
+ */
+NautilusFileUndoInfo *nautilus_file_undo_info_tag_color_new (GHashTable *previous,
+                                                             guint       color);
 
 /* trash */
 #define NAUTILUS_TYPE_FILE_UNDO_INFO_TRASH         (nautilus_file_undo_info_trash_get_type ())

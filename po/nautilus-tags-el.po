@@ -45,3 +45,15 @@ msgstr "Αρχεία με ετικέτα %s"
 
 msgid "No Files With This Tag"
 msgstr "Κανένα αρχείο με αυτήν την ετικέτα"
+
+msgid "Restore previous tags"
+msgstr "Επαναφορά προηγούμενων ετικετών"
+
+msgid "Tag files"
+msgstr "Επισήμανση αρχείων"
+
+msgid "_Undo Tagging"
+msgstr "_Αναίρεση επισήμανσης"
+
+msgid "_Redo Tagging"
+msgstr "_Επανάληψη επισήμανσης"

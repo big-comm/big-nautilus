@@ -45,3 +45,15 @@ msgstr "Fișiere etichetate %s"
 
 msgid "No Files With This Tag"
 msgstr "Niciun fișier cu această etichetă"
+
+msgid "Restore previous tags"
+msgstr "Restaurează etichetele anterioare"
+
+msgid "Tag files"
+msgstr "Etichetează fișiere"
+
+msgid "_Undo Tagging"
+msgstr "_Anulează etichetarea"
+
+msgid "_Redo Tagging"
+msgstr "_Refă etichetarea"

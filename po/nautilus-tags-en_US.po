@@ -45,3 +45,15 @@ msgstr "Files tagged %s"
 
 msgid "No Files With This Tag"
 msgstr "No Files With This Tag"
+
+msgid "Restore previous tags"
+msgstr "Restore previous tags"
+
+msgid "Tag files"
+msgstr "Tag files"
+
+msgid "_Undo Tagging"
+msgstr "_Undo Tagging"
+
+msgid "_Redo Tagging"
+msgstr "_Redo Tagging"

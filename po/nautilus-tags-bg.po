@@ -45,3 +45,15 @@ msgstr "Файлове с етикет %s"
 
 msgid "No Files With This Tag"
 msgstr "Няма файлове с този етикет"
+
+msgid "Restore previous tags"
+msgstr "Възстановяване на предишните етикети"
+
+msgid "Tag files"
+msgstr "Етикетиране на файлове"
+
+msgid "_Undo Tagging"
+msgstr "_Отмяна на етикетирането"
+
+msgid "_Redo Tagging"
+msgstr "_Повторно етикетиране"

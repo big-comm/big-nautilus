@@ -6490,14 +6490,15 @@ nautilus_file_operations_copy_move (const GList                    *item_uris,
 
         if (color != NAUTILUS_TAG_COLOR_NONE)
         {
-            NautilusTagColors *colors = nautilus_tag_colors_get ();
+            GList *uris = NULL;
 
             for (const GList *l = locations; l != NULL; l = l->next)
             {
-                g_autofree char *uri = g_file_get_uri (G_FILE (l->data));
-
-                nautilus_tag_colors_set_color (colors, uri, color);
+                uris = g_list_prepend (uris, g_file_get_uri (G_FILE (l->data)));
             }
+
+            nautilus_tag_colors_apply_with_undo (uris, color);
+            g_list_free_full (uris, g_free);
         }
     }
     else if (g_file_has_uri_scheme (dest, SCHEME_STARRED))

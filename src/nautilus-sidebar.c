@@ -1651,7 +1651,7 @@ apply_tag_to_dropped_files (const char *target_uri,
 {
     g_autoptr (GFile) location = g_file_new_for_uri (target_uri);
     NautilusTagColor color = nautilus_tag_directory_get_color_for_location (location);
-    NautilusTagColors *colors = nautilus_tag_colors_get ();
+    GList *uris = NULL;
 
     if (color == NAUTILUS_TAG_COLOR_NONE)
     {
@@ -1660,10 +1660,11 @@ apply_tag_to_dropped_files (const char *target_uri,
 
     for (GSList *l = file_list; l != NULL; l = l->next)
     {
-        g_autofree char *uri = g_file_get_uri (G_FILE (l->data));
-
-        nautilus_tag_colors_set_color (colors, uri, color);
+        uris = g_list_prepend (uris, g_file_get_uri (G_FILE (l->data)));
     }
+
+    nautilus_tag_colors_apply_with_undo (uris, color);
+    g_list_free_full (uris, g_free);
 }
 
 static gboolean

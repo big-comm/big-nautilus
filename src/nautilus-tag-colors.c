@@ -9,6 +9,9 @@
 
 #include "nautilus-tag-colors.h"
 
+#include "nautilus-file-undo-manager.h"
+#include "nautilus-file-undo-operations.h"
+
 #include <glib/gi18n.h>
 #include <glib/gstdio.h>
 
@@ -389,4 +392,32 @@ nautilus_tag_colors_move (NautilusTagColors *self,
 
     schedule_save (self);
     g_signal_emit (self, signals[CHANGED], 0, NULL);
+}
+
+void
+nautilus_tag_colors_apply_with_undo (GList            *uris,
+                                     NautilusTagColor  color)
+{
+    NautilusTagColors *self = nautilus_tag_colors_get ();
+    g_autoptr (GHashTable) previous = NULL;
+    g_autoptr (NautilusFileUndoInfo) undo_info = NULL;
+
+    if (uris == NULL)
+    {
+        return;
+    }
+
+    previous = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+
+    for (GList *l = uris; l != NULL; l = l->next)
+    {
+        const char *uri = l->data;
+
+        g_hash_table_insert (previous, g_strdup (uri),
+                             GUINT_TO_POINTER (nautilus_tag_colors_get_color (self, uri)));
+        nautilus_tag_colors_set_color (self, uri, color);
+    }
+
+    undo_info = nautilus_file_undo_info_tag_color_new (previous, color);
+    nautilus_file_undo_manager_set_action (undo_info);
 }

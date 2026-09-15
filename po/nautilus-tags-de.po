@@ -45,3 +45,15 @@ msgstr "Mit %s markierte Dateien"
 
 msgid "No Files With This Tag"
 msgstr "Keine Dateien mit dieser Markierung"
+
+msgid "Restore previous tags"
+msgstr "Vorherige Markierungen wiederherstellen"
+
+msgid "Tag files"
+msgstr "Dateien markieren"
+
+msgid "_Undo Tagging"
+msgstr "Markieren _rückgängig"
+
+msgid "_Redo Tagging"
+msgstr "Markieren _wiederholen"

@@ -1666,7 +1666,6 @@ action_tag_color (GSimpleAction *action,
 {
     NautilusFilesView *view = NAUTILUS_FILES_VIEW (user_data);
     g_autolist (NautilusFile) selection = NULL;
-    NautilusTagColors *tags = nautilus_tag_colors_get ();
     const char *name = g_variant_get_string (parameter, NULL);
     NautilusTagColor color = NAUTILUS_TAG_COLOR_NONE;
 
@@ -1680,11 +1679,16 @@ action_tag_color (GSimpleAction *action,
     }
 
     selection = nautilus_files_view_get_selection (view);
-    for (GList *l = selection; l != NULL; l = l->next)
     {
-        g_autofree char *uri = nautilus_file_get_uri (NAUTILUS_FILE (l->data));
+        GList *uris = NULL;
 
-        nautilus_tag_colors_set_color (tags, uri, color);
+        for (GList *l = selection; l != NULL; l = l->next)
+        {
+            uris = g_list_prepend (uris, nautilus_file_get_uri (NAUTILUS_FILE (l->data)));
+        }
+
+        nautilus_tag_colors_apply_with_undo (uris, color);
+        g_list_free_full (g_steal_pointer (&uris), g_free);
     }
 }
 

@@ -45,3 +45,15 @@ msgstr "Ficheiros marcados %s"
 
 msgid "No Files With This Tag"
 msgstr "Sem ficheiros com esta marca"
+
+msgid "Restore previous tags"
+msgstr "Restaurar marcas anteriores"
+
+msgid "Tag files"
+msgstr "Marcar ficheiros"
+
+msgid "_Undo Tagging"
+msgstr "_Desfazer marcação"
+
+msgid "_Redo Tagging"
+msgstr "_Refazer marcação"

@@ -45,3 +45,15 @@ msgstr "File etichettati %s"
 
 msgid "No Files With This Tag"
 msgstr "Nessun file con questa etichetta"
+
+msgid "Restore previous tags"
+msgstr "Ripristina etichette precedenti"
+
+msgid "Tag files"
+msgstr "Etichetta file"
+
+msgid "_Undo Tagging"
+msgstr "_Annulla etichettatura"
+
+msgid "_Redo Tagging"
+msgstr "_Ripeti etichettatura"

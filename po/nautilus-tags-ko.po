@@ -45,3 +45,15 @@ msgstr "%s 태그가 붙은 파일"
 
 msgid "No Files With This Tag"
 msgstr "이 태그가 붙은 파일이 없습니다"
+
+msgid "Restore previous tags"
+msgstr "이전 태그 복원"
+
+msgid "Tag files"
+msgstr "파일에 태그 지정"
+
+msgid "_Undo Tagging"
+msgstr "태그 지정 실행 취소(_U)"
+
+msgid "_Redo Tagging"
+msgstr "태그 지정 다시 실행(_R)"

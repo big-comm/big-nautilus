@@ -45,3 +45,15 @@ msgstr "קבצים מתויגים %s"
 
 msgid "No Files With This Tag"
 msgstr "אין קבצים עם תיוג זה"
+
+msgid "Restore previous tags"
+msgstr "שחזור תיוגים קודמים"
+
+msgid "Tag files"
+msgstr "תיוג קבצים"
+
+msgid "_Undo Tagging"
+msgstr "_ביטול התיוג"
+
+msgid "_Redo Tagging"
+msgstr "_ביצוע התיוג מחדש"

@@ -45,3 +45,15 @@ msgstr "Failid märkega %s"
 
 msgid "No Files With This Tag"
 msgstr "Selle märkega faile pole"
+
+msgid "Restore previous tags"
+msgstr "Taasta eelmised märked"
+
+msgid "Tag files"
+msgstr "Märgi failid"
+
+msgid "_Undo Tagging"
+msgstr "_Võta märkimine tagasi"
+
+msgid "_Redo Tagging"
+msgstr "_Tee märkimine uuesti"

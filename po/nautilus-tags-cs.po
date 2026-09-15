@@ -45,3 +45,15 @@ msgstr "Soubory označené barvou %s"
 
 msgid "No Files With This Tag"
 msgstr "Žádné soubory s tímto štítkem"
+
+msgid "Restore previous tags"
+msgstr "Obnovit předchozí štítky"
+
+msgid "Tag files"
+msgstr "Označit soubory"
+
+msgid "_Undo Tagging"
+msgstr "_Zpět označení"
+
+msgid "_Redo Tagging"
+msgstr "_Znovu označení"

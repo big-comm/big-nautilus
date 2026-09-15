@@ -45,3 +45,15 @@ msgstr "Bestanden met label %s"
 
 msgid "No Files With This Tag"
 msgstr "Geen bestanden met dit label"
+
+msgid "Restore previous tags"
+msgstr "Vorige labels herstellen"
+
+msgid "Tag files"
+msgstr "Bestanden labelen"
+
+msgid "_Undo Tagging"
+msgstr "Labelen _ongedaan maken"
+
+msgid "_Redo Tagging"
+msgstr "Labelen op_nieuw"

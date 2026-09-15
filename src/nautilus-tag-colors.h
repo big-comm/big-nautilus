@@ -94,4 +94,16 @@ const char *nautilus_tag_color_get_css_class (NautilusTagColor color);
 const char *nautilus_tag_color_get_name      (NautilusTagColor color);
 const char *nautilus_tag_color_get_label     (NautilusTagColor color);
 
+/**
+ * nautilus_tag_colors_apply_with_undo:
+ * @uris: (element-type utf8): files to tag
+ *
+ * Applies @color to every uri and registers a single undoable action that
+ * restores each file's previous colour. Use this instead of calling
+ * nautilus_tag_colors_set_color() in a loop, so that every way of tagging --
+ * menu, shortcut, drag and drop -- is undoable the same way.
+ */
+void nautilus_tag_colors_apply_with_undo (GList            *uris,
+                                          NautilusTagColor  color);
+
 G_END_DECLS
