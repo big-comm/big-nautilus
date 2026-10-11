@@ -62,8 +62,34 @@ gboolean
 nautilus_search_engine_bigsearch_is_available (void)
 {
     g_autofree char *path = socket_path ();
+    g_autoptr (GSocketClient) client = NULL;
+    g_autoptr (GSocketAddress) address = NULL;
+    g_autoptr (GSocketConnection) connection = NULL;
 
-    return path != NULL && g_file_test (path, G_FILE_TEST_EXISTS);
+    if (path == NULL || !g_file_test (path, G_FILE_TEST_EXISTS))
+    {
+        return FALSE;
+    }
+
+    /* The file outliving the daemon is common enough -- a crash, a stopped
+     * service -- that testing for it is not enough to say the service is
+     * there. Connecting to a Unix socket costs a fraction of a millisecond,
+     * against the seconds the directory-walking engine spends, so pay it and
+     * let the answer mean what it says. */
+    client = g_socket_client_new ();
+    g_socket_client_set_timeout (client, 1);
+    address = g_unix_socket_address_new (path);
+    connection = g_socket_client_connect (client, G_SOCKET_CONNECTABLE (address),
+                                          NULL, NULL);
+
+    if (connection == NULL)
+    {
+        return FALSE;
+    }
+
+    g_io_stream_close (G_IO_STREAM (connection), NULL, NULL);
+
+    return TRUE;
 }
 
 static const char *
@@ -331,9 +357,19 @@ start_search (NautilusSearchProvider *provider)
 
     if (error != NULL && !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
     {
-        /* The other engines are still running, so a failure here degrades the
-         * search rather than breaking it. */
-        g_warning ("BigSearch engine: %s", error->message);
+        /* A socket file left behind by a daemon that is no longer running is
+         * an ordinary state, not a fault: the service is optional and the
+         * other engines answer the search either way. Anything else -- a
+         * protocol mismatch, malformed JSON -- is worth saying out loud. */
+        if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CONNECTION_REFUSED) ||
+            g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+        {
+            g_debug ("BigSearch daemon not answering: %s", error->message);
+        }
+        else
+        {
+            g_warning ("BigSearch engine: %s", error->message);
+        }
     }
 
     nautilus_search_provider_flush_hits (self);
