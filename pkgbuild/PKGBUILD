@@ -42,6 +42,7 @@ depends=(
   gvfs
   hicolor-icon-theme
   icu
+  json-glib
   libadwaita
   libcloudproviders
   libgexiv2
@@ -54,6 +55,9 @@ depends=(
   tinysparql
   wayland
   xdg-user-dirs-gtk
+)
+optdepends=(
+  'big-search: index-backed search, answering in under a millisecond instead of walking the tree'
 )
 makedepends=(
   appstream
