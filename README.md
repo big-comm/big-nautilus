@@ -1,40 +1,210 @@
-# nautilus
-[![Pipeline status](https://gitlab.gnome.org/GNOME/nautilus/badges/main/pipeline.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/main)
-[![coverage report](https://gitlab.gnome.org/GNOME/nautilus/badges/main/coverage.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/main) 
+# big-nautilus
 
-This is the project of the [Files](https://apps.gnome.org/Nautilus/) app, a file browser for
-GNOME, internally known by its historical name `nautilus`.
+A file manager for [BigLinux](https://www.biglinux.com.br/) and
+[BigCommunity](https://communitybig.org/), built on
+[GNOME Files](https://gitlab.gnome.org/GNOME/nautilus) with an embedded
+terminal, colour tags, and an optional index-backed search that answers in
+under a millisecond.
 
-## Supported version
-Only the latest version of Files as provided upstream is supported. Try out the [Flatpak nightly](https://welcome.gnome.org/en/app/Nautilus/#installing-a-nightly-build) installation before filling issues to ensure the installation is reproducible and doesn't have downstream changes on it. In case you cannot reproduce in the nightly installation, don't hesitate to file an issue in your distribution. This is to ensure the issue is well triaged and reaches the proper people.
+Tracks upstream GNOME Files closely — currently **50.4** — so everything you
+already know about Files still applies. The additions sit alongside it rather
+than replacing it.
 
-## Runtime dependencies
-- [Bubblewrap](https://github.com/containers/bubblewrap) installed. Used for security reasons.
-- [LocalSearch](https://gitlab.gnome.org/GNOME/localsearch) properly set up and with all features enabled. Used for fast search and metadata extraction, starred files and batch renaming.
-- [xdg-user-dirs-gtk](https://gitlab.gnome.org/GNOME/xdg-user-dirs-gtk) installed.  Used to create the default bookmarks and update localization.
+![big-nautilus with colour tags and the embedded terminal](docs/screenshots/overview.png)
 
-## Discourse
+---
 
-For more informal discussion we use [GNOME Discourse](https://discourse.gnome.org/tags/nautilus) in the Applications category with the `nautilus` tag. Feel free to open a topic there.
+## Features
 
-## Extensions
+### Embedded terminal
 
-Documentation for the libnautilus-extension API is available [here](https://gnome.pages.gitlab.gnome.org/nautilus/).  Also, if you are interested in developing a Nautilus extension in Python you should refer to the [nautilus-python](https://gnome.pages.gitlab.gnome.org/nautilus-python/) documentation.
+A real terminal pane inside the file manager window, backed by VTE — the same
+widget GNOME Terminal and Console use. Press <kbd>F4</kbd> to show or hide it.
 
-## How to report issues
+It can follow you around, in either direction:
 
-Report issues to the GNOME [issue tracking system](https://gitlab.gnome.org/GNOME/nautilus/issues).
+| Mode | Behaviour |
+|---|---|
+| `both` | Browsing changes the terminal's directory, and `cd` moves the view |
+| `fm-to-term` | Browsing changes the terminal's directory |
+| `term-to-fm` | `cd` in the terminal moves the view |
+| `none` | The two stay independent |
 
-## Feature requests
+Opening an `sftp://` location can connect over SSH automatically and keep the
+same directory synchronisation on the remote side. It is off by default; turn
+it on from the terminal's context menu.
 
-Files is a core compoment of the GNOME desktop experience. As such, any changes in behavior or appearance only happen in accordance with the [GNOME design team][design-team].
+The pane is resizable, its size is remembered per session, and the font,
+size and colour scheme are configurable.
 
-For major changes, it is best to start a discussion on [discourse] and reach out on the [#gnome-design matrix room][design-room], and only involve the issue tracker once agreement has been reached.
+![The embedded terminal following the browsed folder](docs/screenshots/terminal.png)
 
-In particular mockups must be approved by the design team to be considered for implementation.
+### Colour tags
 
-For enhancements that are limited in scope and well-defined, it is acceptable to directly open an issue using the shortcoming template.
+Mark a folder or file with one of eight colours. Tagged items get a coloured
+dot in the corner of the icon and an outlined badge around the name — visible
+at a glance without turning the view into a colour chart.
 
-[design-team]: https://gitlab.gnome.org/Teams/Design
-[discourse]: https://discourse.gnome.org/tag/nautilus
-[design-room]: https://matrix.to/#/#gnome-design:gnome.org
+![Folders marked with colour tags](docs/screenshots/tags-grid.png)
+
+Tags can be applied from the context menu or with <kbd>Ctrl</kbd> +
+<kbd>1</kbd> … <kbd>8</kbd>, and every way of applying one is undoable with
+<kbd>Ctrl</kbd> + <kbd>Z</kbd>.
+
+Each colour in use appears in the sidebar as a place you can open, gathering
+every file carrying that colour regardless of where it lives. Drag files onto
+a colour there to tag them.
+
+Colours can be renamed, so "Orange" becomes "Mobile" or whatever the tag is
+actually for. The dot still carries the colour, so the label is free to say
+something useful.
+
+![The sidebar listing colours in use, renamed](docs/screenshots/tags-sidebar.png)
+
+Tags follow files through renames and moves, are dropped when a file is
+deleted, and are stored in `tags.conf` under your data directory.
+
+### Fast search
+
+When the [BigSearch](https://github.com/biglinux/bigsearch) daemon is
+running, big-nautilus queries its Tantivy index instead of walking the
+filesystem. Measured on one machine, searching the same tree:
+
+| Engine | Median latency |
+|---|---|
+| BigSearch | **0.54 ms** |
+| LocalSearch (Tracker) | 43–200 ms |
+| Directory traversal | seconds |
+
+The location you are searching in, and any date filter, are pushed into the
+index rather than applied afterwards.
+
+The daemon is entirely optional. When it is not running, search falls back to
+the engines GNOME Files ships with, and nothing changes.
+
+---
+
+## Installing
+
+### On BigLinux / BigCommunity
+
+```sh
+sudo pacman -S big-nautilus
+```
+
+It `provides` and `replaces` `nautilus`, so it takes the place of the stock
+file manager. If you are coming from the older `nautilus-with-terminal`
+package, it is replaced in place.
+
+### Building from source
+
+Dependencies match GNOME Files 50, plus VTE for the terminal and json-glib
+for the search client:
+
+```sh
+meson setup builddir
+meson compile -C builddir
+meson test -C builddir
+sudo meson install -C builddir
+```
+
+To run a development copy side by side with the installed one, without
+installing:
+
+```sh
+meson setup builddir -Dprofile=Devel
+meson compile -C builddir
+GSETTINGS_SCHEMA_DIR=$PWD/builddir/data ./builddir/src/nautilus
+```
+
+### Building the package
+
+The recipe lives in `pkgbuild/`:
+
+```sh
+cd pkgbuild && makepkg -si
+```
+
+---
+
+## Configuration
+
+Settings live under the standard GSettings schema and can be changed from the
+terminal's context menu or on the command line:
+
+```sh
+# Terminal
+gsettings set org.gnome.nautilus.terminal local-sync-mode 'both'
+gsettings set org.gnome.nautilus.terminal ssh-auto-connect-mode 'off'
+gsettings set org.gnome.nautilus.terminal font-size 11
+gsettings set org.gnome.nautilus.terminal color-scheme 'dark'
+```
+
+| Key | Values | Default |
+|---|---|---|
+| `local-sync-mode` | `none`, `fm-to-term`, `term-to-fm`, `both` | `both` |
+| `ssh-auto-connect-mode` | `off`, `sync-none`, `sync-fm-to-term`, `sync-term-to-fm`, `sync-both` | `off` |
+| `visible` | whether the pane starts open | `false` |
+| `font`, `font-size`, `color-scheme` | terminal appearance | system |
+
+---
+
+## Keyboard shortcuts
+
+Everything GNOME Files binds, plus:
+
+| Shortcut | Action |
+|---|---|
+| <kbd>F4</kbd> | Show or hide the terminal |
+| <kbd>Ctrl</kbd> + <kbd>1</kbd> … <kbd>8</kbd> | Apply a colour tag to the selection |
+| <kbd>Ctrl</kbd> + <kbd>0</kbd> | Remove the colour tag |
+| <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Undo, including tagging |
+
+---
+
+## Relationship to GNOME Files
+
+This is a fork, not a rebuild. The vast majority of the code is GNOME Files,
+written by the GNOME project, and upstream releases are merged in as they
+come out.
+
+**Please report bugs here, not to GNOME.** If you can reproduce a problem in
+stock GNOME Files, it belongs
+[upstream](https://gitlab.gnome.org/GNOME/nautilus/issues); anything
+involving the terminal, the colour tags or the search integration is ours.
+
+The application ID, the GSettings schema and the extension directory keep
+their upstream names on purpose, so Nautilus extensions, the file chooser
+portal and the GNOME Shell search provider all keep working.
+
+Extensions written for GNOME Files — including Python ones via
+`nautilus-python` — load unchanged.
+
+---
+
+## Contributing
+
+Issues and merge requests are welcome. For code, the repository follows
+upstream GNOME Files conventions: C11, GNOME coding style, and commit
+messages that explain *why* a change was made rather than restating the
+diff.
+
+Translations for the fork's own strings live in two gettext domains of their
+own, `nautilus-terminal` and `nautilus-tags`, kept separate from the
+upstream catalogue so that merging a new GNOME release cannot overwrite
+them. Both currently cover 33 languages.
+
+Run the test suite before sending a change:
+
+```sh
+meson test -C builddir
+```
+
+---
+
+## License
+
+GPL-3.0-or-later, the same as GNOME Files. See [LICENSE](LICENSE).
+
+GNOME Files is © the GNOME Project. The additions described above are
+© BigCommunity.
