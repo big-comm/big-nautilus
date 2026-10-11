@@ -4930,7 +4930,9 @@ build_menu_for_extension_menu_items (NautilusFilesView *view,
     for (l = menu_items; l; l = l->next)
     {
         NautilusMenuItem *item;
-        NautilusMenu *menu;
+        /* g_object_get() hands out a new reference; without g_autoptr the
+         * submenu of every extension menu item leaked on each popup. */
+        g_autoptr (NautilusMenu) menu = NULL;
         GMenuItem *menu_item;
         char *name, *label;
         g_autofree gchar *escaped_name = NULL;

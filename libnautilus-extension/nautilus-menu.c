@@ -115,7 +115,10 @@ nautilus_menu_finalize (GObject *object)
 {
     NautilusMenu *menu = NAUTILUS_MENU (object);
 
-    g_clear_pointer (&menu->item_list, g_list_free);
+    /* nautilus_menu_append_item() refs every item, so freeing the bare list
+     * leaked each one -- one leak per item on every context menu an extension
+     * populates. */
+    g_clear_list (&menu->item_list, g_object_unref);
 
     G_OBJECT_CLASS (nautilus_menu_parent_class)->finalize (object);
 }

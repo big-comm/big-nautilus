@@ -247,11 +247,10 @@ nautilus_menu_item_set_property (GObject      *object,
 
         case PROP_MENU:
         {
-            if (priv->menu)
-            {
-                g_object_unref (priv->menu);
-            }
-            priv->menu = g_object_ref (g_value_get_object (value));
+            /* Unreffing before reffing dropped the last reference when the
+             * same menu was set twice, and g_object_ref (NULL) made it
+             * impossible to clear a submenu at all. */
+            g_set_object (&priv->menu, g_value_get_object (value));
             g_object_notify (object, "menu");
         }
         break;
