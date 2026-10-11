@@ -420,6 +420,31 @@ nautilus_file_info_can_write (NautilusFileInfo *self)
     return iface->can_write (self);
 }
 
+/* These setters mutate lists and hash tables inside NautilusFile and then emit
+ * "changed", which reaches straight into the views. None of that is
+ * thread-safe, and an extension doing its work on a GLib thread and calling
+ * back from there is a realistic way to corrupt the heap. Warn rather than
+ * refuse: extensions that already do this would otherwise stop working with no
+ * explanation, and the warning names the culprit in the log. */
+static void
+warn_if_not_main_thread (const char *function)
+{
+    static gsize warned = 0;
+
+    if (g_main_context_is_owner (g_main_context_default ()))
+    {
+        return;
+    }
+
+    if (g_once_init_enter (&warned))
+    {
+        g_warning ("%s called off the main thread. Nautilus file info is not "
+                   "thread-safe; marshal the call to the main context "
+                   "(GLib.idle_add) in the extension.", function);
+        g_once_init_leave (&warned, 1);
+    }
+}
+
 /**
  * nautilus_file_info_add_emblem:
  * @emblem_name: the name of an emblem
@@ -431,6 +456,8 @@ nautilus_file_info_add_emblem (NautilusFileInfo *self,
                                const char       *emblem_name)
 {
     NautilusFileInfoInterface *iface;
+
+    warn_if_not_main_thread (G_STRFUNC);
 
     g_return_if_fail (NAUTILUS_IS_FILE_INFO (self));
     g_return_if_fail (emblem_name != NULL && emblem_name[0] != '\0');
@@ -484,6 +511,8 @@ nautilus_file_info_add_string_attribute (NautilusFileInfo *self,
 {
     NautilusFileInfoInterface *iface;
 
+    warn_if_not_main_thread (G_STRFUNC);
+
     g_return_if_fail (NAUTILUS_IS_FILE_INFO (self));
     g_return_if_fail (attribute_name != NULL);
     g_return_if_fail (value != NULL);
@@ -508,6 +537,8 @@ void
 nautilus_file_info_invalidate_extension_info (NautilusFileInfo *self)
 {
     NautilusFileInfoInterface *iface;
+
+    warn_if_not_main_thread (G_STRFUNC);
 
     g_return_if_fail (NAUTILUS_IS_FILE_INFO (self));
 

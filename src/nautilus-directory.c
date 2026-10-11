@@ -1172,6 +1172,17 @@ nautilus_directory_notify_files_removed (GList *files)
     {
         GFile *location = p->data;
 
+        /* Drop the colour tag of a file Nautilus itself removed. Deciding
+         * this by testing the filesystem would be wrong, because a tagged
+         * file on an unmounted volume also fails to exist; being told about
+         * the removal leaves no room for that guess. */
+        {
+            g_autofree char *gone_uri = g_file_get_uri (location);
+
+            nautilus_tag_colors_set_color (nautilus_tag_colors_get (), gone_uri,
+                                           NAUTILUS_TAG_COLOR_NONE);
+        }
+
         /* Update file count for parent directory if anyone might care. */
         g_autoptr (GFile) parent = g_file_get_parent (location);
         NautilusDirectory *parent_directory = lookup_existing (parent);

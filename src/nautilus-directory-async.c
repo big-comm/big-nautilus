@@ -3972,13 +3972,22 @@ info_provider_callback (NautilusInfoProvider    *provider,
 }
 
 static void
+closure_directory_unref (gpointer  data,
+                         GClosure *closure)
+{
+    nautilus_directory_unref (NAUTILUS_DIRECTORY (data));
+}
+
+static void
 extension_info_start (NautilusDirectory *directory,
                       NautilusFile      *file,
                       gboolean          *doing_io)
 {
     NautilusInfoProvider *provider;
     NautilusOperationResult result;
-    NautilusOperationHandle *handle;
+    /* An extension that reports IN_PROGRESS without filling this in would
+     * otherwise leave stack garbage as the in-progress handle. */
+    NautilusOperationHandle *handle = NULL;
     GClosure *update_complete;
 
     if (directory->details->extension_info_in_progress != NULL)
@@ -4000,9 +4009,13 @@ extension_info_start (NautilusDirectory *directory,
 
     provider = file->details->pending_info_providers->data;
 
+    /* The extension may hold on to this closure and invoke it long after we
+     * return -- from a thread or a timeout of its own. Holding a reference to
+     * the directory for as long as the closure lives is what keeps
+     * info_provider_callback() from writing into a finalized directory. */
     update_complete = g_cclosure_new (G_CALLBACK (info_provider_callback),
-                                      directory,
-                                      NULL);
+                                      nautilus_directory_ref (directory),
+                                      (GClosureNotify) closure_directory_unref);
     g_closure_set_marshal (update_complete,
                            g_cclosure_marshal_generic);
 

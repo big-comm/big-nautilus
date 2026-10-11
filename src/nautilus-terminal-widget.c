@@ -645,23 +645,23 @@ static void
 action_manual_ssh_connect (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    g_auto(GStrv) parts = g_strsplit (g_variant_get_string (parameter, NULL), ";", 4);
-    if (g_strv_length (parts) == 4)
-    {
-        const gchar *hostname = parts[0];
-        const gchar *username = parts[1][0] ? parts[1] : NULL;
-        const gchar *port = parts[2][0] ? parts[2] : NULL;
-        guint64 mode = g_ascii_strtoull (parts[3], NULL, 10);
+    const gchar *hostname = NULL;
+    const gchar *username = NULL;
+    const gchar *port = NULL;
+    gint32 mode = 0;
 
-        if (mode <= NAUTILUS_TERMINAL_SYNC_BOTH)
-        {
-            _initiate_ssh_connection (self,
-                                      hostname,
-                                      username,
-                                      port,
-                                      (NautilusTerminalSyncMode) mode);
-        }
+    g_variant_get (parameter, "(&s&s&si)", &hostname, &username, &port, &mode);
+
+    if (mode < 0 || mode > NAUTILUS_TERMINAL_SYNC_BOTH)
+    {
+        return;
     }
+
+    _initiate_ssh_connection (self,
+                              hostname,
+                              (username != NULL && *username != '\0') ? username : NULL,
+                              (port != NULL && *port != '\0') ? port : NULL,
+                              (NautilusTerminalSyncMode) mode);
 }
 
 
@@ -671,7 +671,7 @@ static const GActionEntry terminal_actions[] =
   { .name = "paste", .activate = action_paste },
   { .name = "select-all", .activate = action_select_all },
   { .name = "ssh-disconnect", .activate = action_ssh_disconnect },
-  { .name = "manual-ssh-connect", .parameter_type = "s", .activate = action_manual_ssh_connect },
+  { .name = "manual-ssh-connect", .parameter_type = "(sssi)", .activate = action_manual_ssh_connect },
   { .name = "set-color-scheme", .parameter_type = "s", .state = "\"system\"", .change_state = action_set_color_scheme_state },
   { .name = "set-font-size", .parameter_type = "i", .state = "12", .change_state = action_set_font_size_state },
   { .name = "set-local-sync-mode", .parameter_type = "i", .state = "3", .change_state = action_set_local_sync_mode_state },
@@ -2297,8 +2297,15 @@ _build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hos
     for (gsize i = 0; i < G_N_ELEMENTS(MANUAL_SSH_SYNC_ENTRIES); ++i)
     {
         GMenuItem *item = g_menu_item_new(_T(MANUAL_SSH_SYNC_ENTRIES[i].label_pot), "terminal.manual-ssh-connect");
-        g_autofree gchar *target_str = g_strdup_printf("%s;%s;%s;%d", hostname, username ? username : "", port ? port : "", MANUAL_SSH_SYNC_ENTRIES[i].mode);
-        g_menu_item_set_action_and_target_value(item, "terminal.manual-ssh-connect", g_variant_new_string(target_str));
+        /* A tuple, not a ";"-joined string: a host or user containing ';'
+         * used to shift the fields apart and let the caller control the
+         * others. */
+        GVariant *target = g_variant_new ("(sssi)",
+                                          hostname,
+                                          username ? username : "",
+                                          port ? port : "",
+                                          (gint32) MANUAL_SSH_SYNC_ENTRIES[i].mode);
+        g_menu_item_set_action_and_target_value(item, "terminal.manual-ssh-connect", target);
         g_menu_append_item(submenu, item);
     }
     return G_MENU_MODEL(submenu);
