@@ -7,20 +7,20 @@
 # Maintainer: Bruno Goncalves <biglinux.com.br>
 # Maintainer: Tales A. Mendonça <communitybig.org>
 
-pkgbase=nautilus-with-terminal
-pkgname=nautilus-with-terminal
-pkgdesc="Default file manager for GNOME - with embedded terminal support"
+pkgbase=big-nautilus
+pkgname=big-nautilus
+pkgdesc="File manager for BigLinux - GNOME Files with an embedded terminal, colour tags and more"
 pkgver=50.4
 pkgrel=1
-conflicts=('nautilus')
+conflicts=('nautilus' 'nautilus-with-terminal')
 provides=('nautilus')
-replaces=('nautilus')
+replaces=('nautilus' 'nautilus-with-terminal')
 url="https://apps.gnome.org/Nautilus/"
 arch=(x86_64)
 license=(GPL-3.0-or-later)
 # Nota: não habilitar options=(debug) aqui. O pipeline resolve o artefato com
 #   find . -iname "$pkgname*.pkg.tar.zst"
-# e o nome nautilus-with-terminal-debug casa com esse mesmo padrão, então a
+# e o nome big-nautilus-debug casa com esse mesmo padrão, então a
 # variável full_pkgname vira multilinha, a escrita em $GITHUB_ENV é recusada e
 # o job falha depois de já ter construído os pacotes. Para depurar, construa
 # localmente com options=(debug) em uma cópia deste PKGBUILD.
@@ -103,7 +103,7 @@ _pick() {
   done
 }
 
-package_nautilus-with-terminal() {
+package_big-nautilus() {
   depends+=(libnautilus-extension.so)
   groups=(gnome)
 
