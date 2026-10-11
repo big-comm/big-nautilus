@@ -25,6 +25,7 @@ tests = {
   'test-nautilus-search-engine-simple': {},
   'test-ui-utilities': {},
   'test-thumbnails': {},
+  'test-tag-colors': {},
   'test-terminal-utils': {},
 }
 

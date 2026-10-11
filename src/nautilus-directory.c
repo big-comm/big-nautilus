@@ -34,6 +34,7 @@
 #include "nautilus-metadata.h"
 #include "nautilus-monitor.h"
 #include "nautilus-scheme.h"
+#include "nautilus-tag-colors.h"
 #include "nautilus-tag-directory.h"
 #include "nautilus-vfs-directory.h"
 #include "nautilus-vfs-file.h"
@@ -1358,6 +1359,15 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
         GFile *to_location = pair->to;
         g_autoptr (NautilusFile) from_file = nautilus_file_get_existing (from_location);
         g_autoptr (NautilusFile) to_file = nautilus_file_get_existing (to_location);
+
+        /* Colour tags are keyed by URI, so a rename or a move would otherwise
+         * drop the tag and leave a stale entry behind. */
+        {
+            g_autofree char *from_uri = g_file_get_uri (from_location);
+            g_autofree char *to_uri = g_file_get_uri (to_location);
+
+            nautilus_tag_colors_move (nautilus_tag_colors_get (), from_uri, to_uri);
+        }
 
         /* Handle overwriting a file. */
         if (to_file != NULL && from_file != NULL)

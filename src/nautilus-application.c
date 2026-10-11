@@ -63,6 +63,7 @@
 #include "nautilus-scheme.h"
 #include "nautilus-shell-search-provider.h"
 #include "nautilus-signaller.h"
+#include "nautilus-tag-colors.h"
 #include "nautilus-tag-manager.h"
 #include "nautilus-localsearch-utilities.h"
 #include "nautilus-trash-monitor.h"
@@ -873,6 +874,10 @@ on_application_shutdown (GApplication *application,
     }
 
     g_list_free (notification_ids);
+
+    /* Tag writes are coalesced on a timeout; without this, a colour applied in
+     * the last second and a half before quitting never reaches the disk. */
+    nautilus_tag_colors_flush (nautilus_tag_colors_get ());
 
     nautilus_icon_info_clear_caches ();
 }

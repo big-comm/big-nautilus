@@ -205,6 +205,28 @@ load (NautilusTagColors *self)
         }
     }
 
+    /* Current format: one key per colour, whose value is the list of URIs.
+     * URIs live on the value side because GKeyFile rejects '=', '[' and ']'
+     * in key names, and silently dropped any file whose URI contained one. */
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
+    {
+        g_auto (GStrv) list = g_key_file_get_string_list (keyfile, "tags",
+                                                          nautilus_tag_color_get_name (i),
+                                                          NULL, NULL);
+
+        for (guint j = 0; list != NULL && list[j] != NULL; j++)
+        {
+            if (*list[j] != '\0')
+            {
+                g_hash_table_insert (self->by_uri, g_strdup (list[j]),
+                                     GUINT_TO_POINTER (i));
+            }
+        }
+    }
+
+    /* Legacy format, where the URI was the key. Still read so that existing
+     * tags survive the upgrade; the next save rewrites them in the new shape.
+     * Colour names are never valid URIs, so the two cannot be confused. */
     uris = g_key_file_get_keys (keyfile, "tags", NULL, NULL);
     if (uris == NULL)
     {
@@ -213,8 +235,17 @@ load (NautilusTagColors *self)
 
     for (guint i = 0; uris[i] != NULL; i++)
     {
-        g_autofree char *name = g_key_file_get_string (keyfile, "tags", uris[i], NULL);
-        NautilusTagColor color = color_from_name (name);
+        g_autofree char *name = NULL;
+        NautilusTagColor color;
+
+        if (color_from_name (uris[i]) != NAUTILUS_TAG_COLOR_NONE)
+        {
+            /* A colour name: already handled by the loop above. */
+            continue;
+        }
+
+        name = g_key_file_get_string (keyfile, "tags", uris[i], NULL);
+        color = color_from_name (name);
 
         if (color != NAUTILUS_TAG_COLOR_NONE)
         {
@@ -237,11 +268,29 @@ save_cb (gpointer user_data)
 
     self->save_timeout_id = 0;
 
-    g_hash_table_iter_init (&iter, self->by_uri);
-    while (g_hash_table_iter_next (&iter, &key, &value))
+    /* Keyed by colour, with the URIs on the value side: GKeyFile rejects '=',
+     * '[' and ']' in key names, so the previous layout quietly dropped every
+     * file whose URI contained one. */
+    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
     {
-        g_key_file_set_string (keyfile, "tags", key,
-                               nautilus_tag_color_get_name (GPOINTER_TO_UINT (value)));
+        g_autoptr (GPtrArray) uris = g_ptr_array_new ();
+
+        g_hash_table_iter_init (&iter, self->by_uri);
+        while (g_hash_table_iter_next (&iter, &key, &value))
+        {
+            if (GPOINTER_TO_UINT (value) == (guint) i)
+            {
+                g_ptr_array_add (uris, key);
+            }
+        }
+
+        if (uris->len > 0)
+        {
+            g_key_file_set_string_list (keyfile, "tags",
+                                        nautilus_tag_color_get_name (i),
+                                        (const char * const *) uris->pdata,
+                                        uris->len);
+        }
     }
 
     for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
@@ -363,17 +412,18 @@ nautilus_tag_colors_get_color (NautilusTagColors *self,
     return value != NULL ? GPOINTER_TO_UINT (value) : NAUTILUS_TAG_COLOR_NONE;
 }
 
-void
-nautilus_tag_colors_set_color (NautilusTagColors *self,
-                               const char        *uri,
-                               NautilusTagColor   color)
+/* Table update only. Callers that change several files in one go emit a single
+ * "changed" afterwards instead of one per file: every cell and the sidebar
+ * listen to it, so emitting per URI turned tagging a selection into thousands
+ * of redundant style invalidations and sidebar rebuilds. */
+static gboolean
+set_color_internal (NautilusTagColors *self,
+                    const char        *uri,
+                    NautilusTagColor   color)
 {
-    g_return_if_fail (NAUTILUS_IS_TAG_COLORS (self));
-    g_return_if_fail (uri != NULL);
-
     if (nautilus_tag_colors_get_color (self, uri) == color)
     {
-        return;
+        return FALSE;
     }
 
     if (color == NAUTILUS_TAG_COLOR_NONE)
@@ -385,8 +435,92 @@ nautilus_tag_colors_set_color (NautilusTagColors *self,
         g_hash_table_insert (self->by_uri, g_strdup (uri), GUINT_TO_POINTER (color));
     }
 
+    return TRUE;
+}
+
+void
+nautilus_tag_colors_set_color (NautilusTagColors *self,
+                               const char        *uri,
+                               NautilusTagColor   color)
+{
+    g_return_if_fail (NAUTILUS_IS_TAG_COLORS (self));
+    g_return_if_fail (uri != NULL);
+
+    if (!set_color_internal (self, uri, color))
+    {
+        return;
+    }
+
     schedule_save (self);
     g_signal_emit (self, signals[CHANGED], 0, uri);
+}
+
+/* Remembers which class is on the widget, so the common case -- nothing
+ * changed -- touches no CSS at all. The previous code removed all eight
+ * classes and added one back on every refresh of every visible cell. */
+#define APPLIED_COLOR_KEY "nautilus-tag-applied-color"
+
+void
+nautilus_tag_colors_apply_to_widget (GtkWidget  *widget,
+                                     const char *uri)
+{
+    NautilusTagColor color;
+    NautilusTagColor applied;
+
+    g_return_if_fail (GTK_IS_WIDGET (widget));
+
+    color = nautilus_tag_colors_get_color (nautilus_tag_colors_get (), uri);
+    applied = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (widget), APPLIED_COLOR_KEY));
+
+    if (applied == color)
+    {
+        return;
+    }
+
+    if (applied != NAUTILUS_TAG_COLOR_NONE)
+    {
+        gtk_widget_remove_css_class (widget, nautilus_tag_color_get_css_class (applied));
+    }
+
+    if (color != NAUTILUS_TAG_COLOR_NONE)
+    {
+        gtk_widget_add_css_class (widget, nautilus_tag_color_get_css_class (color));
+    }
+
+    g_object_set_data (G_OBJECT (widget), APPLIED_COLOR_KEY, GUINT_TO_POINTER (color));
+}
+
+gboolean
+nautilus_tag_colors_has_color (NautilusTagColors *self,
+                               NautilusTagColor   color)
+{
+    GHashTableIter iter;
+    gpointer value;
+
+    g_return_val_if_fail (NAUTILUS_IS_TAG_COLORS (self), FALSE);
+
+    g_hash_table_iter_init (&iter, self->by_uri);
+    while (g_hash_table_iter_next (&iter, NULL, &value))
+    {
+        if (GPOINTER_TO_UINT (value) == (guint) color)
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+void
+nautilus_tag_colors_flush (NautilusTagColors *self)
+{
+    g_return_if_fail (NAUTILUS_IS_TAG_COLORS (self));
+
+    if (self->save_timeout_id != 0)
+    {
+        g_clear_handle_id (&self->save_timeout_id, g_source_remove);
+        save_cb (self);
+    }
 }
 
 GList *
@@ -453,10 +587,20 @@ nautilus_tag_colors_apply_with_undo (GList            *uris,
     {
         const char *uri = l->data;
 
-        g_hash_table_insert (previous, g_strdup (uri),
-                             GUINT_TO_POINTER (nautilus_tag_colors_get_color (self, uri)));
-        nautilus_tag_colors_set_color (self, uri, color);
+        /* A repeated URI would otherwise record the colour we just applied as
+         * its "previous" one, and undo would restore the wrong value. */
+        if (!g_hash_table_contains (previous, uri))
+        {
+            g_hash_table_insert (previous, g_strdup (uri),
+                                 GUINT_TO_POINTER (nautilus_tag_colors_get_color (self, uri)));
+        }
+
+        set_color_internal (self, uri, color);
     }
+
+    /* One notification for the whole batch: uri == NULL means "many changed". */
+    schedule_save (self);
+    g_signal_emit (self, signals[CHANGED], 0, NULL);
 
     undo_info = nautilus_file_undo_info_tag_color_new (previous, color);
     nautilus_file_undo_manager_set_action (undo_info);

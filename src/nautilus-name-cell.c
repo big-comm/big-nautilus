@@ -196,7 +196,6 @@ update_tag_color (NautilusNameCell *self)
 {
     g_autoptr (NautilusViewItem) item = NULL;
     g_autofree char *uri = NULL;
-    NautilusTagColor color;
 
     item = nautilus_view_cell_get_item (NAUTILUS_VIEW_CELL (self));
     if (item == NULL)
@@ -205,20 +204,8 @@ update_tag_color (NautilusNameCell *self)
     }
 
     uri = nautilus_file_get_uri (nautilus_view_item_get_file (item));
-    color = nautilus_tag_colors_get_color (nautilus_tag_colors_get (), uri);
 
-    for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
-    {
-        gtk_widget_remove_css_class (GTK_WIDGET (self),
-                                     nautilus_tag_color_get_css_class (i));
-    }
-
-    if (color != NAUTILUS_TAG_COLOR_NONE)
-    {
-        gtk_widget_add_css_class (GTK_WIDGET (self),
-                                  nautilus_tag_color_get_css_class (color));
-    }
-
+    nautilus_tag_colors_apply_to_widget (GTK_WIDGET (self), uri);
 }
 
 static void

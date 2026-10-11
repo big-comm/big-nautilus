@@ -9,6 +9,7 @@
 
 #include <glib-object.h>
 #include <glib/gi18n.h>
+#include <gtk/gtk.h>
 
 G_BEGIN_DECLS
 
@@ -79,6 +80,37 @@ void nautilus_tag_colors_set_color (NautilusTagColors *self,
  */
 GList *nautilus_tag_colors_get_uris (NautilusTagColors *self,
                                      NautilusTagColor   color);
+
+/**
+ * nautilus_tag_colors_apply_to_widget:
+ * @uri: (nullable): the file the widget stands for
+ *
+ * Puts the right tag class on @widget, removing whichever one was there
+ * before. The applied colour is remembered on the widget, so a call that
+ * changes nothing costs one hash lookup and no style invalidation. Shared by
+ * the grid and list cells, which refresh on every bind.
+ */
+void nautilus_tag_colors_apply_to_widget (GtkWidget  *widget,
+                                          const char *uri);
+
+/**
+ * nautilus_tag_colors_has_color:
+ *
+ * Whether any file carries @color. Use this instead of testing
+ * nautilus_tag_colors_get_uris() against %NULL: that builds, and then frees, a
+ * copy of every matching URI just to answer a yes-or-no question.
+ */
+gboolean nautilus_tag_colors_has_color (NautilusTagColors *self,
+                                        NautilusTagColor   color);
+
+/**
+ * nautilus_tag_colors_flush:
+ *
+ * Writes any pending change immediately. Saves are coalesced on a timeout, so
+ * without this a tag applied just before quitting is lost. The store is a
+ * never-released singleton, so finalize() cannot be relied on for this.
+ */
+void nautilus_tag_colors_flush (NautilusTagColors *self);
 
 /**
  * nautilus_tag_colors_move:
