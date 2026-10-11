@@ -2,8 +2,8 @@
 <component type="desktop-application">
   <id>@appid@</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <name>Files</name>
-  <summary>Access and organize files</summary>
+  <name>big-nautilus</name>
+  <summary>Access and organize files, with an embedded terminal and colour tags</summary>
   <description>
     <p>
       Files, also known as Nautilus, is the default file manager of the GNOME desktop.
@@ -17,14 +17,14 @@
       Its functions can be extended with plugins and scripts.
     </p>
   </description>
-  <url type="bugtracker">https://gitlab.gnome.org/GNOME/nautilus/issues</url>
-  <url type="contact">https://discourse.gnome.org/tag/nautilus</url>
-  <url type="contribute">https://welcome.gnome.org/app/Nautilus/</url>
+  <url type="bugtracker">https://github.com/BigCommunity/big-nautilus/issues</url>
+  <url type="contact">https://communitybig.org/</url>
+  <url type="contribute">https://github.com/BigCommunity/big-nautilus</url>
   <url type="donation">https://www.gnome.org/donate/</url>
   <url type="help">https://help.gnome.org/users/gnome-help/stable/files.html.en</url>
-  <url type="homepage">https://apps.gnome.org/Nautilus/</url>
+  <url type="homepage">https://communitybig.org/</url>
   <url type="translate">https://l10n.gnome.org/module/nautilus/</url>
-  <url type="vcs-browser">https://gitlab.gnome.org/GNOME/nautilus</url>
+  <url type="vcs-browser">https://github.com/BigCommunity/big-nautilus</url>
   <launchable type="desktop-id">@appid@.desktop</launchable>
   <releases>
     <!--NEXT_RELEASE_PLACEHOLDER-->
