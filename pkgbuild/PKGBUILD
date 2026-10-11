@@ -1,0 +1,140 @@
+# Original package from ArchLinux
+# Maintainer: Fabian Bornschein <fabiscafe@archlinux.org>
+# Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
+# Contributor: Jan de Groot <jgc@archlinux.org>
+
+# This version modified to add embedded terminal support
+# Maintainer: Bruno Goncalves <biglinux.com.br>
+# Maintainer: Tales A. Mendonça <communitybig.org>
+
+pkgbase=big-nautilus
+pkgname=big-nautilus
+pkgdesc="File manager for BigLinux - GNOME Files with an embedded terminal, colour tags and more"
+pkgver=50.4
+pkgrel=1
+conflicts=('nautilus' 'nautilus-with-terminal')
+provides=('nautilus')
+replaces=('nautilus' 'nautilus-with-terminal')
+url="https://apps.gnome.org/Nautilus/"
+arch=(x86_64)
+license=(GPL-3.0-or-later)
+# Nota: não habilitar options=(debug) aqui. O pipeline resolve o artefato com
+#   find . -iname "$pkgname*.pkg.tar.zst"
+# e o nome big-nautilus-debug casa com esse mesmo padrão, então a
+# variável full_pkgname vira multilinha, a escrita em $GITHUB_ENV é recusada e
+# o job falha depois de já ter construído os pacotes. Para depurar, construa
+# localmente com options=(debug) em uma cópia deste PKGBUILD.
+depends=(
+  cairo
+  dconf
+  gcc-libs
+  gdk-pixbuf2
+  glib2
+  glibc
+  glycin
+  glycin-gtk4
+  gnome-autoar
+  gnome-desktop-4
+  graphene
+  gst-plugins-base-libs
+  gstreamer
+  gtk4
+  gvfs
+  hicolor-icon-theme
+  icu
+  libadwaita
+  libcloudproviders
+  libgexiv2
+  libportal
+  libportal-gtk4
+  libx11
+  localsearch
+  pango
+  vte4
+  tinysparql
+  wayland
+  xdg-user-dirs-gtk
+)
+makedepends=(
+  appstream
+  blueprint-compiler
+  vte4
+  gi-docgen
+  git
+  glib2-devel
+  gobject-introspection
+  meson
+)
+checkdepends=(python-gobject)
+source=(
+  "git+https://gitlab.gnome.org/talesam/nautilus.git#branch=main"
+)
+b2sums=('SKIP')
+
+prepare() {
+  cd nautilus
+}
+
+build() {
+  local meson_options=(
+    -D docs=true
+    -D packagekit=false
+    -D selinux=disabled
+  )
+
+  # --wrap-mode=default overrides arch-meson's --wrap-mode=nodownload so that
+  # blueprint-compiler can be pulled as a subproject when the chroot ships an
+  # older version than Nautilus 50 requires (>= 0.19.0).
+  arch-meson nautilus build "${meson_options[@]}" --wrap-mode=default
+  meson compile -C build
+}
+
+# check() {
+#   meson test -C build --print-errorlogs
+# }
+
+_pick() {
+  local p="$1" f d; shift
+  for f; do
+    d="$srcdir/$p/${f#$pkgdir/}"
+    mkdir -p "$(dirname "$d")"
+    mv "$f" "$d"
+    rmdir -p --ignore-fail-on-non-empty "$(dirname "$f")"
+  done
+}
+
+package_big-nautilus() {
+  depends+=(libnautilus-extension.so)
+  groups=(gnome)
+
+  meson install -C build --destdir "$pkgdir"
+
+  cd "$pkgdir"
+
+  _pick libne usr/include
+  _pick libne usr/lib/{girepository-1.0,libnautilus-extension*,pkgconfig}
+  _pick libne usr/share/gir-1.0
+
+  _pick ldocs usr/share/doc
+}
+
+package_libnautilus-extension() {
+  pkgdesc="Extension interface for Nautilus"
+  depends=(
+    gcc-libs
+    glib2
+    glibc
+  )
+  provides=(libnautilus-extension.so)
+
+  mv libne/* "$pkgdir"
+}
+
+package_libnautilus-extension-docs() {
+  pkgdesc="Extension interface for Nautilus (documentation)"
+  depends=()
+
+  mv ldocs/* "$pkgdir"
+}
+
+# vim:set sw=2 sts=-1 et:
