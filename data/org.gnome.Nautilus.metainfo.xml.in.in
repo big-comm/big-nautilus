@@ -17,14 +17,14 @@
       Its functions can be extended with plugins and scripts.
     </p>
   </description>
-  <url type="bugtracker">https://github.com/BigCommunity/big-nautilus/issues</url>
+  <url type="bugtracker">https://github.com/big-comm/big-nautilus/issues</url>
   <url type="contact">https://communitybig.org/</url>
-  <url type="contribute">https://github.com/BigCommunity/big-nautilus</url>
+  <url type="contribute">https://github.com/big-comm/big-nautilus</url>
   <url type="donation">https://www.gnome.org/donate/</url>
   <url type="help">https://help.gnome.org/users/gnome-help/stable/files.html.en</url>
   <url type="homepage">https://communitybig.org/</url>
   <url type="translate">https://l10n.gnome.org/module/nautilus/</url>
-  <url type="vcs-browser">https://github.com/BigCommunity/big-nautilus</url>
+  <url type="vcs-browser">https://github.com/big-comm/big-nautilus</url>
   <launchable type="desktop-id">@appid@.desktop</launchable>
   <releases>
     <!--NEXT_RELEASE_PLACEHOLDER-->

@@ -67,12 +67,12 @@ makedepends=(
 )
 checkdepends=(python-gobject)
 source=(
-  "git+https://gitlab.gnome.org/talesam/nautilus.git#branch=main"
+  "git+https://github.com/big-comm/big-nautilus.git#branch=main"
 )
 b2sums=('SKIP')
 
 prepare() {
-  cd nautilus
+  cd big-nautilus
 }
 
 build() {
@@ -85,7 +85,7 @@ build() {
   # --wrap-mode=default overrides arch-meson's --wrap-mode=nodownload so that
   # blueprint-compiler can be pulled as a subproject when the chroot ships an
   # older version than Nautilus 50 requires (>= 0.19.0).
-  arch-meson nautilus build "${meson_options[@]}" --wrap-mode=default
+  arch-meson big-nautilus build "${meson_options[@]}" --wrap-mode=default
   meson compile -C build
 }
 

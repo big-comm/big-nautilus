@@ -1782,7 +1782,7 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
     /* A fork's support link must not point at GNOME's forum: bug reports about
      * the embedded terminal or the colour tags do not belong there. */
     adw_about_dialog_set_support_url (ADW_ABOUT_DIALOG (dialog),
-                                      "https://github.com/BigCommunity/big-nautilus/issues");
+                                      "https://github.com/big-comm/big-nautilus/issues");
     /* Translators should localize the following string which will be displayed at the bottom of
      * the about box to give credit to the translator(s). */
     adw_about_dialog_set_translator_credits (ADW_ABOUT_DIALOG (dialog), _("translator-credits"));
