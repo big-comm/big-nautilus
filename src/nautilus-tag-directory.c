@@ -622,7 +622,7 @@ NautilusTagColor
 nautilus_tag_directory_get_color_for_location (GFile *location)
 {
     g_autofree char *path = NULL;
-    const char *name;
+    char *name;
 
     if (location == NULL || !g_file_has_uri_scheme (location, SCHEME_TAG))
     {
