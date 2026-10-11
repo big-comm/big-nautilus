@@ -1861,19 +1861,17 @@ check_unmount_and_eject (GMount   *mount,
 }
 
 static void
-drive_start_from_bookmark_cb (GObject      *source_object,
-                              GAsyncResult *res,
-                              gpointer      user_data)
+drive_start_cb (GObject      *source_object,
+                GAsyncResult *res,
+                gpointer      user_data)
 {
-    NautilusSidebar *sidebar;
+    g_autoptr (NautilusSidebar) sidebar = NAUTILUS_PLACES_SIDEBAR (user_data);
     GError *error;
     char *primary;
     char *name;
 
-    sidebar = NAUTILUS_PLACES_SIDEBAR (user_data);
-
     error = NULL;
-    if (!g_drive_poll_for_media_finish (G_DRIVE (source_object), res, &error))
+    if (!g_drive_start_finish (G_DRIVE (source_object), res, &error))
     {
         if (error->code != G_IO_ERROR_FAILED_HANDLED)
         {
@@ -1960,7 +1958,7 @@ mount_volume (NautilusSidebarRow *row,
               GVolume            *volume,
               NautilusOpenFlags   open_flags)
 {
-    NautilusSidebar *sidebar;
+    g_autoptr (NautilusSidebar) sidebar = NULL;
     g_autoptr (GMountOperation) mount_op = NULL;
     VolumeMountCallbackData *callback_data = NULL;
 
@@ -1969,7 +1967,6 @@ mount_volume (NautilusSidebarRow *row,
     mount_op = get_mount_operation (sidebar);
     g_mount_operation_set_password_save (mount_op, G_PASSWORD_SAVE_FOR_SESSION);
 
-    g_object_ref (sidebar);
     callback_data = g_new0 (VolumeMountCallbackData, 1);
     g_set_weak_pointer (&callback_data->window_slot, sidebar->window_slot);
     callback_data->row = g_object_ref (row);
@@ -2011,7 +2008,12 @@ open_row (NautilusSidebarRow *self,
             g_autoptr (GMountOperation) mount_op = get_mount_operation (sidebar);
 
             nautilus_sidebar_row_set_busy (self, TRUE);
-            g_drive_start (drive, G_DRIVE_START_NONE, mount_op, NULL, drive_start_from_bookmark_cb, NULL);
+            g_drive_start (drive,
+                           G_DRIVE_START_NONE,
+                           mount_op,
+                           NULL,
+                           drive_start_cb,
+                           g_object_ref (sidebar));
         }
     }
 }
@@ -2403,7 +2405,7 @@ mount_shortcut_cb (GSimpleAction *action,
                    gpointer       data)
 {
     NautilusSidebar *sidebar = data;
-    GVolume *volume;
+    g_autoptr (GVolume) volume = NULL;
 
     g_object_get (sidebar->context_row,
                   "volume", &volume,
@@ -2413,8 +2415,6 @@ mount_shortcut_cb (GSimpleAction *action,
     {
         mount_volume (sidebar->context_row, volume, NAUTILUS_OPEN_FLAG_NORMAL);
     }
-
-    g_object_unref (volume);
 }
 
 static GMountOperation *
@@ -2752,35 +2752,6 @@ rescan_shortcut_cb (GSimpleAction *action,
 }
 
 static void
-drive_start_cb (GObject      *source_object,
-                GAsyncResult *res,
-                gpointer      user_data)
-{
-    NautilusSidebar *sidebar;
-    GError *error;
-    char *primary;
-    char *name;
-
-    sidebar = NAUTILUS_PLACES_SIDEBAR (user_data);
-
-    error = NULL;
-    if (!g_drive_start_finish (G_DRIVE (source_object), res, &error))
-    {
-        if (error->code != G_IO_ERROR_FAILED_HANDLED)
-        {
-            name = g_drive_get_name (G_DRIVE (source_object));
-            primary = g_strdup_printf (_("Unable to start “%s”"), name);
-            g_free (name);
-            show_error_message (sidebar, primary, error->message);
-            g_free (primary);
-        }
-        g_error_free (error);
-    }
-
-    g_object_unref (sidebar);
-}
-
-static void
 start_shortcut_cb (GSimpleAction *action,
                    GVariant      *parameter,
                    gpointer       data)
@@ -3056,9 +3027,9 @@ create_row_popover (NautilusSidebar    *sidebar,
     NautilusSidebarRowType type;
     GMenu *menu, *section;
     GMenuItem *item;
-    GMount *mount;
-    GVolume *volume;
-    GDrive *drive;
+    g_autoptr (GMount) mount = NULL;
+    g_autoptr (GVolume) volume = NULL;
+    g_autoptr (GDrive) drive = NULL;
     GAction *action;
     gboolean show_unmount, show_eject;
     gboolean show_stop;
@@ -3067,7 +3038,7 @@ create_row_popover (NautilusSidebar    *sidebar,
     g_autoptr (GFile) trash = NULL;
     gboolean is_trash = FALSE, is_recent = FALSE, show_properties = FALSE;
 #ifdef HAVE_CLOUDPROVIDERS
-    CloudProvidersAccount *cloud_provider_account;
+    g_autoptr (CloudProvidersAccount) cloud_provider_account = NULL;
 #endif
 
     g_object_get (row,
@@ -3391,14 +3362,7 @@ on_row_released (GtkGestureClick    *gesture,
                  double              y,
                  NautilusSidebarRow *row)
 {
-    NautilusSidebar *sidebar;
-    NautilusSidebarSectionType section_type;
     guint button, state;
-
-    g_object_get (row,
-                  "sidebar", &sidebar,
-                  "section_type", &section_type,
-                  NULL);
 
     button = gtk_gesture_single_get_current_button (GTK_GESTURE_SINGLE (gesture));
     state = gtk_event_controller_get_current_event_state (GTK_EVENT_CONTROLLER (gesture));

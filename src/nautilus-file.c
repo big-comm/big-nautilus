@@ -560,6 +560,7 @@ nautilus_file_clear_info (NautilusFile *file)
     file->details->start_stop_type = G_DRIVE_START_STOP_TYPE_UNKNOWN;
     file->details->can_poll_for_media = FALSE;
     file->details->is_media_check_automatic = FALSE;
+    file->details->has_preview_icon = FALSE;
     file->details->has_permissions = FALSE;
     file->details->permissions = 0;
     file->details->size = -1;
@@ -1611,14 +1612,8 @@ nautilus_file_operation_free (NautilusFileOperation *op)
 {
     nautilus_file_operation_remove (op);
 
-    if (op->files == NULL)
-    {
-        nautilus_file_unref (op->file);
-    }
-    else
-    {
-        nautilus_file_list_free (op->files);
-    }
+    g_clear_pointer (&op->file, nautilus_file_unref);
+    g_clear_list (&op->files, (GDestroyNotify) nautilus_file_unref);
 
     g_object_unref (op->cancellable);
     if (op->free_data)
@@ -1960,7 +1955,7 @@ rename_file_chain (gpointer data,
         /* We have a cycle, break it with a temporary name. */
         g_autofree gchar *random_string = g_uuid_string_random ();
 
-        snapped_file = g_ptr_array_index (chain_files, len - 1);
+        snapped_file = g_object_ref (g_ptr_array_index (chain_files, len - 1));
         GFile *renamed_file = g_file_set_display_name (snapped_file,
                                                        random_string,
                                                        op->cancellable,
@@ -1968,7 +1963,8 @@ rename_file_chain (gpointer data,
 
         if (renamed_file != NULL)
         {
-            chain_files->pdata[len - 1] = renamed_file;
+            g_ptr_array_remove_index_fast (chain_files, len - 1);
+            g_ptr_array_add (chain_files, renamed_file);
         }
         else
         {
@@ -2067,7 +2063,10 @@ real_batch_rename (GList                         *files,
     g_autoptr (GAsyncQueue) rollback_files = g_async_queue_new ();
     g_autoptr (GError) skip_error = NULL;
 
-    /* Set up a batch renaming operation. */
+    /* Set up a batch renaming operation.
+     * FIXME: Use a variant that doesn't take a single file, or move to
+     * file-operations.
+     */
     op = nautilus_file_operation_new (files->data, callback, callback_data);
     op->files = nautilus_file_list_copy (files);
     op->renamed_files = 0;
@@ -2208,7 +2207,7 @@ real_batch_rename (GList                         *files,
      * Don't handle any errors though, it's likely futile. */
     while (g_async_queue_length (rollback_files) > 0)
     {
-        g_autofree TwoLists *rollback_file_lists = g_async_queue_pop (changed_files);
+        g_autofree TwoLists *rollback_file_lists = g_async_queue_pop (rollback_files);
         g_autoptr (GList) old_file_list = rollback_file_lists->old_files;
         g_autoptr (GList) new_file_list = rollback_file_lists->new_files;
 
@@ -2766,7 +2765,8 @@ update_info_internal (NautilusFile *file,
     atime = g_file_info_get_attribute_uint64 (info, G_FILE_ATTRIBUTE_TIME_ACCESS);
     mtime = g_file_info_get_attribute_uint64 (info, G_FILE_ATTRIBUTE_TIME_MODIFIED);
     btime = g_file_info_get_attribute_uint64 (info, G_FILE_ATTRIBUTE_TIME_CREATED);
-    if (file->details->atime != atime)
+    if (file->details->atime != atime ||
+        file->details->btime != btime)
     {
         changed = TRUE;
     }
@@ -2864,10 +2864,8 @@ update_info_internal (NautilusFile *file,
         changed = TRUE;
     }
 
-    if (g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_PREVIEW_ICON))
-    {
-        file->details->has_preview_icon = TRUE;
-    }
+    file->details->has_preview_icon =
+        g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_PREVIEW_ICON);
 
     changed |=
         nautilus_file_update_metadata_from_info (file, info);
@@ -4223,7 +4221,9 @@ nautilus_file_get_boolean_metadata (NautilusFile *file,
     }
     else
     {
-        g_error ("boolean metadata with value other than true or false");
+        g_warning ("Invalid boolean metadata value \"%s\" for key \"%s\", "
+                   "using default value",
+                   value, key);
         return default_metadata;
     }
 }
