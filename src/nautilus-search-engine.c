@@ -82,6 +82,20 @@ search_engine_start_provider (NautilusSearchProvider *provider,
     }
 }
 
+/* Starts @provider and reports whether it took the search on. A provider
+ * declines when it has nothing to offer for this query -- the BigSearch one
+ * does so whenever its daemon is not answering. */
+static gboolean
+search_engine_start_provider_if (NautilusSearchProvider *provider,
+                                 NautilusSearchEngine   *self)
+{
+    guint before = self->providers_started;
+
+    search_engine_start_provider (provider, self);
+
+    return self->providers_started > before;
+}
+
 static void
 search_engine_start_real (NautilusSearchEngine *self)
 {
@@ -94,7 +108,22 @@ search_engine_start_real (NautilusSearchEngine *self)
     search_engine_start_provider (self->localsearch, self);
     search_engine_start_provider (self->model, self);
     search_engine_start_provider (self->recent, self);
-    search_engine_start_provider (self->simple, self);
+
+    /* The simple engine walks the tree, which on a large home directory means
+     * visiting over a million entries before the search can report itself
+     * finished. When BigSearch answered, it has already covered the same
+     * ground from an index in under a millisecond, and it follows the
+     * filesystem with inotify, so the walk would only repeat the work.
+     *
+     * Decided here rather than inside the simple engine because only the
+     * engine knows which providers the search asked for: a search set up for
+     * the simple provider alone must still use it. And decided per search,
+     * so that stopping the daemon hands the walk its job back. */
+    if (!search_engine_start_provider_if (self->bigsearch, self))
+    {
+        search_engine_start_provider (self->simple, self);
+    }
+
     self->starting = FALSE;
 
     /* Providers could already be finished */
