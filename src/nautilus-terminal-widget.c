@@ -345,6 +345,34 @@ static void change_directory_in_terminal(NautilusTerminalWidget *self, GFile *lo
 static void _clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv);
 static void _reset_to_local_state(NautilusTerminalWidget *self);
 static void spawn_pending_ssh_connection (NautilusTerminalWidget *self);
+
+/* A host or user taken from an sftp:// URI is attacker-influenced. Anything
+ * starting with '-' would be parsed by ssh as an option, and ';' would break
+ * the ";"-separated target of the manual-connect action apart. Whitespace and
+ * control bytes have no business in either field. */
+static gboolean
+nautilus_terminal_ssh_field_is_safe (const char *value)
+{
+    if (value == NULL || *value == '\0')
+    {
+        return TRUE;
+    }
+
+    if (*value == '-')
+    {
+        return FALSE;
+    }
+
+    for (const char *p = value; *p != '\0'; p++)
+    {
+        if ((guchar) *p <= 0x20 || (guchar) *p == 0x7f || *p == ';')
+        {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
 static const gchar * nautilus_terminal_widget_get_color_scheme(NautilusTerminalWidget *self);
 static void nautilus_terminal_widget_set_color_scheme(NautilusTerminalWidget *self, const gchar *scheme);
 static void update_popup_menu_model (NautilusTerminalWidget *self);
@@ -2094,6 +2122,21 @@ feed_cd_command(VteTerminal *terminal, const char *path)
     g_return_if_fail(VTE_IS_TERMINAL(terminal));
     g_return_if_fail(path != NULL);
 
+    /* g_shell_quote() protects the shell parser, but this text is typed into
+     * the pty, and the line discipline acts on control bytes before the shell
+     * ever sees them. A directory named "x<Ctrl-C>rm -rf ~<LF>" would have the
+     * Ctrl-C discard the quoted line and run the rest at a fresh prompt. Such
+     * names are legal on Linux and can arrive from an archive or an SFTP
+     * server, so refuse to sync rather than type them. */
+    for (const char *p = path; *p != '\0'; p++)
+    {
+        if ((guchar) *p < 0x20 || (guchar) *p == 0x7f)
+        {
+            g_warning ("Refusing to sync a path containing control characters");
+            return;
+        }
+    }
+
     g_autofree gchar *quoted_path = g_shell_quote(path);
     g_autofree gchar *cd_command_str = g_strdup_printf(" cd %s\r", quoted_path);
 
@@ -2575,6 +2618,17 @@ spawn_pending_ssh_connection (NautilusTerminalWidget *self)
         priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_BOTH ||
         priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_TERM_TO_FM);
 
+    /* The host and user come percent-decoded from the URI. Without this check
+     * a location like sftp://-oProxyCommand=.../ turns into an ssh option and
+     * runs a command locally -- the CVE-2017-1000117 pattern. */
+    if (!nautilus_terminal_ssh_field_is_safe (hostname) ||
+        (username != NULL && !nautilus_terminal_ssh_field_is_safe (username)))
+    {
+        g_warning ("Refusing to connect: suspicious host or user in the SFTP location");
+        g_ptr_array_free (argv_array, TRUE);
+        return;
+    }
+
     g_ptr_array_add(argv_array, g_strdup("ssh"));
     g_ptr_array_add(argv_array, g_strdup("-t"));
     if (port && *port)
@@ -2582,6 +2636,10 @@ spawn_pending_ssh_connection (NautilusTerminalWidget *self)
         g_ptr_array_add(argv_array, g_strdup("-p"));
         g_ptr_array_add(argv_array, g_strdup(port));
     }
+
+    /* Stop option parsing, so a destination can never be read as a flag. */
+    g_ptr_array_add(argv_array, g_strdup("--"));
+
     if (username && *username)
         g_ptr_array_add(argv_array, g_strdup_printf("%s@%s", username, hostname));
     else
