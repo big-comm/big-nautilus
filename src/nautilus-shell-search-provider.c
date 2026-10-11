@@ -645,12 +645,16 @@ handle_get_result_metas (NautilusShellSearchProvider2  *skeleton,
         return TRUE;
     }
 
+    /* nautilus_file_list_call_when_ready() runs the callback synchronously
+     * when every file is already ready, and that callback frees data. Register
+     * the request first, so the callback's g_list_remove() finds it and we
+     * never prepend a pointer that has just been freed. */
+    self->metas_requests = g_list_prepend (self->metas_requests, data);
     nautilus_file_list_call_when_ready (missing_files,
                                         NAUTILUS_FILE_ATTRIBUTES_FOR_ICON,
                                         &data->handle,
                                         result_list_attributes_ready_cb,
                                         data);
-    self->metas_requests = g_list_prepend (self->metas_requests, data);
     nautilus_file_list_free (missing_files);
     return TRUE;
 }

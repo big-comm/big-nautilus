@@ -2021,13 +2021,17 @@ activate_activation_uris_ready_callback (GList    *files_ignore,
 static void
 activate_regular_files (ActivateParameters *parameters)
 {
-    GList *l, *files;
+    GList *l, *next, *files;
     NautilusFile *file;
     LaunchLocation *location;
 
     /* link target info might be stale, re-read it */
-    for (l = parameters->locations; l != NULL; l = l->next)
+    for (l = parameters->locations; l != NULL; l = next)
     {
+        /* g_list_delete_link() frees this node, so remember the successor
+         * before removing it -- otherwise the loop reads l->next out of freed
+         * memory, where glibc has already written the tcache key. */
+        next = l->next;
         location = l->data;
         file = location->file;
 

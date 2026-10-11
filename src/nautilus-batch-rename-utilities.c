@@ -349,7 +349,14 @@ batch_rename_dialog_get_new_names_list (NautilusBatchRenameDialogMode  mode,
         {
             new_name = g_string_new (nautilus_file_get_name (file));
 
-            g_string_replace (new_name, entry_text, replace_text, -1);
+            /* g_string_replace() with an empty needle inserts the replacement
+             * at every position, turning "photo.jpg" into "XpXhXoXtXoX.XjXpXgX".
+             * The preview does not show it either, because the highlighter
+             * returns the name untouched for an empty substring. */
+            if (entry_text != NULL && *entry_text != '\0')
+            {
+                g_string_replace (new_name, entry_text, replace_text, -1);
+            }
 
             result = g_list_prepend (result, new_name);
         }

@@ -42,7 +42,11 @@ static char *
 get_drop_filename (const char *text)
 {
     char *filename;
-    char trimmed[MAX_LEN_FILENAME];
+    /* MAX_LEN_FILENAME counts characters, but this buffer is indexed in bytes
+     * and g_utf8_strncpy() copies characters: a UTF-8 character takes up to
+     * four bytes, so sizing this in characters overflows the stack as soon as
+     * the dropped text is accented, let alone CJK. */
+    char trimmed[MAX_LEN_FILENAME * 4 + 1];
     int i;
     int last_word = -1;
     int end_sentence = -1;

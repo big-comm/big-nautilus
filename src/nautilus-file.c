@@ -2022,7 +2022,10 @@ rename_file_chain (gpointer data,
         }
     }
 
-    if (snapped_file != NULL)
+    /* old_files is empty when no rename in the chain succeeded -- a cycle in a
+     * directory we cannot write to, for instance. Dereferencing it here would
+     * crash the worker thread. */
+    if (snapped_file != NULL && old_files != NULL)
     {
         /* Use the original snapped file to undo the operation correctly. */
         g_set_object (&old_files->data, snapped_file);
