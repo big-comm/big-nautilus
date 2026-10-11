@@ -662,14 +662,11 @@ tag_colors_signature (void)
 
     for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
     {
-        GList *uris = nautilus_tag_colors_get_uris (colors, i);
-
-        if (uris != NULL)
+        if (nautilus_tag_colors_has_color (colors, i))
         {
             const char *name = nautilus_tag_colors_get_display_name (colors, i);
 
             g_string_append_printf (sig, "%d:%s|", i, name != NULL ? name : "");
-            g_list_free_full (uris, g_free);
         }
     }
 
@@ -703,18 +700,15 @@ add_tag_places (NautilusSidebar *sidebar)
      * eight fixed entries would be noise in every window. */
     for (int i = NAUTILUS_TAG_COLOR_NONE + 1; i < NAUTILUS_TAG_COLOR_LAST; i++)
     {
-        GList *uris = NULL;
         g_autoptr (GIcon) icon = NULL;
         g_autofree char *uri = NULL;
         g_autofree char *tooltip = NULL;
         GtkWidget *row;
 
-        uris = nautilus_tag_colors_get_uris (colors, i);
-        if (uris == NULL)
+        if (!nautilus_tag_colors_has_color (colors, i))
         {
             continue;
         }
-        g_list_free_full (g_steal_pointer (&uris), g_free);
 
         /* A filled circle, recolored by CSS through the class added below. */
         icon = g_themed_icon_new_with_default_fallbacks ("media-record-symbolic");
@@ -1980,6 +1974,10 @@ open_row (NautilusSidebarRow *self,
           NautilusOpenFlags   open_flags)
 {
     g_autofree char *uri = NULL;
+
+    /* Reached from the context menu, whose row is a weak pointer that goes
+     * NULL if update_places() rebuilt the sidebar meanwhile. */
+    g_return_if_fail (NAUTILUS_IS_SIDEBAR_ROW (self));
     g_autoptr (GDrive) drive = NULL;
     g_autoptr (GVolume) volume = NULL;
     g_autoptr (NautilusSidebar) sidebar = NULL;
@@ -2234,6 +2232,15 @@ static void
 setup_popover_shadowing (GtkWidget       *popover,
                          NautilusSidebar *sidebar)
 {
+    /* context_row is a weak pointer and is NULL whenever the popover was not
+     * opened from a context menu, or the row has since been destroyed by
+     * update_places(). Connecting with a NULL instance would only leave
+     * set_prelight() emitting criticals on every popup. */
+    if (sidebar->context_row == NULL)
+    {
+        return;
+    }
+
     g_signal_connect_object (popover, "map",
                              G_CALLBACK (set_prelight), sidebar->context_row,
                              G_CONNECT_SWAPPED);
@@ -2301,6 +2308,8 @@ static void
 rename_bookmark (NautilusSidebarRow *row)
 {
     NautilusSidebarRowType type;
+
+    g_return_if_fail (NAUTILUS_IS_SIDEBAR_ROW (row));
 
     g_autofree char *row_uri = NULL;
 
@@ -2372,6 +2381,8 @@ remove_bookmark (NautilusSidebarRow *row)
 {
     NautilusSidebarRowType type;
     g_autoptr (NautilusFile) file = NULL;
+
+    g_return_if_fail (NAUTILUS_IS_SIDEBAR_ROW (row));
     NautilusSidebar *sidebar;
 
     g_object_get (row,
@@ -3289,7 +3300,12 @@ show_row_popover (NautilusSidebarRow *row,
 
     g_clear_pointer (&sidebar->popover, gtk_widget_unparent);
 
-    sidebar->context_row = row;
+    /* update_places() destroys every row, so a plain pointer here outlives the
+     * object it names. The context menu actions, and setup_popover_shadowing()
+     * in particular, then write into freed memory -- g_signal_connect_object()
+     * takes a weak ref on this very pointer. A weak pointer nulls itself when
+     * the row dies, which the callers already handle. */
+    g_set_weak_pointer (&sidebar->context_row, row);
     create_row_popover (sidebar, row);
 
     if ((x == -1 && y == -1) ||
@@ -3914,6 +3930,8 @@ nautilus_sidebar_dispose (GObject *object)
 
     g_clear_object (&sidebar->window_slot);
     g_clear_object (&sidebar->slot_signal_group);
+
+    g_clear_weak_pointer (&sidebar->context_row);
 
     g_clear_pointer (&sidebar->popover, gtk_widget_unparent);
 
