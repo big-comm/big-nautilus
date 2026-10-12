@@ -9,74 +9,48 @@ cyan="\e[1;38;5;45m"         # Bold cyan
 white="\e[1;97m"             # Bold white
 reset="\e[0m"                # Reset text formatting
 
-# Print status messages - CHANGE 'PACKAGE_NAME' to your actual package name
 printMsg() {
     local message=$1
-    echo -e "${blueDark}[${lightBlue}PACKAGE_NAME${blueDark}]${reset} ${cyan}→${reset} ${white}${message}${reset}"
+    echo -e "${blueDark}[${lightBlue}big-nautilus${blueDark}]${reset} ${cyan}→${reset} ${white}${message}${reset}"
 }
 
-# Function executed before package installation
-# pre_install() {
-#     printMsg "Preparing to install the package..."
-#     # Example: Check for system dependencies
-#     # if ! command -v required_command &> /dev/null; then
-#     #     printMsg "Error: required_command not found. Please install it before continuing."
-#     #     exit 1
-#     # fi
-# }
+# The version this was introduced in. Upgrades crossing it enable the daemon
+# once; later upgrades leave it alone.
+_daemon_enabled_since=50.4-2
 
-# Function executed after package installation
-# post_install() {
-#     printMsg "Configuring the package after installation..."
-#     # Example: Create a configuration directory
-#     # mkdir -p /etc/mypackage
-#     # chmod 755 /etc/mypackage
-#     # printMsg "Created configuration directory"
+# big-search ships a systemd *user* unit with WantedBy=default.target, which
+# says where the link belongs but does not create it, and the package has no
+# install script of its own. Nothing else creates it either: no pacman hook
+# runs "systemctl preset", and Arch's default preset policy is "disable". So
+# without this the daemon is installed and never runs, big-nautilus falls back
+# to walking the filesystem, and the search stays as slow as it was.
 #
-#     # Example: Start a service
-#     # systemctl enable myservice.service
-#     # systemctl start myservice.service
-#     # printMsg "Service enabled and started"
-# }
+# --global writes to /etc/systemd/user/, covering every user including
+# accounts created later. It takes effect at the next login; an existing
+# session can start it now with "systemctl --user start big-search".
+enable_search_daemon() {
+    if ! systemctl --global enable big-search.service &>/dev/null; then
+        printMsg "Could not enable big-search.service; fast search stays off until it is enabled"
+        return
+    fi
 
-# Function executed before package upgrade
-# pre_upgrade() {
-#     printMsg "Preparing to upgrade the package..."
-#     # Example: Backup configuration files
-#     # cp /etc/mypackage/config.conf /etc/mypackage/config.conf.bak
-#     # printMsg "Configuration backup created"
-# }
+    printMsg "Index-backed search enabled; it starts at the next login"
+}
 
-# Function executed after package upgrade
-# post_upgrade() {
-#     printMsg "Finalizing package upgrade..."
-#     # Usually, post_install is called here to ensure
-#     # all post-installation configurations are applied
-#     # post_install
-#
-#     # Example: Check and update configuration files
-#     # if [ -f /etc/mypackage/config.conf.pacnew ]; then
-#     #     printMsg "New configuration file available. Please review /etc/mypackage/config.conf.pacnew"
-#     # fi
-#     # printMsg "Upgrade completed successfully"
-# }
+post_install() {
+    enable_search_daemon
+}
 
-# Function executed before package removal
-# pre_remove() {
-#     printMsg "Preparing to remove the package..."
-#     # Example: Stop services
-#     # systemctl stop myservice.service
-#     # systemctl disable myservice.service
-#     # printMsg "Services stopped"
-# }
+post_upgrade() {
+    # Only when crossing the version that introduced this. "systemctl disable"
+    # merely removes the symlinks -- it leaves no mark saying the choice was
+    # deliberate -- so enabling on every upgrade would quietly undo an
+    # administrator who turned the daemon off on purpose.
+    if (( $(vercmp "$2" "$_daemon_enabled_since") < 0 )); then
+        enable_search_daemon
+    fi
+}
 
-# Function executed after package removal
-# post_remove() {
-#     printMsg "Cleaning up after package removal..."
-#     # Example: Remove data directories created by the package
-#     # rm -rf /var/lib/mypackage
-#     # printMsg "Package directories removed"
-#
-#     # printMsg "If you want to remove all user data, run:"
-#     # printMsg "rm -rf /home/*/mypackage_data"
-# }
+pre_remove() {
+    systemctl --global disable big-search.service &>/dev/null || true
+}
