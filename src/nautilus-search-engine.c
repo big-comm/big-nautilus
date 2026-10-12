@@ -44,6 +44,7 @@ struct _NautilusSearchEngine
     gboolean running;
     gboolean starting;
     gboolean restart;
+    gboolean stopped;
 };
 
 enum
@@ -84,7 +85,7 @@ search_engine_start_provider (NautilusSearchProvider *provider,
 
 /* Starts @provider and reports whether it took the search on. A provider
  * declines when it has nothing to offer for this query -- the BigSearch one
- * does so whenever its daemon is not answering. */
+ * does so when its daemon is not there, or for what its index does not cover. */
 static gboolean
 search_engine_start_provider_if (NautilusSearchProvider *provider,
                                  NautilusSearchEngine   *self)
@@ -103,6 +104,7 @@ search_engine_start_real (NautilusSearchEngine *self)
 
     self->providers_started = 0;
     self->providers_finished = 0;
+    self->stopped = FALSE;
 
     self->starting = TRUE;
     search_engine_start_provider (self->localsearch, self);
@@ -111,14 +113,18 @@ search_engine_start_real (NautilusSearchEngine *self)
 
     /* The simple engine walks the tree, which on a large home directory means
      * visiting over a million entries before the search can report itself
-     * finished. When BigSearch answered, it has already covered the same
-     * ground from an index in under a millisecond, and it follows the
-     * filesystem with inotify, so the walk would only repeat the work.
+     * finished. When BigSearch takes the search, it covers the same ground
+     * from an index in under a millisecond, and it follows the filesystem
+     * with inotify, so the walk would only repeat the work.
      *
      * Decided here rather than inside the simple engine because only the
      * engine knows which providers the search asked for: a search set up for
      * the simple provider alone must still use it. And decided per search,
-     * so that stopping the daemon hands the walk its job back. */
+     * so that stopping the daemon hands the walk its job back.
+     *
+     * Taking the search is not answering it: should the daemon then fail, or
+     * find nothing, search_provider_bigsearch_finished() starts the walk
+     * after all. */
     if (!search_engine_start_provider_if (self->bigsearch, self))
     {
         search_engine_start_provider (self->simple, self);
@@ -177,8 +183,13 @@ nautilus_search_engine_stop (NautilusSearchEngine *self)
     {
         nautilus_search_provider_stop (self->simple);
     }
+    if (self->bigsearch != NULL)
+    {
+        nautilus_search_provider_stop (self->bigsearch);
+    }
 
     self->restart = FALSE;
+    self->stopped = TRUE;
 }
 
 static void
@@ -262,6 +273,22 @@ search_provider_finished (NautilusSearchEngine *self)
     check_providers_status (self);
 }
 
+/* The walk was held back on the promise of an answer from the index. When
+ * that answer did not come, or came empty, the walk is the only thing left
+ * that can find the files, so it runs late rather than not at all. */
+static void
+search_provider_bigsearch_finished (NautilusSearchEngine *self)
+{
+    if (self->running && !self->restart && !self->stopped &&
+        nautilus_search_engine_bigsearch_needs_fallback (NAUTILUS_SEARCH_ENGINE_BIGSEARCH (self->bigsearch)))
+    {
+        g_debug ("BigSearch had no answer, falling back to the simple provider");
+        search_engine_start_provider (self->simple, self);
+    }
+
+    search_provider_finished (self);
+}
+
 typedef NautilusSearchProvider *(* CreateFunc) (void);
 
 static void
@@ -280,7 +307,9 @@ setup_provider (NautilusSearchEngine    *self,
                               G_CALLBACK (search_provider_hits_added),
                               self);
             g_signal_connect_swapped (*provider_pointer, "provider-finished",
-                                      G_CALLBACK (search_provider_finished),
+                                      (provider_flag == NAUTILUS_SEARCH_TYPE_BIGSEARCH)
+                                      ? G_CALLBACK (search_provider_bigsearch_finished)
+                                      : G_CALLBACK (search_provider_finished),
                                       self);
         }
     }

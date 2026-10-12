@@ -37,9 +37,23 @@
 
 #define BIGSEARCH_TIMEOUT_SECONDS 5
 
+/* Only walked when the mime filter is on. A daemon with the "mime-filter"
+ * capability applies it in the index and the first page is all there is to
+ * want. One without it ignores the filter, which leaves it to this side, and
+ * then the first page alone could hold nothing of the wanted type. */
+#define BIGSEARCH_MAX_PAGES 10
+
+/* A sane answer is a few hundred kilobytes. */
+#define BIGSEARCH_MAX_RESPONSE_BYTES (64 * 1024 * 1024)
+
 struct _NautilusSearchEngineBigsearch
 {
     NautilusSearchProvider parent_instance;
+
+    /* Written by the search thread before it hands over to the main context,
+     * read from the main context afterwards. */
+    gboolean needs_fallback;
+    guint n_hits;
 };
 
 G_DEFINE_TYPE (NautilusSearchEngineBigsearch, nautilus_search_engine_bigsearch,
@@ -62,34 +76,16 @@ gboolean
 nautilus_search_engine_bigsearch_is_available (void)
 {
     g_autofree char *path = socket_path ();
-    g_autoptr (GSocketClient) client = NULL;
-    g_autoptr (GSocketAddress) address = NULL;
-    g_autoptr (GSocketConnection) connection = NULL;
 
-    if (path == NULL || !g_file_test (path, G_FILE_TEST_EXISTS))
-    {
-        return FALSE;
-    }
+    return path != NULL && g_file_test (path, G_FILE_TEST_EXISTS);
+}
 
-    /* The file outliving the daemon is common enough -- a crash, a stopped
-     * service -- that testing for it is not enough to say the service is
-     * there. Connecting to a Unix socket costs a fraction of a millisecond,
-     * against the seconds the directory-walking engine spends, so pay it and
-     * let the answer mean what it says. */
-    client = g_socket_client_new ();
-    g_socket_client_set_timeout (client, 1);
-    address = g_unix_socket_address_new (path);
-    connection = g_socket_client_connect (client, G_SOCKET_CONNECTABLE (address),
-                                          NULL, NULL);
+gboolean
+nautilus_search_engine_bigsearch_needs_fallback (NautilusSearchEngineBigsearch *self)
+{
+    g_return_val_if_fail (NAUTILUS_IS_SEARCH_ENGINE_BIGSEARCH (self), FALSE);
 
-    if (connection == NULL)
-    {
-        return FALSE;
-    }
-
-    g_io_stream_close (G_IO_STREAM (connection), NULL, NULL);
-
-    return TRUE;
+    return self->needs_fallback;
 }
 
 static const char *
@@ -101,18 +97,46 @@ get_name (NautilusSearchProvider *provider)
 static gboolean
 run_in_thread (NautilusSearchProvider *provider)
 {
-    /* One blocking round trip, measured in fractions of a millisecond. Doing
-     * it in the search thread keeps this file free of async plumbing. */
     return TRUE;
 }
 
+/* Declining hands the search to the directory-walking engine, so decline
+ * whenever the index cannot give the answer the query asks for. */
 static gboolean
 should_search (NautilusSearchProvider *provider,
                NautilusQuery          *query)
 {
     g_autofree char *text = nautilus_query_get_text (query);
+    g_autoptr (GFile) location = nautilus_query_get_location (query);
+    g_autoptr (GPtrArray) date_range = nautilus_query_get_date_range (query);
 
     if (text == NULL || *text == '\0')
+    {
+        return FALSE;
+    }
+
+    /* The index is scoped by local path: the trash, recent files, tags and
+     * remote mounts are not in it. */
+    if (location != NULL)
+    {
+        g_autofree char *path = g_file_get_path (location);
+
+        if (path == NULL || !g_file_is_native (location))
+        {
+            return FALSE;
+        }
+    }
+
+    /* "under" always includes the subfolders. A search with no location has
+     * no subfolders to speak of, and takes the whole index. */
+    if (location != NULL && !nautilus_query_recursive (query))
+    {
+        return FALSE;
+    }
+
+    /* Only the modification time is indexed. */
+    if (date_range != NULL &&
+        nautilus_query_get_search_type (query) != NAUTILUS_SEARCH_TIME_TYPE_LAST_MODIFIED)
     {
         return FALSE;
     }
@@ -124,14 +148,16 @@ should_search (NautilusSearchProvider *provider,
  * is pushed down into it, so the filtering happens in the index instead of
  * over a larger result set here. */
 static char *
-build_request (NautilusQuery *query)
+build_request (NautilusQuery *query,
+               const char    *under,
+               gint64         offset)
 {
     g_autoptr (JsonBuilder) builder = json_builder_new ();
     g_autoptr (JsonGenerator) generator = json_generator_new ();
     g_autoptr (JsonNode) root = NULL;
     g_autofree char *text = nautilus_query_get_text (query);
-    g_autoptr (GFile) location = nautilus_query_get_location (query);
-    GPtrArray *date_range = nautilus_query_get_date_range (query);
+    g_autofree char *mime_types = nautilus_query_get_mime_type_str (query);
+    g_autoptr (GPtrArray) date_range = nautilus_query_get_date_range (query);
 
     json_builder_begin_object (builder);
 
@@ -152,17 +178,23 @@ build_request (NautilusQuery *query)
     json_builder_set_member_name (builder, "filter");
     json_builder_begin_object (builder);
 
-    if (location != NULL)
+    if (under != NULL)
     {
-        g_autofree char *path = g_file_get_path (location);
+        json_builder_set_member_name (builder, "under");
+        json_builder_add_string_value (builder, under);
+    }
 
-        /* Only a local path can be scoped in the index. A search started in a
-         * remote location falls through to the other engines. */
-        if (path != NULL)
+    if (mime_types != NULL)
+    {
+        g_auto (GStrv) types = g_strsplit (mime_types, ",", -1);
+
+        json_builder_set_member_name (builder, "mime");
+        json_builder_begin_array (builder);
+        for (guint i = 0; types[i] != NULL; i++)
         {
-            json_builder_set_member_name (builder, "under");
-            json_builder_add_string_value (builder, path);
+            json_builder_add_string_value (builder, types[i]);
         }
+        json_builder_end_array (builder);
     }
 
     if (date_range != NULL && date_range->len == 2)
@@ -182,7 +214,7 @@ build_request (NautilusQuery *query)
     json_builder_set_member_name (builder, "page");
     json_builder_begin_object (builder);
     json_builder_set_member_name (builder, "offset");
-    json_builder_add_int_value (builder, 0);
+    json_builder_add_int_value (builder, offset);
     json_builder_set_member_name (builder, "limit");
     json_builder_add_int_value (builder, BIGSEARCH_RESULT_LIMIT);
     json_builder_end_object (builder);
@@ -195,7 +227,8 @@ build_request (NautilusQuery *query)
     return json_generator_to_data (generator, NULL);
 }
 
-/* The daemon answers with one JSON object on one line. */
+/* The daemon answers with one JSON object on one line. Runs in the search
+ * thread: every step here can block for as long as the socket timeout. */
 static char *
 round_trip (const char    *request,
             GCancellable  *cancellable,
@@ -205,12 +238,14 @@ round_trip (const char    *request,
     g_autoptr (GSocketClient) client = NULL;
     g_autoptr (GSocketAddress) address = NULL;
     g_autoptr (GSocketConnection) connection = NULL;
-    g_autoptr (GDataInputStream) input = NULL;
-    g_autofree char *line = NULL;
+    g_autoptr (GString) line = g_string_new (NULL);
     GOutputStream *output;
+    GInputStream *input;
 
     if (path == NULL)
     {
+        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                             "No runtime directory");
         return NULL;
     }
 
@@ -234,34 +269,107 @@ round_trip (const char    *request,
         return NULL;
     }
 
-    input = g_data_input_stream_new (g_io_stream_get_input_stream (G_IO_STREAM (connection)));
-    line = g_data_input_stream_read_line (input, NULL, cancellable, error);
+    input = g_io_stream_get_input_stream (G_IO_STREAM (connection));
 
-    return g_steal_pointer (&line);
+    while (TRUE)
+    {
+        char buffer[16384];
+        gssize n_read = g_input_stream_read (input, buffer, sizeof (buffer),
+                                             cancellable, error);
+        const char *newline;
+
+        if (n_read < 0)
+        {
+            return NULL;
+        }
+
+        if (n_read == 0)
+        {
+            /* Closed before a full line came through. */
+            g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_CLOSED,
+                                 "Connection closed before the answer was complete");
+            return NULL;
+        }
+
+        newline = memchr (buffer, '\n', n_read);
+        if (newline != NULL)
+        {
+            g_string_append_len (line, buffer, newline - buffer);
+            break;
+        }
+
+        g_string_append_len (line, buffer, n_read);
+
+        if (line->len > BIGSEARCH_MAX_RESPONSE_BYTES)
+        {
+            g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_MESSAGE_TOO_LARGE,
+                                 "Answer too large");
+            return NULL;
+        }
+    }
+
+    return g_string_free (g_steal_pointer (&line), FALSE);
 }
 
-static void
+/* Mirrors what the directory walk hides: dot files, backup files, and
+ * everything inside a hidden folder below the place searched. */
+static gboolean
+path_is_hidden (const char *path,
+                const char *under)
+{
+    const char *relative = path;
+    gsize length;
+
+    if (under != NULL && g_str_has_prefix (path, under))
+    {
+        relative = path + strlen (under);
+    }
+
+    for (const char *p = relative; *p != '\0'; p++)
+    {
+        if (*p == '.' && p > path && p[-1] == '/')
+        {
+            return TRUE;
+        }
+    }
+
+    length = strlen (path);
+
+    return length > 0 && path[length - 1] == '~';
+}
+
+/* Returns: where the next page starts, 0 when this was the last one, or -1
+ * with @error set. */
+static gint64
 add_hits_from_response (NautilusSearchEngineBigsearch *self,
                         const char                    *response,
+                        const char                    *under,
                         GError                       **error)
 {
     g_autoptr (JsonParser) parser = json_parser_new ();
+    JsonNode *root_node;
+    JsonNode *hits_node;
     JsonObject *root;
     JsonArray *hits;
     const char *kind;
     NautilusQuery *query = nautilus_search_provider_get_query (self);
+    gboolean show_hidden = nautilus_query_get_show_hidden_files (query);
+    gboolean filter_mime = nautilus_query_has_mime_types (query);
 
     if (!json_parser_load_from_data (parser, response, -1, error))
     {
-        return;
+        return -1;
     }
 
-    root = json_node_get_object (json_parser_get_root (parser));
-    if (root == NULL)
+    root_node = json_parser_get_root (parser);
+    if (root_node == NULL || !JSON_NODE_HOLDS_OBJECT (root_node))
     {
-        return;
+        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                             "Answer is not a JSON object");
+        return -1;
     }
 
+    root = json_node_get_object (root_node);
     kind = json_object_get_string_member_with_default (root, "kind", "");
 
     if (g_strcmp0 (kind, "error") == 0)
@@ -271,19 +379,33 @@ add_hits_from_response (NautilusSearchEngineBigsearch *self,
         g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "%s",
                      json_object_get_string_member_with_default (root, "message",
                                                                  "unknown error"));
-        return;
+        return -1;
     }
 
-    if (!json_object_has_member (root, "hits"))
+    hits_node = json_object_get_member (root, "hits");
+    if (hits_node == NULL)
     {
-        return;
+        return 0;
     }
 
-    hits = json_object_get_array_member (root, "hits");
+    if (JSON_NODE_HOLDS_NULL (hits_node))
+    {
+        return 0;
+    }
+
+    if (!JSON_NODE_HOLDS_ARRAY (hits_node))
+    {
+        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                             "\"hits\" is not an array");
+        return -1;
+    }
+
+    hits = json_node_get_array (hits_node);
 
     for (guint i = 0; i < json_array_get_length (hits); i++)
     {
-        JsonObject *entry = json_array_get_object_element (hits, i);
+        JsonNode *entry_node = json_array_get_element (hits, i);
+        JsonObject *entry;
         const char *path;
         const char *mime;
         g_autoptr (GFile) file = NULL;
@@ -291,10 +413,12 @@ add_hits_from_response (NautilusSearchEngineBigsearch *self,
         g_autoptr (NautilusSearchHit) hit = NULL;
         gint64 mtime;
 
-        if (entry == NULL)
+        if (!JSON_NODE_HOLDS_OBJECT (entry_node))
         {
             continue;
         }
+
+        entry = json_node_get_object (entry_node);
 
         /* A hit whose file has gone away, or lives on something unmounted,
          * would only turn into a broken row. */
@@ -304,16 +428,21 @@ add_hits_from_response (NautilusSearchEngineBigsearch *self,
         }
 
         path = json_object_get_string_member_with_default (entry, "path", NULL);
-        if (path == NULL)
+        if (path == NULL || !g_path_is_absolute (path))
         {
             continue;
         }
 
-        /* The index does not know about the mime filter, so apply it here.
-         * The daemon reports the type, which saves querying the file. */
+        if (!show_hidden && path_is_hidden (path, under))
+        {
+            continue;
+        }
+
+        /* Asked of the daemon too, but an older one does not listen. It
+         * reports the type, which saves querying the file. */
         mime = json_object_get_string_member_with_default (entry, "mime", NULL);
-        if (nautilus_query_has_mime_types (query) &&
-            !nautilus_query_matches_mime_type (query, mime))
+        if (filter_mime &&
+            (mime == NULL || !nautilus_query_matches_mime_type (query, mime)))
         {
             continue;
         }
@@ -334,32 +463,70 @@ add_hits_from_response (NautilusSearchEngineBigsearch *self,
         }
 
         nautilus_search_provider_add_hit (self, g_steal_pointer (&hit));
+        self->n_hits++;
     }
+
+    /* null on the last page. */
+    return MAX (json_object_get_int_member_with_default (root, "next_offset", 0), 0);
 }
 
-static void
-start_search (NautilusSearchProvider *provider)
+static gpointer
+search_thread_func (NautilusSearchEngineBigsearch *self)
 {
-    NautilusSearchEngineBigsearch *self = NAUTILUS_SEARCH_ENGINE_BIGSEARCH (provider);
+    NautilusQuery *query = nautilus_search_provider_get_query (self);
+    GCancellable *cancellable = nautilus_search_provider_get_cancellable (self);
+    g_autoptr (GFile) location = nautilus_query_get_location (query);
+    g_autofree char *under = (location != NULL) ? g_file_get_path (location) : NULL;
     g_autoptr (GError) error = NULL;
-    g_autofree char *request = NULL;
-    g_autofree char *response = NULL;
+    /* Without the mime filter the first page is the whole answer the views
+     * can use. */
+    guint max_pages = nautilus_query_has_mime_types (query) ? BIGSEARCH_MAX_PAGES : 1;
+    gint64 offset = 0;
 
-    request = build_request (nautilus_search_provider_get_query (self));
-    response = round_trip (request,
-                           nautilus_search_provider_get_cancellable (self),
-                           &error);
-
-    if (response != NULL)
+    for (guint page = 0; page < max_pages; page++)
     {
-        add_hits_from_response (self, response, &error);
+        g_autofree char *request = build_request (query, under, offset);
+        g_autofree char *response = round_trip (request, cancellable, &error);
+        gint64 next_offset;
+
+        if (response == NULL)
+        {
+            break;
+        }
+
+        next_offset = add_hits_from_response (self, response, under, &error);
+        if (next_offset <= offset)
+        {
+            /* The last page, an error, or a cursor that does not advance. */
+            break;
+        }
+
+        offset = next_offset;
     }
 
-    if (error != NULL && !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+    if (error == NULL)
     {
+        /* Nothing found may just as well mean the place searched is not in
+         * the index -- another disk, a system folder. The daemon does not say
+         * which, so have the walk check. It costs time only on a search that
+         * had nothing to show anyway. */
+        self->needs_fallback = (self->n_hits == 0);
+
+        /* The index leaves hidden files out. A search that wants them gets
+         * what the index has right away, and the rest from the walk. */
+        if (nautilus_query_get_show_hidden_files (query))
+        {
+            self->needs_fallback = TRUE;
+        }
+    }
+    else if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+    {
+        /* Whatever went wrong, the search was not answered: say so, and the
+         * engine puts the directory walk on it instead. */
+        self->needs_fallback = TRUE;
+
         /* A socket file left behind by a daemon that is no longer running is
-         * an ordinary state, not a fault: the service is optional and the
-         * other engines answer the search either way. Anything else -- a
+         * an ordinary state, not a fault. Anything else -- a timeout, a
          * protocol mismatch, malformed JSON -- is worth saying out loud. */
         if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CONNECTION_REFUSED) ||
             g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
@@ -373,7 +540,23 @@ start_search (NautilusSearchProvider *provider)
     }
 
     nautilus_search_provider_flush_hits (self);
-    nautilus_search_provider_finished (provider);
+    g_idle_add_once ((GSourceOnceFunc) nautilus_search_provider_finished, self);
+
+    return NULL;
+}
+
+static void
+start_search (NautilusSearchProvider *provider)
+{
+    NautilusSearchEngineBigsearch *self = NAUTILUS_SEARCH_ENGINE_BIGSEARCH (provider);
+    g_autoptr (GThread) thread = NULL;
+
+    self->needs_fallback = FALSE;
+    self->n_hits = 0;
+
+    /* The provider holds a reference on itself until it reports finished. */
+    thread = g_thread_new ("nautilus-search-bigsearch",
+                           (GThreadFunc) search_thread_func, self);
 }
 
 static void
