@@ -25,6 +25,7 @@ license=(GPL-3.0-or-later)
 # o job falha depois de já ter construído os pacotes. Para depurar, construa
 # localmente com options=(debug) em uma cópia deste PKGBUILD.
 depends=(
+  big-search
   cairo
   dconf
   gcc-libs
@@ -51,13 +52,10 @@ depends=(
   libx11
   localsearch
   pango
-  vte4
   tinysparql
+  vte4
   wayland
   xdg-user-dirs-gtk
-)
-optdepends=(
-  'big-search: index-backed search, answering in under a millisecond instead of walking the tree'
 )
 makedepends=(
   appstream
