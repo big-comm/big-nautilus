@@ -34,6 +34,22 @@ Opening an `sftp://` location can connect over SSH automatically and keep the
 same directory synchronisation on the remote side. It is off by default; turn
 it on from the terminal's context menu.
 
+Following never gets in the way of what the terminal is doing. The `cd` is
+only typed when the shell is at its prompt: with an editor, a REPL or a
+password prompt in the foreground it waits until the shell is back. Browsing
+to or away from a server does not replace a session that is running a
+command either; the switch happens when the command ends, or at once if you
+ask for it from the context menu.
+
+While the keyboard is in the terminal, the keys a terminal needs go to the
+terminal: <kbd>Ctrl</kbd> + <kbd>Z</kbd> suspends the job rather than undoing
+a file operation, <kbd>Ctrl</kbd> + <kbd>W</kbd> erases a word rather than
+closing the tab, and <kbd>F9</kbd> and <kbd>F10</kbd> reach programs like
+`htop` and `mc`.
+
+Files and text dropped on the terminal are pasted at the prompt, quoted and
+never executed.
+
 The pane is resizable, its size is remembered per session, and the font,
 size and colour scheme are configurable.
 
@@ -46,8 +62,8 @@ dot in the corner of the icon and an outlined badge around the name — visible
 at a glance without turning the view into a colour chart.
 
 Tags can be applied from the context menu or with <kbd>Ctrl</kbd> +
-<kbd>1</kbd> … <kbd>8</kbd>, and every way of applying one is undoable with
-<kbd>Ctrl</kbd> + <kbd>Z</kbd>.
+<kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd>, and every way of applying one is
+undoable with <kbd>Ctrl</kbd> + <kbd>Z</kbd>.
 
 Each colour in use appears in the sidebar as a place you can open, gathering
 every file carrying that colour regardless of where it lives. Drag files onto
@@ -59,8 +75,15 @@ something useful.
 
 ![Opening a colour from the sidebar, gathering everything tagged with it](docs/screenshots/tags-sidebar.png)
 
-Tags follow files through renames and moves, are dropped when a file is
-deleted, and are stored in `tags.conf` under your data directory.
+Tags follow files through renames and moves — a folder takes the tags of
+everything inside it along — and come back with a file restored from the
+trash. They are dropped when a file is deleted, and stored in `tags.conf`
+under your data directory.
+
+Deleting a tagged file outside big-nautilus leaves its tag behind. Those are
+cleared out a minute after startup, but only when the file is certain to be
+gone: a file on a disk that is unplugged, or on a share that is not mounted,
+keeps its tag.
 
 ### Fast search
 
@@ -74,8 +97,24 @@ filesystem. Measured on one machine, searching the same tree:
 | LocalSearch (Tracker) | 43–200 ms |
 | Directory traversal | seconds |
 
-The location you are searching in, and any date filter, are pushed into the
-index rather than applied afterwards.
+The location you are searching in, and any type or modification-date filter,
+are pushed into the index rather than applied afterwards. The query runs off
+the main thread, so a daemon that is slow to answer never freezes the window.
+
+The index does not hold everything, and the directory walk still covers what
+it leaves out:
+
+- when the daemon fails to answer, or answers with nothing — which is also
+  what a folder outside the index looks like;
+- when hidden files are shown, since the index skips them;
+- in the trash, recent files, tag folders and remote locations, when
+  searching the current folder only, and when filtering by access or
+  creation date.
+
+One difference remains: by default the daemon skips whatever a `.gitignore`
+excludes, so inside a repository a search that does find something will not
+list build output next to it. That is `respect_gitignore` in the daemon's
+`config.toml`.
 
 The daemon is entirely optional. When it is not running, search falls back to
 the engines GNOME Files ships with, and nothing changes.
@@ -154,8 +193,8 @@ Everything GNOME Files binds, plus:
 | Shortcut | Action |
 |---|---|
 | <kbd>F4</kbd> | Show or hide the terminal |
-| <kbd>Ctrl</kbd> + <kbd>1</kbd> … <kbd>8</kbd> | Apply a colour tag to the selection |
-| <kbd>Ctrl</kbd> + <kbd>0</kbd> | Remove the colour tag |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd> | Apply a colour tag to the selection |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>0</kbd> | Remove the colour tag |
 | <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Undo, including tagging |
 
 ---
