@@ -10,7 +10,7 @@ Tracks upstream GNOME Files closely — currently **50.4** — so everything you
 already know about Files still applies. The additions sit alongside it rather
 than replacing it.
 
-![big-nautilus with colour tags and the embedded terminal](docs/screenshots/overview.png)
+![big-nautilus, with tag colours listed in the sidebar](docs/screenshots/overview.png)
 
 ---
 
@@ -37,15 +37,13 @@ it on from the terminal's context menu.
 The pane is resizable, its size is remembered per session, and the font,
 size and colour scheme are configurable.
 
-![The embedded terminal following the browsed folder](docs/screenshots/terminal.png)
+![The terminal and the view following each other](docs/screenshots/terminal.png)
 
 ### Colour tags
 
 Mark a folder or file with one of eight colours. Tagged items get a coloured
 dot in the corner of the icon and an outlined badge around the name — visible
 at a glance without turning the view into a colour chart.
-
-![Folders marked with colour tags](docs/screenshots/tags-grid.png)
 
 Tags can be applied from the context menu or with <kbd>Ctrl</kbd> +
 <kbd>1</kbd> … <kbd>8</kbd>, and every way of applying one is undoable with
@@ -59,7 +57,7 @@ Colours can be renamed, so "Orange" becomes "Mobile" or whatever the tag is
 actually for. The dot still carries the colour, so the label is free to say
 something useful.
 
-![The sidebar listing colours in use, renamed](docs/screenshots/tags-sidebar.png)
+![Opening a colour from the sidebar, gathering everything tagged with it](docs/screenshots/tags-sidebar.png)
 
 Tags follow files through renames and moves, are dropped when a file is
 deleted, and are stored in `tags.conf` under your data directory.

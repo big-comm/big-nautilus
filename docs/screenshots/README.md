@@ -1,18 +1,10 @@
 # Screenshots
 
-Captured from a throwaway demo home, so no personal files or bookmarks are
-visible. To reproduce it:
-
-    ~/big-nautilus-demo-launch.sh
-
-That opens the development build with its own HOME, the system icon and GTK
-themes applied, the interface in English, and five colours already in use.
-
-Expected files, referenced by ../../README.md:
-
-| File | Shot |
+| File | Shows |
 |---|---|
-| `overview.png` | Grid view with tagged folders and the terminal open |
-| `terminal.png` | Terminal pane following the browsed folder |
-| `tags-grid.png` | Close-up of tagged folders: dot on the icon, badge on the name |
-| `tags-sidebar.png` | Sidebar section listing the colours in use, renamed |
+| `overview.png` | The window, with the colours in use listed at the bottom of the sidebar |
+| `terminal.png` | The terminal pane and the view following each other: the `cd` in the terminal moved the folder shown above it |
+| `tags-sidebar.png` | A colour opened from the sidebar, gathering what carries it — the dot sits at the corner of the icon and the badge around the name |
+
+Taken on a real desktop rather than a staged one, so the icon theme and the
+rest of the appearance are what a BigLinux user actually sees.
