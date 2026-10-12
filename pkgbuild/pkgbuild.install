@@ -35,6 +35,8 @@ enable_search_daemon() {
     fi
 
     printMsg "Index-backed search enabled; it starts at the next login"
+    printMsg "To start it now:  systemctl --user start big-search"
+    printMsg "To turn it off:   systemctl --user disable --now big-search"
 }
 
 post_install() {
