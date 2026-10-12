@@ -113,7 +113,12 @@ static gboolean
 file_has_our_color (NautilusTagDirectory *self,
                     const char           *uri)
 {
-    return nautilus_tag_colors_get_color (nautilus_tag_colors_get (), uri) == get_color (self);
+    NautilusTagColor color = get_color (self);
+
+    /* tag://bogus/ names no colour. Matching "none" there would make this
+     * the folder of every file without a tag. */
+    return color != NAUTILUS_TAG_COLOR_NONE &&
+           nautilus_tag_colors_get_color (nautilus_tag_colors_get (), uri) == color;
 }
 
 static void
@@ -195,7 +200,12 @@ on_tag_colors_changed (NautilusTagColors *colors,
 
     if (uri != NULL)
     {
-        NautilusFile *file = nautilus_file_get_by_uri (uri);
+        /* Most changes are about some other colour. A file that is not ours
+         * to take in can only matter if we hold it, and then it exists as an
+         * object already: no need to make one up to find that out. */
+        NautilusFile *file = file_has_our_color (self, uri)
+                             ? nautilus_file_get_by_uri (uri)
+                             : nautilus_file_get_existing_by_uri (uri);
 
         if (file != NULL)
         {
@@ -204,12 +214,39 @@ on_tag_colors_changed (NautilusTagColors *colors,
     }
     else
     {
-        /* A bulk change, such as a move: re-evaluate everything we hold. */
+        g_autoptr (GHashTable) held = g_hash_table_new_full (g_str_hash, g_str_equal,
+                                                             g_free, NULL);
+        GList *tagged = NULL;
+
+        /* A bulk change, such as a move: re-evaluate everything we hold... */
         for (GList *l = self->files; l != NULL; l = l->next)
         {
+            g_hash_table_add (held, nautilus_file_get_uri (NAUTILUS_FILE (l->data)));
             changed_files = g_list_prepend (changed_files,
                                             nautilus_file_ref (NAUTILUS_FILE (l->data)));
         }
+
+        /* ...and take in what was given our colour, which tagging a
+         * selection reports the same way. */
+        if (get_color (self) != NAUTILUS_TAG_COLOR_NONE)
+        {
+            tagged = nautilus_tag_colors_get_uris (nautilus_tag_colors_get (), get_color (self));
+        }
+
+        for (GList *l = tagged; l != NULL; l = l->next)
+        {
+            if (!g_hash_table_contains (held, l->data))
+            {
+                NautilusFile *file = nautilus_file_get_by_uri (l->data);
+
+                if (file != NULL)
+                {
+                    changed_files = g_list_prepend (changed_files, file);
+                }
+            }
+        }
+
+        g_list_free_full (tagged, g_free);
     }
 
     nautilus_tag_directory_update_files (self, changed_files);

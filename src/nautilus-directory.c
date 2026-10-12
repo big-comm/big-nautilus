@@ -1172,15 +1172,16 @@ nautilus_directory_notify_files_removed (GList *files)
     {
         GFile *location = p->data;
 
-        /* Drop the colour tag of a file Nautilus itself removed. Deciding
-         * this by testing the filesystem would be wrong, because a tagged
-         * file on an unmounted volume also fails to exist; being told about
-         * the removal leaves no room for that guess. */
+        /* Drop the colour tag of a file reported as removed. Deciding this
+         * by testing the filesystem would be wrong, because a tagged file on
+         * an unmounted volume also fails to exist; being told about the
+         * removal leaves no room for that guess. Going to the trash counts
+         * as a removal too, so the store keeps the tag at hand for a file
+         * that is restored. */
         {
             g_autofree char *gone_uri = g_file_get_uri (location);
 
-            nautilus_tag_colors_set_color (nautilus_tag_colors_get (), gone_uri,
-                                           NAUTILUS_TAG_COLOR_NONE);
+            nautilus_tag_colors_file_removed (nautilus_tag_colors_get (), gone_uri);
         }
 
         /* Update file count for parent directory if anyone might care. */
@@ -1371,15 +1372,6 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
         g_autoptr (NautilusFile) from_file = nautilus_file_get_existing (from_location);
         g_autoptr (NautilusFile) to_file = nautilus_file_get_existing (to_location);
 
-        /* Colour tags are keyed by URI, so a rename or a move would otherwise
-         * drop the tag and leave a stale entry behind. */
-        {
-            g_autofree char *from_uri = g_file_get_uri (from_location);
-            g_autofree char *to_uri = g_file_get_uri (to_location);
-
-            nautilus_tag_colors_move (nautilus_tag_colors_get (), from_uri, to_uri);
-        }
-
         /* Handle overwriting a file. */
         if (to_file != NULL && from_file != NULL)
         {
@@ -1440,6 +1432,18 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
             }
             hash_table_list_insert (changed_lists, old_directory, g_steal_pointer (&from_file));
         }
+    }
+
+    /* Colour tags are keyed by URI, so a rename or a move would otherwise
+     * drop the tag and leave a stale entry behind. Done once the file objects
+     * carry their new URIs: the listeners look the tag up through them. */
+    for (GList *p = file_pairs; p != NULL; p = p->next)
+    {
+        GFilePair *pair = p->data;
+        g_autofree char *from_uri = g_file_get_uri (pair->from);
+        g_autofree char *to_uri = g_file_get_uri (pair->to);
+
+        nautilus_tag_colors_move (nautilus_tag_colors_get (), from_uri, to_uri);
     }
 
     /* Now send out the changed and added signals for existing file objects. */

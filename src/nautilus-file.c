@@ -60,6 +60,7 @@
 #include "nautilus-module.h"
 #include "nautilus-scheme.h"
 #include "nautilus-signaller.h"
+#include "nautilus-tag-colors.h"
 #include "nautilus-tag-manager.h"
 #include "nautilus-thumbnails.h"
 #include "nautilus-ui-utilities.h"
@@ -1721,6 +1722,10 @@ rename_get_info_callback (GObject      *source_object,
         nautilus_tag_manager_update_moved_uris (nautilus_tag_manager_get (),
                                                 old_location,
                                                 new_location);
+        /* The file monitor reports the rename too, but only for a folder
+         * that is being watched; a file renamed from a search or from a tag
+         * view has no such folder. */
+        nautilus_tag_colors_move (nautilus_tag_colors_get (), old_uri, new_uri);
 
         g_free (new_uri);
         g_free (old_uri);

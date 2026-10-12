@@ -1981,7 +1981,12 @@ trash_retrieve_files_ready (GObject      *source,
             item = l->data;
             dest = g_hash_table_lookup (files_to_restore, item);
 
-            g_file_move (item, dest, G_FILE_COPY_NOFOLLOW_SYMLINKS, NULL, NULL, NULL, NULL);
+            if (g_file_move (item, dest, G_FILE_COPY_NOFOLLOW_SYMLINKS, NULL, NULL, NULL, NULL))
+            {
+                g_autofree char *dest_uri = g_file_get_uri (dest);
+
+                nautilus_tag_colors_file_restored (nautilus_tag_colors_get (), dest_uri);
+            }
         }
 
         g_list_free (gfiles_in_trash);

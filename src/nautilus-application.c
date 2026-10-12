@@ -1003,6 +1003,10 @@ nautilus_application_startup (GApplication *app)
     /* attach menu-provider module callback */
     menu_provider_init_callback ();
 
+    /* Tags are kept by path. Nothing else ever lets go of the ones whose
+     * file was deleted behind our back. */
+    nautilus_tag_colors_schedule_prune (nautilus_tag_colors_get ());
+
     /* Initialize the UI handler singleton for file operations */
     self->progress_handler = nautilus_progress_persistence_handler_new (G_OBJECT (self));
 

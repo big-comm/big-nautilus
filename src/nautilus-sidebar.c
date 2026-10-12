@@ -767,6 +767,12 @@ update_places (NautilusSidebar *sidebar)
     /* Reset drag state, just in case we update the places while dragging or
      * ending a drag */
     stop_drop_feedback (sidebar);
+    /* The menu of a row acts on that row, and every row is about to go. */
+    if (sidebar->popover != NULL)
+    {
+        gtk_popover_popdown (GTK_POPOVER (sidebar->popover));
+    }
+
     while ((child = gtk_widget_get_first_child (GTK_WIDGET (sidebar->list_box))))
     {
         gtk_list_box_remove (GTK_LIST_BOX (sidebar->list_box), child);
@@ -1248,7 +1254,9 @@ hover_timer (gpointer user_data)
         };
 
         g_object_get (sidebar->hover_row, "uri", &uri, NULL);
-        if (uri != NULL && !g_strv_contains (drag_open_exlusion_list, uri))
+        /* A colour is a drop target, not a place to carry the files into. */
+        if (uri != NULL && !g_strv_contains (drag_open_exlusion_list, uri) &&
+            g_ascii_strncasecmp (uri, SCHEME_TAG ":", strlen (SCHEME_TAG ":")) != 0)
         {
             location = g_file_new_for_uri (uri);
             call_open_location (sidebar, location, NULL, 0);
@@ -1261,16 +1269,8 @@ hover_timer (gpointer user_data)
 static gboolean
 row_uri_is_tag (const char *uri)
 {
-    g_autoptr (GFile) location = NULL;
-
-    if (uri == NULL)
-    {
-        return FALSE;
-    }
-
-    location = g_file_new_for_uri (uri);
-
-    return g_file_has_uri_scheme (location, SCHEME_TAG);
+    /* Asked on every pointer motion of a drag over the sidebar. */
+    return uri != NULL && g_ascii_strncasecmp (uri, SCHEME_TAG ":", strlen (SCHEME_TAG ":")) == 0;
 }
 
 static gboolean

@@ -4996,14 +4996,18 @@ build_tag_colors_menu (void)
         g_autoptr (GMenuItem) color_item = NULL;
 
         color_item = g_menu_item_new (nautilus_tag_color_get_label (i), NULL);
+        g_autofree char *accel = g_strdup_printf ("<Control><Alt>%d", i);
+
         g_menu_item_set_action_and_target (color_item, "view.tag-color", "s",
                                            nautilus_tag_color_get_name (i));
+        g_menu_item_set_attribute (color_item, "accel", "s", accel);
         g_menu_append_item (colors, color_item);
     }
 
     item = g_menu_item_new (nautilus_tag_color_get_label (NAUTILUS_TAG_COLOR_NONE), NULL);
     g_menu_item_set_action_and_target (item, "view.tag-color", "s",
                                        nautilus_tag_color_get_name (NAUTILUS_TAG_COLOR_NONE));
+    g_menu_item_set_attribute (item, "accel", "s", "<Control><Alt>0");
     g_menu_append_item (clear, item);
 
     g_menu_append_section (submenu, NULL, G_MENU_MODEL (colors));
@@ -5023,19 +5027,20 @@ update_extensions_menus (NautilusFilesView *view,
     g_autoptr (GMenuModel) background_menu = NULL;
     g_autoptr (GMenuModel) selection_menu = NULL;
 
+    /* Ours, not an extension's: there with or without any installed. */
+    object = gtk_builder_get_object (builder, "tag-colors-section");
+    if (object != NULL)
+    {
+        g_autoptr (GMenuModel) tag_menu = build_tag_colors_menu ();
+
+        nautilus_gmenu_set_from_model (G_MENU (object), tag_menu);
+    }
+
     selection_items = get_extension_selection_menu_items (view);
     if (selection_items != NULL)
     {
         selection_menu = build_menu_for_extension_menu_items (view, "extensions",
                                                               selection_items);
-
-        object = gtk_builder_get_object (builder, "tag-colors-section");
-        if (object != NULL)
-        {
-            g_autoptr (GMenuModel) tag_menu = build_tag_colors_menu ();
-
-            nautilus_gmenu_set_from_model (G_MENU (object), tag_menu);
-        }
 
         object = gtk_builder_get_object (builder, "selection-extensions-section");
         nautilus_gmenu_set_from_model (G_MENU (object), selection_menu);
@@ -9475,26 +9480,27 @@ nautilus_files_view_class_init (NautilusFilesViewClass *klass)
      * delete or trash actions with the same shortcut without worrying: only the
      * enabled one will be activated.
      */
-    /* Ctrl+1..8 assign a color tag, Ctrl+0 clears it. Mirrors the order of the
-     * submenu so the shortcut is learnable from the menu itself. */
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_1, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "red");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_2, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "orange");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_3, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "yellow");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_4, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "green");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_5, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "blue");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_6, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "purple");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_7, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "brown");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_8, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "gray");
-    gtk_widget_class_add_binding_action (widget_class, GDK_KEY_0, GDK_CONTROL_MASK,
-                                         "view.tag-color", "s", "none");
+    /* Ctrl+Alt+1..8 assign a color tag, Ctrl+Alt+0 clears it, in the order of
+     * the submenu, which shows them. Not plain Ctrl: Ctrl+0 resets the zoom
+     * and Ctrl+1/2 switch between list and grid, and a binding on the view
+     * is tried before those. */
+    {
+        const guint digits[] =
+        {
+            GDK_KEY_0, GDK_KEY_1, GDK_KEY_2, GDK_KEY_3, GDK_KEY_4,
+            GDK_KEY_5, GDK_KEY_6, GDK_KEY_7, GDK_KEY_8
+        };
+
+        G_STATIC_ASSERT (G_N_ELEMENTS (digits) == NAUTILUS_TAG_COLOR_LAST);
+
+        for (int i = NAUTILUS_TAG_COLOR_NONE; i < NAUTILUS_TAG_COLOR_LAST; i++)
+        {
+            gtk_widget_class_add_binding_action (widget_class, digits[i],
+                                                 GDK_CONTROL_MASK | GDK_ALT_MASK,
+                                                 "view.tag-color", "s",
+                                                 nautilus_tag_color_get_name (i));
+        }
+    }
 
     gtk_widget_class_add_binding_action (widget_class, GDK_KEY_KP_Delete, GDK_SHIFT_MASK, "view.delete-permanently-shortcut", NULL);
     gtk_widget_class_add_binding_action (widget_class, GDK_KEY_Delete, GDK_SHIFT_MASK, "view.delete-permanently-shortcut", NULL);

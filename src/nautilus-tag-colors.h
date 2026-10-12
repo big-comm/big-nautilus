@@ -116,10 +116,54 @@ void nautilus_tag_colors_flush (NautilusTagColors *self);
  * nautilus_tag_colors_move:
  *
  * Follows a rename or move performed inside Nautilus, so the tag is not lost.
+ * When what moved is a folder, the tags of everything inside it follow too.
+ * Safe to call twice for the same move.
  */
 void nautilus_tag_colors_move (NautilusTagColors *self,
                                const char        *old_uri,
                                const char        *new_uri);
+
+/**
+ * nautilus_tag_colors_file_removed:
+ *
+ * Drops the tag of a file that was removed, remembering it for the rest of
+ * the session in case the file comes back, see
+ * nautilus_tag_colors_file_restored().
+ */
+void nautilus_tag_colors_file_removed (NautilusTagColors *self,
+                                       const char        *uri);
+
+/**
+ * nautilus_tag_colors_file_restored:
+ *
+ * Gives a file that came back -- out of the trash, by undoing its removal --
+ * the tag it had when it went. Does nothing for a file not seen being removed.
+ */
+void nautilus_tag_colors_file_restored (NautilusTagColors *self,
+                                        const char        *uri);
+
+/**
+ * nautilus_tag_colors_prune:
+ *
+ * Drops the tags of files that are certain to be gone: local, missing, from a
+ * folder that is still there with other things in it. A file that is merely
+ * out of reach -- on a disk that is unplugged, a share that is not mounted --
+ * keeps its tag.
+ *
+ * Asks the filesystem about every tagged file and blocks while it does; meant
+ * for tests. The application uses nautilus_tag_colors_schedule_prune().
+ *
+ * Returns: the number of tags dropped
+ */
+guint nautilus_tag_colors_prune (NautilusTagColors *self);
+
+/**
+ * nautilus_tag_colors_schedule_prune:
+ *
+ * Does what nautilus_tag_colors_prune() does, once, a while from now and
+ * without blocking.
+ */
+void nautilus_tag_colors_schedule_prune (NautilusTagColors *self);
 
 /* Presentation helpers. Both return static strings. */
 const char *nautilus_tag_color_get_css_class (NautilusTagColor color);
