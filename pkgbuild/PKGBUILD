@@ -11,11 +11,11 @@ pkgbase=big-nautilus
 pkgname=big-nautilus
 pkgdesc="File manager for BigLinux - GNOME Files with an embedded terminal, colour tags and more"
 pkgver=50.4
-pkgrel=2
+pkgrel=1
 conflicts=('nautilus' 'nautilus-with-terminal')
 provides=('nautilus')
 replaces=('nautilus' 'nautilus-with-terminal')
-url="https://apps.gnome.org/Nautilus/"
+url="https://github.com/big-comm/${pkgname}"
 arch=(x86_64)
 license=(GPL-3.0-or-later)
 # Nota: não habilitar options=(debug) aqui. O pipeline resolve o artefato com
@@ -68,9 +68,7 @@ makedepends=(
   meson
 )
 checkdepends=(python-gobject)
-source=(
-  "git+https://github.com/big-comm/big-nautilus.git#branch=main"
-)
+source=("git+${url}.git")
 b2sums=('SKIP')
 install=pkgbuild.install
 

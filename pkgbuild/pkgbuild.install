@@ -14,9 +14,10 @@ printMsg() {
     echo -e "${blueDark}[${lightBlue}big-nautilus${blueDark}]${reset} ${cyan}→${reset} ${white}${message}${reset}"
 }
 
-# The version this was introduced in. Upgrades crossing it enable the daemon
-# once; later upgrades leave it alone.
-_daemon_enabled_since=50.4-2
+# The version this shipped in; keep it equal to pkgver-pkgrel of the release
+# that first carried this script. Upgrades crossing it enable the daemon once,
+# later ones leave the choice alone.
+_daemon_enabled_since=50.4-1
 
 # big-search ships a systemd *user* unit with WantedBy=default.target, which
 # says where the link belongs but does not create it, and the package has no
@@ -36,7 +37,10 @@ enable_search_daemon() {
 
     printMsg "Index-backed search enabled; it starts at the next login"
     printMsg "To start it now:  systemctl --user start big-search"
-    printMsg "To turn it off:   systemctl --user disable --now big-search"
+    # Not "disable": the link lives in /etc/systemd/user, which a user cannot
+    # remove, so disabling would stop it until the next login and no further.
+    # Masking is what actually opts out, and it survives this script.
+    printMsg "To opt out:       systemctl --user mask --now big-search"
 }
 
 post_install() {
