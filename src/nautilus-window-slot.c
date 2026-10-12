@@ -94,7 +94,6 @@ struct _NautilusWindowSlot
 
     gboolean active : 1;
     guint loading : 1;
-    gboolean terminal_visible : 1;
     gboolean terminal_command_running : 1;
 
     GtkWidget *stack;
@@ -871,10 +870,6 @@ nautilus_window_slot_constructed (GObject *object)
     self->vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     gtk_stack_add_child (GTK_STACK (self->stack), self->vbox);
 
-    self->content_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-    gtk_box_append (GTK_BOX (self->vbox), self->content_box);
-    gtk_widget_set_vexpand (self->content_box, TRUE);
-
     extras_vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
     self->extra_location_widgets = extras_vbox;
     gtk_box_append (GTK_BOX (self->vbox), extras_vbox);
@@ -885,6 +880,12 @@ nautilus_window_slot_constructed (GObject *object)
     self->banner = ADW_BANNER (adw_banner_new (""));
     gtk_box_append (GTK_BOX (self->vbox),
                     GTK_WIDGET (self->banner));
+
+    /* Below the banner and the extra widgets, where the view has always
+     * been. */
+    self->content_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+    gtk_box_append (GTK_BOX (self->vbox), self->content_box);
+    gtk_widget_set_vexpand (self->content_box, TRUE);
 
     self->global_search_page = ADW_STATUS_PAGE (adw_status_page_new ());
     adw_status_page_set_icon_name (self->global_search_page, "edit-find-symbolic");
@@ -1236,6 +1237,12 @@ action_toggle_terminal (GSimpleAction *action,
                         gpointer       user_data)
 {
     NautilusWindowSlot *self = NAUTILUS_WINDOW_SLOT (user_data);
+
+    /* Not in a file chooser, which is a slot too. */
+    if (self->mode != NAUTILUS_MODE_BROWSE)
+    {
+        return;
+    }
 
     nautilus_window_slot_toggle_terminal (self);
 }
@@ -2848,7 +2855,9 @@ nautilus_window_slot_update_title (NautilusWindowSlot *self)
     /* When the embedded terminal is visible and running a foreground command
      * (as reported by VTE shell.preexec/postexec termprops, OSC 133), prepend
      * a small badge to the tab title so the user can spot busy tabs. */
-    if (self->terminal_visible && self->terminal_command_running)
+    if (self->terminal_widget != NULL &&
+        nautilus_terminal_widget_get_visible (self->terminal_widget) &&
+        self->terminal_command_running)
     {
         const char *cmd = self->terminal_widget != NULL
                           ? nautilus_terminal_widget_get_last_command_title (self->terminal_widget)
@@ -3192,14 +3201,21 @@ on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location,
 static void
 on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self)
 {
-    self->terminal_visible = visible;
+    /* The badge of a running command goes with the terminal. */
+    if (self->location != NULL)
+    {
+        nautilus_window_slot_update_title (self);
+    }
 }
 
 static void
 on_terminal_running_command_changed(NautilusTerminalWidget *terminal, gboolean running, NautilusWindowSlot *self)
 {
     self->terminal_command_running = running;
-    nautilus_window_slot_update_title (self);
+    if (self->location != NULL)
+    {
+        nautilus_window_slot_update_title (self);
+    }
 }
 
 static gboolean
@@ -3208,6 +3224,13 @@ nautilus_window_slot_ensure_terminal_state (gpointer user_data)
     NautilusWindowSlot *self = user_data;
 
     self->terminal_state_idle_id = 0;
+
+    /* A file chooser is a slot too, and has no terminal. It must not use up
+     * the one restore either: the first real window still wants it. */
+    if (self->mode != NAUTILUS_MODE_BROWSE) {
+        return G_SOURCE_REMOVE;
+    }
+
     /* The persisted "visible" setting represents user intent across app
      * sessions, not a shared live state. Restore it only on the very first slot
      * of the process; later tabs (Ctrl+T) start with terminal hidden and the
