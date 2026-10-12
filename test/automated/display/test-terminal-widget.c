@@ -11,6 +11,7 @@
 #include <gtk/gtk.h>
 #include <adwaita.h>
 #include <glib/gstdio.h>
+#include <vte/vte.h>
 
 static void
 drain_main_context (void)
@@ -70,6 +71,157 @@ test_slot_dispose_before_idle (void)
     }
 
     drain_main_context ();
+}
+
+static VteTerminal *
+find_vte_terminal (GtkWidget *widget)
+{
+    if (VTE_IS_TERMINAL (widget))
+    {
+        return VTE_TERMINAL (widget);
+    }
+
+    for (GtkWidget *child = gtk_widget_get_first_child (widget);
+         child != NULL;
+         child = gtk_widget_get_next_sibling (child))
+    {
+        VteTerminal *found = find_vte_terminal (child);
+
+        if (found != NULL)
+        {
+            return found;
+        }
+    }
+
+    return NULL;
+}
+
+typedef struct
+{
+    guint n_changes;
+    GFile *location;
+} DirectoryChanges;
+
+static void
+on_change_directory (NautilusTerminalWidget *terminal,
+                     GFile                  *location,
+                     gpointer                user_data)
+{
+    DirectoryChanges *changes = user_data;
+
+    changes->n_changes++;
+    g_set_object (&changes->location, location);
+}
+
+/* What a shell prints at its prompt to say where it is. */
+static void
+report_directory (VteTerminal *vte,
+                  const char  *uri)
+{
+    g_autofree char *sequence = g_strdup_printf ("\033]7;%s\007", uri);
+
+    vte_terminal_feed (vte, sequence, -1);
+}
+
+static void
+assert_reported_as (VteTerminal      *vte,
+                    DirectoryChanges *changes,
+                    const char       *uri,
+                    const char       *expected_path)
+{
+    guint before = changes->n_changes;
+
+    report_directory (vte, uri);
+
+    if (expected_path == NULL)
+    {
+        /* VTE takes what it is fed in on its own time. */
+        spin_main_context (400);
+        g_assert_cmpuint (changes->n_changes, ==, before);
+    }
+    else
+    {
+        g_autofree char *path = NULL;
+
+        for (guint i = 0; i < 100 && changes->n_changes == before; i++)
+        {
+            spin_main_context (50);
+        }
+
+        g_assert_cmpuint (changes->n_changes, ==, before + 1);
+        path = g_file_get_path (changes->location);
+        g_assert_cmpstr (path, ==, expected_path);
+    }
+}
+
+/* The folder a shell reports moves the file manager, whatever characters are
+ * in its name, and only when it is a folder of this machine. */
+static void
+test_reported_directory_reaches_file_manager (void)
+{
+    g_autoptr (GFile) location = g_file_new_for_path (g_get_tmp_dir ());
+    NautilusTerminalWidget *terminal = nautilus_terminal_widget_new_with_location (location);
+    DirectoryChanges changes = { 0 };
+    VteTerminal *vte;
+
+    g_object_ref_sink (terminal);
+    vte = find_vte_terminal (GTK_WIDGET (terminal));
+    g_assert_nonnull (vte);
+    g_signal_connect (terminal, "change-directory", G_CALLBACK (on_change_directory), &changes);
+
+    assert_reported_as (vte, &changes, "file:///usr", "/usr");
+    /* Where the file manager already is: nothing to do. */
+    assert_reported_as (vte, &changes, "file:///usr/", NULL);
+    assert_reported_as (vte, &changes, "file://localhost/opt", "/opt");
+
+    /* As the hooks of the widget print it: only the '%' encoded. */
+    assert_reported_as (vte, &changes, "file:///var/C#/src", "/var/C#/src");
+    assert_reported_as (vte, &changes, "file:///var/what?/now", "/var/what?/now");
+    assert_reported_as (vte, &changes, "file:///var/nv 100%25/a%2520b", "/var/nv 100%/a%20b");
+    /* As fish and vte.sh print it: all of it encoded. */
+    assert_reported_as (vte, &changes, "file:///var/C%23/src%20x", "/var/C#/src x");
+
+    /* An ssh typed by hand, with a remote shell that reports its folder:
+     * /etc over there is not /etc here. */
+    assert_reported_as (vte, &changes, "file://some-other-machine.example/etc", NULL);
+    assert_reported_as (vte, &changes, "sftp://some-other-machine.example/etc", NULL);
+
+    g_clear_object (&changes.location);
+    g_object_unref (terminal);
+    drain_main_context ();
+}
+
+/* Opening the terminal while looking at the trash starts a shell somewhere
+ * else, since the trash is no folder to be in. That must not move the file
+ * manager out of the trash. */
+static void
+test_shell_start_keeps_virtual_location (void)
+{
+    g_autoptr (GFile) trash = g_file_new_for_uri ("trash:///");
+    NautilusTerminalWidget *terminal = nautilus_terminal_widget_new_with_location (trash);
+    GtkWindow *window = GTK_WINDOW (gtk_window_new ());
+    DirectoryChanges changes = { 0 };
+    VteTerminal *vte;
+
+    g_object_ref_sink (window);
+    gtk_window_set_child (window, GTK_WIDGET (terminal));
+    gtk_window_present (window);
+    g_signal_connect (terminal, "change-directory", G_CALLBACK (on_change_directory), &changes);
+
+    nautilus_terminal_widget_toggle_visible (terminal);
+    /* Long enough for the shell to draw its first prompt. */
+    spin_main_context (1500);
+    g_assert_cmpuint (changes.n_changes, ==, 0);
+
+    /* A "cd" typed by the user afterwards still counts. */
+    vte = find_vte_terminal (GTK_WIDGET (terminal));
+    g_assert_nonnull (vte);
+    assert_reported_as (vte, &changes, "file:///usr/share", "/usr/share");
+
+    g_clear_object (&changes.location);
+    gtk_window_destroy (window);
+    g_object_unref (window);
+    spin_main_context (100);
 }
 
 static GtkWindow *
@@ -342,6 +494,10 @@ main (int   argc,
                      test_window_tabs_dispose_with_vte_children);
     g_test_add_func ("/terminal/split-pane-sync-navigation",
                      test_split_pane_sync_navigation);
+    g_test_add_func ("/terminal/reported-directory-reaches-file-manager",
+                     test_reported_directory_reaches_file_manager);
+    g_test_add_func ("/terminal/shell-start-keeps-virtual-location",
+                     test_shell_start_keeps_virtual_location);
 
     return g_test_run ();
 }

@@ -91,6 +91,11 @@ gboolean nautilus_terminal_ssh_identity_equal (const char *hostname_a,
                                                const char *username_b,
                                                const char *port_b);
 char *nautilus_terminal_sanitize_title (const char *title);
+gboolean nautilus_terminal_ssh_field_is_safe (const char *value);
+gboolean nautilus_terminal_path_is_typable (const char *path);
+char *nautilus_terminal_quote_path (const char *path);
+char *nautilus_terminal_path_from_cwd_uri (GUri  *uri,
+                                           char **host);
 char *nautilus_terminal_build_remote_shell_command (const char *remote_path,
                                                     gboolean    sync_to_file_manager);
 

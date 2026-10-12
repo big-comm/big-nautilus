@@ -64,6 +64,7 @@
 #include "nautilus-shortcut-manager.h"
 #include "nautilus-sidebar.h"
 #include "nautilus-signaller.h"
+#include "nautilus-terminal-widget.h"
 #include "nautilus-toolbar.h"
 #include "nautilus-trash-monitor.h"
 #include "nautilus-ui-utilities.h"
@@ -1108,6 +1109,62 @@ const GActionEntry win_entries[] =
     { .name = "toggle-sidebar", .activate = action_toggle_sidebar },
 };
 
+/* Application accelerators are tried before the focused widget sees the key,
+ * so with the keyboard in the embedded terminal these would never reach the
+ * program running there: Ctrl+Z would undo a file operation instead of
+ * suspending the job, Ctrl+W close the tab instead of erasing a word, F10
+ * open a menu instead of leaving mc. They are handed back for as long as the
+ * terminal has the focus. Keep in step with the accelerators set below and in
+ * nautilus_init_application_actions(). */
+static const struct
+{
+    const char *action;
+    const char *accel;
+} terminal_shadowed_accels[] =
+{
+    { "win.new-tab", "<control>t" },
+    { "win.close-current-view", "<control>w" },
+    { "win.undo", "<control>z" },
+    { "win.current-location-menu", "F10" },
+    { "win.toggle-sidebar", "F9" },
+    { "app.clone-window", "<Primary>n" },
+    { "app.quit", "<Primary>q" },
+};
+
+static void
+update_accels_for_terminal_focus (NautilusWindow *window)
+{
+    /* Accelerators belong to the application, not to a window. */
+    static gboolean handed_over = FALSE;
+    GtkApplication *app = GTK_APPLICATION (g_application_get_default ());
+    GtkWidget *focus;
+    gboolean in_terminal;
+
+    /* Only the window being typed into has a say. */
+    if (app == NULL || !gtk_window_is_active (GTK_WINDOW (window)))
+    {
+        return;
+    }
+
+    focus = gtk_window_get_focus (GTK_WINDOW (window));
+    in_terminal = focus != NULL &&
+                  gtk_widget_get_ancestor (focus, NAUTILUS_TYPE_TERMINAL_WIDGET) != NULL;
+
+    if (in_terminal == handed_over)
+    {
+        return;
+    }
+
+    handed_over = in_terminal;
+
+    for (guint i = 0; i < G_N_ELEMENTS (terminal_shadowed_accels); i++)
+    {
+        const char *accels[] = { in_terminal ? NULL : terminal_shadowed_accels[i].accel, NULL };
+
+        gtk_application_set_accels_for_action (app, terminal_shadowed_accels[i].action, accels);
+    }
+}
+
 static void
 nautilus_window_initialize_actions (NautilusWindow *window)
 {
@@ -1589,6 +1646,11 @@ nautilus_window_init (NautilusWindow *window)
     g_type_ensure (NAUTILUS_TYPE_PROGRESS_INDICATOR);
     g_type_ensure (NAUTILUS_TYPE_SHORTCUT_MANAGER);
     gtk_widget_init_template (GTK_WIDGET (window));
+
+    g_signal_connect (window, "notify::focus-widget",
+                      G_CALLBACK (update_accels_for_terminal_focus), NULL);
+    g_signal_connect (window, "notify::is-active",
+                      G_CALLBACK (update_accels_for_terminal_focus), NULL);
 
     g_signal_connect (window, "notify::maximized",
                       G_CALLBACK (on_is_maximized_changed), NULL);

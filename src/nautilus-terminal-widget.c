@@ -22,6 +22,7 @@
 #include "nautilus-terminal-widget.h"
 
 #include <glib/gi18n.h>
+#include <glib/gstdio.h>
 #include <adwaita.h>
 #include <vte/vte.h>
 #include <string.h>
@@ -93,7 +94,23 @@ struct _NautilusTerminalWidgetPrivate
   NautilusTerminalState state;
   gboolean            is_visible;
   gboolean            needs_respawn;
-  gboolean            ignore_next_terminal_cd_signal;
+  /* Where a "cd" typed on behalf of the file manager is headed. The report
+   * of arriving there is the echo of our own request, not news. */
+  gchar              *expected_cd_path;
+  /* Where a shell started that could not be put in the current location,
+   * because that one is not a local folder. Reporting it is no request to
+   * leave the location either. */
+  gchar              *unsynced_spawn_cwd;
+  /* A location the shell could not be sent to yet: something else was
+   * reading the terminal. */
+  GFile              *pending_cd_location;
+  /* Until the remote side reported in, what reads the terminal is ssh
+   * itself, asking for a password or about a host key. */
+  gboolean            ssh_session_ready;
+  /* The location asks for another kind of session -- local where there is
+   * ssh, or the other way round -- but replacing the one there would have
+   * killed what it is running. Looked at again when that ends. */
+  gboolean            session_switch_deferred;
   gboolean            just_synced_directory;
   gboolean            refocus_after_paste;
   gboolean            disposing;
@@ -342,6 +359,10 @@ static void on_system_dark_changed(AdwStyleManager *style_manager, GParamSpec *p
 static void _initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port, NautilusTerminalSyncMode sync_mode);
 static gboolean parse_gvfs_ssh_path(GFile *location, gchar **hostname, gchar **username, gchar **port);
 static void change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location);
+static gchar *get_remote_path_from_sftp_gfile (GFile *location);
+static gboolean shell_has_the_terminal (NautilusTerminalWidget *self);
+static gboolean session_is_busy (NautilusTerminalWidget *self);
+static void follow_location (NautilusTerminalWidget *self, gboolean is_first_location_set);
 static void _clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv);
 static void _reset_to_local_state(NautilusTerminalWidget *self);
 static void spawn_pending_ssh_connection (NautilusTerminalWidget *self);
@@ -350,7 +371,7 @@ static void spawn_pending_ssh_connection (NautilusTerminalWidget *self);
  * starting with '-' would be parsed by ssh as an option, and ';' would break
  * the ";"-separated target of the manual-connect action apart. Whitespace and
  * control bytes have no business in either field. */
-static gboolean
+gboolean
 nautilus_terminal_ssh_field_is_safe (const char *value)
 {
     if (value == NULL || *value == '\0')
@@ -529,6 +550,9 @@ nautilus_terminal_widget_finalize(GObject *object)
     g_clear_object(&priv->current_location);
     g_clear_pointer(&priv->color_scheme, g_free);
     g_clear_pointer(&priv->last_command_title, g_free);
+    g_clear_pointer (&priv->expected_cd_path, g_free);
+    g_clear_pointer (&priv->unsynced_spawn_cwd, g_free);
+    g_clear_object (&priv->pending_cd_location);
 
     _clear_ssh_connection_data(priv);
 
@@ -1294,6 +1318,18 @@ _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_dat
     else if (g_strcmp0 (prop, VTE_TERMPROP_SHELL_POSTEXEC) == 0)
     {
         _emit_running_command_changed (self, FALSE);
+
+        if (terminal == priv->terminal && priv->session_switch_deferred &&
+            priv->current_location != NULL)
+        {
+            follow_location (self, FALSE);
+        }
+        else if (terminal == priv->terminal && priv->pending_cd_location != NULL)
+        {
+            g_autoptr (GFile) location = g_steal_pointer (&priv->pending_cd_location);
+
+            change_directory_in_terminal (self, location);
+        }
     }
     else if (g_strcmp0 (prop, VTE_TERMPROP_XTERM_TITLE) == 0)
     {
@@ -1344,6 +1380,159 @@ nautilus_terminal_ssh_identity_equal (const char *hostname_a,
            g_strcmp0 (normalized_port_a, normalized_port_b) == 0;
 }
 
+/* Text sent to the pty is typed, not passed as an argument: the line
+ * discipline acts on control bytes before the shell ever sees them. A file
+ * named "x<Ctrl-C>rm -rf ~<LF>" would have the Ctrl-C discard the quoted line
+ * and run the rest at a fresh prompt. Such names are legal on Linux and can
+ * arrive from an archive or an SFTP server. */
+gboolean
+nautilus_terminal_path_is_typable (const char *path)
+{
+    g_return_val_if_fail (path != NULL, FALSE);
+
+    for (const char *p = path; *p != '\0'; p++)
+    {
+        if ((guchar) *p < 0x20 || (guchar) *p == 0x7f)
+        {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/* Quotes @path for a shell whose kind is not known -- the one at the far end
+ * of an ssh session, say. POSIX shells take everything between single quotes
+ * literally, but fish reads \' and \\ in there as escapes, so what
+ * g_shell_quote() produces for a name ending in a backslash closes the string
+ * early in fish and lets the rest run as a command. Keeping quotes and
+ * backslashes outside the quoted runs, each behind a backslash, reads the same
+ * in both families. */
+char *
+nautilus_terminal_quote_path (const char *path)
+{
+    GString *quoted;
+    gboolean in_quotes = FALSE;
+
+    g_return_val_if_fail (path != NULL, NULL);
+
+    if (*path == '\0')
+    {
+        return g_strdup ("''");
+    }
+
+    quoted = g_string_new (NULL);
+
+    for (const char *p = path; *p != '\0'; p++)
+    {
+        if (*p == '\'' || *p == '\\')
+        {
+            if (in_quotes)
+            {
+                g_string_append_c (quoted, '\'');
+                in_quotes = FALSE;
+            }
+
+            g_string_append_c (quoted, '\\');
+            g_string_append_c (quoted, *p);
+        }
+        else
+        {
+            if (!in_quotes)
+            {
+                g_string_append_c (quoted, '\'');
+                in_quotes = TRUE;
+            }
+
+            g_string_append_c (quoted, *p);
+        }
+    }
+
+    if (in_quotes)
+    {
+        g_string_append_c (quoted, '\'');
+    }
+
+    return g_string_free (quoted, FALSE);
+}
+
+/* The folder a shell reported with OSC 7, as VTE hands it over: parsed, and
+ * still percent-encoded.
+ *
+ * The hooks installed here print "$PWD" with nothing but '%' encoded, which
+ * is what it takes for a name like "100%" or "a%20b" to come through. The
+ * rest a URI parser reads differently than it was meant: everything after a
+ * '#' in a folder name becomes the fragment, after a '?' the query. Putting
+ * the pieces back together recovers the name, and a shell that encodes its
+ * whole path -- fish on its own, bash with the distribution's vte.sh -- never
+ * produces those pieces, so it reads right as well.
+ *
+ * @host: (out) (optional) (nullable): the host named, if any */
+char *
+nautilus_terminal_path_from_cwd_uri (GUri  *uri,
+                                     char **host)
+{
+    const char *query;
+    const char *fragment;
+    g_autofree char *path = NULL;
+    g_autoptr (GString) full = NULL;
+
+    g_return_val_if_fail (uri != NULL, NULL);
+
+    if (host != NULL)
+    {
+        *host = NULL;
+    }
+
+    if (g_strcmp0 (g_uri_get_scheme (uri), "file") != 0)
+    {
+        return NULL;
+    }
+
+    path = g_uri_unescape_string (g_uri_get_path (uri), NULL);
+    if (path == NULL || *path != '/')
+    {
+        return NULL;
+    }
+
+    full = g_string_new (path);
+    query = g_uri_get_query (uri);
+    fragment = g_uri_get_fragment (uri);
+
+    if (query != NULL)
+    {
+        g_autofree char *unescaped = g_uri_unescape_string (query, NULL);
+
+        if (unescaped == NULL)
+        {
+            return NULL;
+        }
+
+        g_string_append_c (full, '?');
+        g_string_append (full, unescaped);
+    }
+
+    if (fragment != NULL)
+    {
+        g_autofree char *unescaped = g_uri_unescape_string (fragment, NULL);
+
+        if (unescaped == NULL)
+        {
+            return NULL;
+        }
+
+        g_string_append_c (full, '#');
+        g_string_append (full, unescaped);
+    }
+
+    if (host != NULL)
+    {
+        *host = g_strdup (g_uri_get_host (uri));
+    }
+
+    return g_string_free (g_steal_pointer (&full), FALSE);
+}
+
 static gchar *
 _path_for_drop (NautilusTerminalWidget *self, GFile *file)
 {
@@ -1381,6 +1570,29 @@ _path_for_drop (NautilusTerminalWidget *self, GFile *file)
     return NULL;
 }
 
+static void
+_append_dropped_file (NautilusTerminalWidget *self,
+                      GString                *feed,
+                      GFile                  *file)
+{
+    g_autofree gchar *path = _path_for_drop (self, file);
+    g_autofree gchar *quoted = NULL;
+
+    if (path == NULL)
+        return;
+
+    if (!nautilus_terminal_path_is_typable (path))
+    {
+        g_warning ("Refusing to insert a path containing control characters");
+        return;
+    }
+
+    quoted = nautilus_terminal_quote_path (path);
+    if (feed->len > 0)
+        g_string_append_c (feed, ' ');
+    g_string_append (feed, quoted);
+}
+
 static gboolean
 _on_terminal_drop (GtkDropTarget *target,
                    const GValue  *value,
@@ -1407,35 +1619,26 @@ _on_terminal_drop (GtkDropTarget *target,
         GSList *files = g_value_get_boxed (value);
         for (GSList *l = files; l != NULL; l = l->next)
         {
-            g_autofree gchar *path = _path_for_drop (self, l->data);
-            if (path == NULL)
-                continue;
-            g_autofree gchar *quoted = g_shell_quote (path);
-            if (feed->len > 0)
-                g_string_append_c (feed, ' ');
-            g_string_append (feed, quoted);
+            _append_dropped_file (self, feed, l->data);
         }
     }
     else if (G_VALUE_HOLDS (value, G_TYPE_FILE))
     {
-        g_autofree gchar *path = _path_for_drop (self, g_value_get_object (value));
-        if (path != NULL) {
-            g_autofree gchar *quoted = g_shell_quote (path);
-            g_string_append (feed, quoted);
-        }
+        _append_dropped_file (self, feed, g_value_get_object (value));
     }
     else if (G_VALUE_HOLDS (value, G_TYPE_STRING))
     {
-        /* Plain text drop: insert verbatim. */
-        const char *s = g_value_get_string (value);
-        if (s != NULL) g_string_append (feed, s);
+        const char *text = g_value_get_string (value);
+        if (text != NULL) g_string_append (feed, text);
     }
 
     if (feed->len == 0)
         return FALSE;
 
-    /* Insert at the prompt without auto-executing. User reviews and presses Enter. */
-    vte_terminal_feed_child (terminal, feed->str, feed->len);
+    /* Insert at the prompt without auto-executing: the user reviews and
+     * presses Enter. A paste, unlike feeding the child directly, goes through
+     * bracketed paste, so a line break in dropped text is not an Enter. */
+    vte_terminal_paste_text (terminal, feed->str);
     gtk_widget_grab_focus (GTK_WIDGET (terminal));
     return TRUE;
 }
@@ -1748,17 +1951,33 @@ spawn_async_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer us
                           ? NAUTILUS_TERMINAL_STATE_IN_SSH
                           : NAUTILUS_TERMINAL_STATE_LOCAL;
 
-            if (data->kind == NAUTILUS_TERMINAL_SPAWN_SSH &&
-                priv->current_location != NULL)
-            {
-                change_directory_in_terminal (self, priv->current_location);
-            }
+            /* Nothing is typed at a fresh ssh: it may be asking for a
+             * password. The remote command starts in the right folder, and
+             * on_terminal_directory_changed() catches up on anything that
+             * moved in the meantime once the session reports in. */
         }
     }
 
     g_object_unref (self);
     terminal_spawn_data_free (data);
 }
+
+/* What zsh reads first when started in the terminal, see spawn_terminal_async(). */
+#define NAUTILUS_ZSHENV \
+  "if [[ -n ${_NAUTILUS_ORIGINAL_ZDOTDIR+x} ]]; then\n" \
+  "  ZDOTDIR=$_NAUTILUS_ORIGINAL_ZDOTDIR\n" \
+  "else\n" \
+  "  unset ZDOTDIR\n" \
+  "fi\n" \
+  "unset _NAUTILUS_ORIGINAL_ZDOTDIR\n" \
+  "if [[ -r ${ZDOTDIR:-$HOME}/.zshenv ]]; then\n" \
+  "  source ${ZDOTDIR:-$HOME}/.zshenv\n" \
+  "fi\n" \
+  "if [[ -o interactive ]]; then\n" \
+  "  autoload -Uz add-zsh-hook\n" \
+  "  _nautilus_vte_update_cwd() { printf '\\033]7;file://%s\\007' \"${PWD//\\%/%25}\"; }\n" \
+  "  add-zsh-hook precmd _nautilus_vte_update_cwd\n" \
+  "fi\n"
 
 static void
 spawn_terminal_async (NautilusTerminalWidget *self)
@@ -1800,50 +2019,58 @@ spawn_terminal_async (NautilusTerminalWidget *self)
       working_directory = g_file_get_path (priv->current_location);
     }
 
+  g_clear_pointer (&priv->expected_cd_path, g_free);
+  g_clear_pointer (&priv->unsynced_spawn_cwd, g_free);
+  g_clear_object (&priv->pending_cd_location);
+  if (working_directory == NULL)
+    {
+      /* The trash, recent files, a remote folder: the shell starts where
+       * this process is, and that must not drag the file manager there. */
+      priv->unsynced_spawn_cwd = g_get_current_dir ();
+    }
+
   if (g_strcmp0 (shell_basename, "zsh") == 0)
     {
       g_autofree gchar *config_dir = g_build_filename (g_get_user_config_dir (), "nautilus", "terminal", NULL);
-      g_autofree gchar *zshrc_path = g_build_filename (config_dir, ".zshrc", NULL);
-      g_autofree gchar *zshrc_content = NULL;
-      g_autofree gchar *old_zshrc_content = NULL;
-      g_autofree gchar *original_zdotdir_quoted = NULL;
-      g_autofree gchar *zdotdir_env = NULL;
+      g_autofree gchar *zshenv_path = g_build_filename (config_dir, ".zshenv", NULL);
+      g_autofree gchar *stale_zshrc_path = g_build_filename (config_dir, ".zshrc", NULL);
+      g_autofree gchar *old_zshenv_content = NULL;
       g_autoptr (GError) error = NULL;
       const gchar *original_zdotdir = g_getenv ("ZDOTDIR");
       gboolean wrapper_ready = FALSE;
 
-      if (original_zdotdir == NULL || *original_zdotdir == '\0' ||
-          g_strcmp0 (original_zdotdir, config_dir) == 0)
-        original_zdotdir = g_get_home_dir ();
-      original_zdotdir_quoted = g_shell_quote (original_zdotdir);
-
-      zshrc_content = g_strdup_printf ("typeset -g _NAUTILUS_ORIGINAL_ZDOTDIR=%s\n"
-                                       "if [[ -r \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\" ]]; then\n"
-                                       "  source \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\"\n"
-                                       "fi\n"
-                                       "autoload -Uz add-zsh-hook\n"
-                                       "_nautilus_vte_update_cwd() { printf '\\033]7;file://%%s\\007' \"$PWD\"; }\n"
-                                       "add-zsh-hook precmd _nautilus_vte_update_cwd\n",
-                                       original_zdotdir_quoted);
-
+      /* zsh has no option to run a snippet at startup, so it is pointed at
+       * a directory of ours holding one file, the first one it reads. That
+       * file hands ZDOTDIR back before anything else, so every other
+       * startup file -- and every zsh started from this one -- comes from
+       * where it always did. */
       if (g_mkdir_with_parents (config_dir, 0700) == 0)
         {
-          g_file_get_contents (zshrc_path, &old_zshrc_content, NULL, NULL);
-          wrapper_ready = g_strcmp0 (old_zshrc_content, zshrc_content) == 0 ||
-                          g_file_set_contents (zshrc_path, zshrc_content, -1, &error);
+          g_file_get_contents (zshenv_path, &old_zshenv_content, NULL, NULL);
+          wrapper_ready = g_strcmp0 (old_zshenv_content, NAUTILUS_ZSHENV) == 0 ||
+                          g_file_set_contents (zshenv_path, NAUTILUS_ZSHENV, -1, &error);
+          /* Written by earlier versions, which kept ZDOTDIR pointing here. */
+          g_unlink (stale_zshrc_path);
         }
 
-      if (!wrapper_ready)
+      if (wrapper_ready)
+        {
+          if (original_zdotdir != NULL && g_strcmp0 (original_zdotdir, config_dir) != 0)
+            {
+              envp = g_environ_setenv (envp, "_NAUTILUS_ORIGINAL_ZDOTDIR", original_zdotdir, TRUE);
+            }
+          else
+            {
+              envp = g_environ_unsetenv (envp, "_NAUTILUS_ORIGINAL_ZDOTDIR");
+            }
+          envp = g_environ_setenv (envp, "ZDOTDIR", config_dir, TRUE);
+        }
+      else
         {
           g_warning ("Failed to prepare zsh integration: %s",
                      error != NULL ? error->message : g_strerror (errno));
         }
 
-      zdotdir_env = g_strdup (config_dir);
-      if (wrapper_ready)
-        {
-          envp = g_environ_setenv (envp, "ZDOTDIR", zdotdir_env, TRUE);
-        }
       argv = g_new0 (gchar *, 2);
       argv[0] = g_strdup (shell_executable);
     }
@@ -1852,7 +2079,7 @@ spawn_terminal_async (NautilusTerminalWidget *self)
       argv = g_new0 (gchar *, 4);
       argv[0] = g_strdup (shell_executable);
       argv[1] = g_strdup ("--init-command");
-      argv[2] = g_strdup ("function _nautilus_vte_update_cwd --on-event fish_prompt; printf '\\033]7;file://%s\\007' $PWD; end");
+      argv[2] = g_strdup ("function _nautilus_vte_update_cwd --on-event fish_prompt; printf '\\033]7;file://%s\\007' (string replace -a -- % %25 $PWD); end");
     }
   else
     {
@@ -1865,7 +2092,7 @@ spawn_terminal_async (NautilusTerminalWidget *self)
       if (g_strcmp0 (shell_basename, "bash") == 0)
         {
           prompt_command_env = g_strdup_printf (
-              "printf '\\033]7;file://%%s\\007' \"$PWD\"%s%s",
+              "printf '\\033]7;file://%%s\\007' \"${PWD//\\%%/%%25}\"%s%s",
               existing_prompt_command != NULL && *existing_prompt_command != '\0' ? ";" : "",
               existing_prompt_command != NULL ? existing_prompt_command : "");
           envp = g_environ_setenv (envp,
@@ -2031,7 +2258,8 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autoptr(GFile) new_gfile_location = NULL;
     g_autoptr (GUri) cwd = NULL;
-    g_autofree gchar *cwd_uri = NULL;
+    g_autofree gchar *reported_path = NULL;
+    g_autofree gchar *reported_host = NULL;
     gboolean should_sync_to_fm = FALSE;
 
     if (gtk_widget_in_destruction(GTK_WIDGET(self)))
@@ -2041,12 +2269,57 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
                                          VTE_TERMPROP_CURRENT_DIRECTORY_URI);
     if (cwd == NULL)
         return;
-    cwd_uri = g_uri_to_string (cwd);
-
-    if (priv->ignore_next_terminal_cd_signal)
-    {
-        priv->ignore_next_terminal_cd_signal = FALSE;
+    reported_path = nautilus_terminal_path_from_cwd_uri (cwd, &reported_host);
+    if (reported_path == NULL)
         return;
+
+    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
+    {
+        if (!priv->ssh_session_ready)
+        {
+            /* The remote command says hello before it starts the shell.
+             * From here on what is typed reaches a shell, so catch up if the
+             * file manager moved on while ssh was still connecting. */
+            priv->ssh_session_ready = TRUE;
+
+            if (priv->current_location != NULL)
+            {
+                g_autofree gchar *wanted = get_remote_path_from_sftp_gfile (priv->current_location);
+
+                if (g_strcmp0 (wanted, priv->ssh_remote_path) != 0)
+                {
+                    change_directory_in_terminal (self, priv->current_location);
+                }
+            }
+
+            return;
+        }
+    }
+    else if (reported_host != NULL && *reported_host != '\0' &&
+             g_ascii_strcasecmp (reported_host, "localhost") != 0 &&
+             g_ascii_strcasecmp (reported_host, g_get_host_name ()) != 0)
+    {
+        /* Some other machine's directory: an ssh typed by hand whose remote
+         * shell reports where it is. The same path here is another folder. */
+        return;
+    }
+
+    if (priv->expected_cd_path != NULL)
+    {
+        gboolean is_echo = g_strcmp0 (reported_path, priv->expected_cd_path) == 0;
+
+        g_clear_pointer (&priv->expected_cd_path, g_free);
+        if (is_echo)
+            return;
+    }
+
+    if (priv->unsynced_spawn_cwd != NULL)
+    {
+        gboolean is_start = g_strcmp0 (reported_path, priv->unsynced_spawn_cwd) == 0;
+
+        g_clear_pointer (&priv->unsynced_spawn_cwd, g_free);
+        if (is_start)
+            return;
     }
 
     if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
@@ -2054,29 +2327,25 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
         if (priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_BOTH || priv->ssh_sync_mode == NAUTILUS_TERMINAL_SYNC_TERM_TO_FM)
         {
             should_sync_to_fm = TRUE;
-            if (g_str_has_prefix(cwd_uri, "file://"))
+            if (priv->ssh_hostname)
             {
-                g_autofree gchar *local_path = g_filename_from_uri(cwd_uri, NULL, NULL);
-                if (local_path && priv->ssh_hostname)
-                {
-                    gint port = priv->ssh_port != NULL
-                                ? (gint) g_ascii_strtoll (priv->ssh_port, NULL, 10)
-                                : -1;
-                    g_autoptr (GUri) sftp_uri =
-                        g_uri_build_with_user (G_URI_FLAGS_NONE,
-                                               "sftp",
-                                               priv->ssh_username,
-                                               NULL,
-                                               NULL,
-                                               priv->ssh_hostname,
-                                               port,
-                                               local_path,
-                                               NULL,
-                                               NULL);
-                    g_autofree gchar *sftp_uri_string = g_uri_to_string (sftp_uri);
+                gint port = priv->ssh_port != NULL
+                            ? (gint) g_ascii_strtoll (priv->ssh_port, NULL, 10)
+                            : -1;
+                g_autoptr (GUri) sftp_uri =
+                    g_uri_build_with_user (G_URI_FLAGS_NONE,
+                                           "sftp",
+                                           priv->ssh_username,
+                                           NULL,
+                                           NULL,
+                                           priv->ssh_hostname,
+                                           port,
+                                           reported_path,
+                                           NULL,
+                                           NULL);
+                g_autofree gchar *sftp_uri_string = g_uri_to_string (sftp_uri);
 
-                    new_gfile_location = g_file_new_for_uri (sftp_uri_string);
-                }
+                new_gfile_location = g_file_new_for_uri (sftp_uri_string);
             }
         }
     }
@@ -2085,18 +2354,17 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
         if (priv->local_sync_mode == NAUTILUS_TERMINAL_SYNC_BOTH || priv->local_sync_mode == NAUTILUS_TERMINAL_SYNC_TERM_TO_FM)
         {
             should_sync_to_fm = TRUE;
-            new_gfile_location = g_file_new_for_uri(cwd_uri);
+            new_gfile_location = g_file_new_for_path (reported_path);
         }
     }
 
     if (should_sync_to_fm && new_gfile_location && (priv->current_location == NULL || !g_file_equal(new_gfile_location, priv->current_location)))
     {
         /*
-         * If the right-click popover is open, suppress FM navigation: in SSH the
-         * remote prompt re-emits OSC 7 on every redraw (oh-my-zsh, async prompts,
-         * etc.). Each navigation rebuilds the FM view and grabs focus, which
-         * dismisses the popover within milliseconds. The location will resync on
-         * the next OSC 7 once the popover is closed.
+         * If the right-click popover is open, suppress FM navigation: it
+         * rebuilds the FM view and grabs focus, which dismisses the popover
+         * within milliseconds. The location resyncs on the next directory
+         * change once the popover is closed.
          */
         if (priv->popup_pending)
             return;
@@ -2116,28 +2384,20 @@ on_terminal_directory_changed(VteTerminal *terminal, gpointer user_data)
     }
 }
 
-static void
+/* Returns: whether the command was typed. */
+static gboolean
 feed_cd_command(VteTerminal *terminal, const char *path)
 {
-    g_return_if_fail(VTE_IS_TERMINAL(terminal));
-    g_return_if_fail(path != NULL);
+    g_return_val_if_fail(VTE_IS_TERMINAL(terminal), FALSE);
+    g_return_val_if_fail(path != NULL, FALSE);
 
-    /* g_shell_quote() protects the shell parser, but this text is typed into
-     * the pty, and the line discipline acts on control bytes before the shell
-     * ever sees them. A directory named "x<Ctrl-C>rm -rf ~<LF>" would have the
-     * Ctrl-C discard the quoted line and run the rest at a fresh prompt. Such
-     * names are legal on Linux and can arrive from an archive or an SFTP
-     * server, so refuse to sync rather than type them. */
-    for (const char *p = path; *p != '\0'; p++)
+    if (!nautilus_terminal_path_is_typable (path))
     {
-        if ((guchar) *p < 0x20 || (guchar) *p == 0x7f)
-        {
-            g_warning ("Refusing to sync a path containing control characters");
-            return;
-        }
+        g_warning ("Refusing to sync a path containing control characters");
+        return FALSE;
     }
 
-    g_autofree gchar *quoted_path = g_shell_quote(path);
+    g_autofree gchar *quoted_path = nautilus_terminal_quote_path (path);
     g_autofree gchar *cd_command_str = g_strdup_printf(" cd %s\r", quoted_path);
 
     /*
@@ -2167,6 +2427,8 @@ feed_cd_command(VteTerminal *terminal, const char *path)
     vte_terminal_feed_child(terminal, SHELL_CTRL_A, -1);
     vte_terminal_feed_child(terminal, SHELL_DELETE, -1);
     vte_terminal_feed_child(terminal, SHELL_CTRL_E, -1);
+
+    return TRUE;
 }
 
 static gboolean
@@ -2234,7 +2496,7 @@ _build_color_scheme_submenu(NautilusTerminalWidget *self)
     GMenu *submenu = g_menu_new();
     for (gsize i = 0; i < G_N_ELEMENTS(COLOR_SCHEME_ENTRIES); ++i)
     {
-        GMenuItem *item = g_menu_item_new (_T(COLOR_SCHEME_ENTRIES[i].label_pot), "terminal.set-color-scheme");
+        g_autoptr (GMenuItem) item = g_menu_item_new (_T(COLOR_SCHEME_ENTRIES[i].label_pot), "terminal.set-color-scheme");
         g_menu_item_set_action_and_target_value(item, "terminal.set-color-scheme", g_variant_new_string(COLOR_SCHEME_ENTRIES[i].id));
         g_menu_append_item(submenu, item);
     }
@@ -2256,7 +2518,7 @@ _build_font_size_submenu(NautilusTerminalWidget *self)
     for (gsize i = 0; i < G_N_ELEMENTS(FONT_SIZE_ENTRIES); ++i)
     {
         g_autofree gchar *label = g_strdup_printf("%d", FONT_SIZE_ENTRIES[i].size_pts);
-        GMenuItem *item = g_menu_item_new(label, "terminal.set-font-size");
+        g_autoptr (GMenuItem) item = g_menu_item_new(label, "terminal.set-font-size");
         g_menu_item_set_action_and_target_value(item, "terminal.set-font-size", g_variant_new_int32(FONT_SIZE_ENTRIES[i].size_pts));
         g_menu_append_item(submenu, item);
     }
@@ -2271,7 +2533,7 @@ _build_enum_pref_submenu(NautilusTerminalWidget *self, const void *entries_gener
 
     for (gsize i = 0; i < count; ++i)
     {
-        GMenuItem *item = g_menu_item_new(_T(entries[i].label_pot), action_name);
+        g_autoptr (GMenuItem) item = g_menu_item_new(_T(entries[i].label_pot), action_name);
         g_menu_item_set_action_and_target_value(item, action_name, g_variant_new_int32(entries[i].mode));
         g_menu_append_item(submenu, item);
     }
@@ -2296,7 +2558,7 @@ _build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hos
     GMenu *submenu = g_menu_new();
     for (gsize i = 0; i < G_N_ELEMENTS(MANUAL_SSH_SYNC_ENTRIES); ++i)
     {
-        GMenuItem *item = g_menu_item_new(_T(MANUAL_SSH_SYNC_ENTRIES[i].label_pot), "terminal.manual-ssh-connect");
+        g_autoptr (GMenuItem) item = g_menu_item_new(_T(MANUAL_SSH_SYNC_ENTRIES[i].label_pot), "terminal.manual-ssh-connect");
         /* A tuple, not a ";"-joined string: a host or user containing ';'
          * used to shift the fields apart and let the caller control the
          * others. */
@@ -2348,8 +2610,13 @@ update_popup_menu_model (NautilusTerminalWidget *self)
     g_menu_append_section (menu, NULL, G_MENU_MODEL (clipboard_section));
 
     /* Section 2 — appearance. */
-    g_menu_append_submenu (appearance_section, _T("Color Scheme"), _build_color_scheme_submenu (self));
-    g_menu_append_submenu (appearance_section, _T("Font Size"), _build_font_size_submenu (self));
+    {
+        g_autoptr (GMenuModel) color_scheme_submenu = _build_color_scheme_submenu (self);
+        g_autoptr (GMenuModel) font_size_submenu = _build_font_size_submenu (self);
+
+        g_menu_append_submenu (appearance_section, _T("Color Scheme"), color_scheme_submenu);
+        g_menu_append_submenu (appearance_section, _T("Font Size"), font_size_submenu);
+    }
     g_menu_append_section (menu, NULL, G_MENU_MODEL (appearance_section));
 
     /* Section 3 — synchronisation / SSH. */
@@ -2360,21 +2627,29 @@ update_popup_menu_model (NautilusTerminalWidget *self)
             is_sftp_location = TRUE;
     }
 
-    g_menu_append_submenu (sync_section, _T("SSH Auto-Connect"), _build_sftp_auto_connect_submenu (self));
+    {
+        g_autoptr (GMenuModel) auto_connect_submenu = _build_sftp_auto_connect_submenu (self);
+
+        g_menu_append_submenu (sync_section, _T("SSH Auto-Connect"), auto_connect_submenu);
+    }
     if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
     {
         g_menu_append (sync_section, _T("Disconnect from SSH"), "terminal.ssh-disconnect");
     }
     else
     {
-        g_menu_append_submenu (sync_section, _T("Local Folder Sync"), _build_local_sync_submenu (self));
+        g_autoptr (GMenuModel) local_sync_submenu = _build_local_sync_submenu (self);
+
+        g_menu_append_submenu (sync_section, _T("Local Folder Sync"), local_sync_submenu);
         if (is_sftp_location)
         {
             g_autofree gchar *hostname = NULL, *username = NULL, *port = NULL;
             if (parse_gvfs_ssh_path (priv->current_location, &hostname, &username, &port))
             {
                 g_autofree gchar *label = g_strdup_printf (_T("SSH Connection to %s"), hostname);
-                g_menu_append_submenu (sync_section, label, _build_manual_ssh_connect_submenu (self, hostname, username, port));
+                g_autoptr (GMenuModel) connect_submenu = _build_manual_ssh_connect_submenu (self, hostname, username, port);
+
+                g_menu_append_submenu (sync_section, label, connect_submenu);
             }
         }
     }
@@ -2451,6 +2726,46 @@ get_remote_path_from_sftp_gfile(GFile *location)
     return NULL;
 }
 
+/* Whether replacing the session would interrupt something. For the local
+ * shell the kernel knows. For a remote one there is only what the shell says
+ * about itself, and one without shell integration says nothing: that one is
+ * taken to be idle, as before. */
+static gboolean
+session_is_busy (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+
+    if (priv->child_pid <= 0)
+        return FALSE;
+
+    if (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL)
+        return priv->command_running || !shell_has_the_terminal (self);
+
+    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
+        return priv->command_running;
+
+    return FALSE;
+}
+
+/* Whether the shell we started is what reads the terminal right now, rather
+ * than a program it is running in the foreground. */
+static gboolean
+shell_has_the_terminal (NautilusTerminalWidget *self)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    VtePty *pty = vte_terminal_get_pty (priv->terminal);
+    pid_t foreground;
+
+    if (pty == NULL)
+        return FALSE;
+
+    foreground = tcgetpgrp (vte_pty_get_fd (pty));
+
+    /* The shell leads its session, so its process group carries its pid.
+     * When the question cannot be answered, keep the folders in sync. */
+    return foreground < 0 || foreground == priv->child_pid;
+}
+
 static void
 change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location)
 {
@@ -2461,6 +2776,27 @@ change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location)
     if (!priv->is_visible || priv->child_pid == -1 ||
         gtk_widget_in_destruction(GTK_WIDGET(self)))
         return;
+
+    if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
+    {
+        /* on_terminal_directory_changed() catches up when it is. */
+        if (!priv->ssh_session_ready)
+            return;
+    }
+    else if (priv->state != NAUTILUS_TERMINAL_STATE_LOCAL)
+    {
+        /* On its way out. */
+        return;
+    }
+    else if (!shell_has_the_terminal (self))
+    {
+        /* An editor, a password prompt, a REPL: the keystrokes would be
+         * commands to that program. Try again when the shell is back. */
+        g_set_object (&priv->pending_cd_location, location);
+        return;
+    }
+
+    g_clear_object (&priv->pending_cd_location);
 
     if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH)
     {
@@ -2490,16 +2826,15 @@ change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location)
         g_autoptr (GUri) term_uri =
             vte_terminal_ref_termprop_uri (priv->terminal,
                                            VTE_TERMPROP_CURRENT_DIRECTORY_URI);
-        g_autofree gchar *term_uri_string =
-            term_uri != NULL ? g_uri_to_string (term_uri) : NULL;
-        g_autoptr(GFile) term_gfile =
-            term_uri_string != NULL ? g_file_new_for_uri (term_uri_string) : NULL;
-        g_autofree gchar *term_path = term_gfile ? g_file_get_path(term_gfile) : NULL;
+        g_autofree gchar *term_path =
+            term_uri != NULL ? nautilus_terminal_path_from_cwd_uri (term_uri, NULL) : NULL;
 
         if (term_path == NULL || g_strcmp0(term_path, target_path) != 0)
         {
-            priv->ignore_next_terminal_cd_signal = TRUE;
-            feed_cd_command(priv->terminal, target_path);
+            if (feed_cd_command (priv->terminal, target_path))
+            {
+                g_set_str (&priv->expected_cd_path, target_path);
+            }
         }
     }
 }
@@ -2535,6 +2870,7 @@ gchar *
 nautilus_terminal_build_remote_shell_command (const gchar *remote_path,
                                               gboolean     sync_to_file_manager)
 {
+    static guint hello_serial = 0;
     g_autoptr (GString) script = g_string_new ("_nvshell=${SHELL:-/bin/sh}; ");
     g_autofree gchar *quoted_script = NULL;
 
@@ -2544,6 +2880,13 @@ nautilus_terminal_build_remote_shell_command (const gchar *remote_path,
 
         g_string_append_printf (script, "cd %s; ", quoted_remote_path);
     }
+
+    /* Tells the widget that authentication is over and a shell is about to
+     * read the terminal, whatever shell that turns out to be. The path is a
+     * placeholder: the prompt hooks below report the real one. The number
+     * makes it differ from whatever the terminal last heard, as VTE passes
+     * on changes only, and a remote shell without a hook says nothing else. */
+    g_string_append_printf (script, "printf '\\033]7;file:///#%u\\007'; ", ++hello_serial);
 
     if (!sync_to_file_manager)
     {
@@ -2555,36 +2898,46 @@ nautilus_terminal_build_remote_shell_command (const gchar *remote_path,
             script,
             "_nvbase=${_nvshell##*/}; case \"$_nvbase\" in "
             "bash) "
-            "_nvpc='printf \"\\033]7;file://%s\\007\" \"$PWD\"'; "
+            "_nvpc='printf \"\\033]7;file://%s\\007\" \"${PWD//\\%/%25}\"'; "
             "if [ -n \"${PROMPT_COMMAND:-}\" ]; then "
             "PROMPT_COMMAND=\"$_nvpc;$PROMPT_COMMAND\"; "
             "else PROMPT_COMMAND=\"$_nvpc\"; fi; "
             "export PROMPT_COMMAND; exec \"$_nvshell\" -l ;; "
             "fish) exec \"$_nvshell\" -l --init-command "
             "'function _nautilus_vte_update_cwd --on-event fish_prompt; "
-            "printf \"\\033]7;file://%s\\007\" $PWD; end' ;; "
+            "printf \"\\033]7;file://%s\\007\" (string replace -a -- % %25 $PWD); end' ;; "
             "zsh) "
             "_nvd=\"${TMPDIR:-/tmp}/nautilus-vte-${USER:-user}-$$\"; "
             "if mkdir -m 700 \"$_nvd\"; then "
-            "_NAUTILUS_ORIGINAL_ZDOTDIR=${ZDOTDIR:-$HOME}; "
-            "_NAUTILUS_VTE_ZDOTDIR=$_nvd; "
-            "export _NAUTILUS_ORIGINAL_ZDOTDIR _NAUTILUS_VTE_ZDOTDIR; "
+            "if [ -n \"${ZDOTDIR+x}\" ]; then "
+            "_NAUTILUS_ORIGINAL_ZDOTDIR=$ZDOTDIR; export _NAUTILUS_ORIGINAL_ZDOTDIR; fi; "
+            /* The one file zsh reads from here. It removes itself and hands
+             * ZDOTDIR back, so the login files come from where they always
+             * did. */
             "printf '%s\\n' "
-            "'if [[ -r \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\" ]]; then' "
-            "'  source \"$_NAUTILUS_ORIGINAL_ZDOTDIR/.zshrc\"' "
+            "'command rm -f -- \"$ZDOTDIR/.zshenv\"; command rmdir -- \"$ZDOTDIR\"' "
+            "'if [[ -n ${_NAUTILUS_ORIGINAL_ZDOTDIR+x} ]]; then' "
+            "'  ZDOTDIR=$_NAUTILUS_ORIGINAL_ZDOTDIR' "
+            "'else' "
+            "'  unset ZDOTDIR' "
             "'fi' "
-            "'autoload -Uz add-zsh-hook' "
-            "'_nautilus_vte_update_cwd() { printf \"\\033]7;file://%s\\007\" \"$PWD\"; }' "
-            "'_nautilus_vte_cleanup() { command rm -f -- \"$_NAUTILUS_VTE_ZDOTDIR/.zshrc\"; command rmdir -- \"$_NAUTILUS_VTE_ZDOTDIR\"; }' "
-            "'add-zsh-hook precmd _nautilus_vte_update_cwd' "
-            "'add-zsh-hook zshexit _nautilus_vte_cleanup' "
-            "> \"$_nvd/.zshrc\"; "
+            "'unset _NAUTILUS_ORIGINAL_ZDOTDIR' "
+            "'if [[ -r ${ZDOTDIR:-$HOME}/.zshenv ]]; then' "
+            "'  source ${ZDOTDIR:-$HOME}/.zshenv' "
+            "'fi' "
+            "'if [[ -o interactive ]]; then' "
+            "'  autoload -Uz add-zsh-hook' "
+            "'  _nautilus_vte_update_cwd() { printf \"\\033]7;file://%s\\007\" \"${PWD//\\%/%25}\"; }' "
+            "'  add-zsh-hook precmd _nautilus_vte_update_cwd' "
+            "'fi' "
+            "> \"$_nvd/.zshenv\"; "
             "ZDOTDIR=$_nvd; export ZDOTDIR; fi; "
             "exec \"$_nvshell\" -l ;; "
             "*) exec \"$_nvshell\" -l ;; esac");
     }
 
-    quoted_script = g_shell_quote (script->str);
+    /* Read by the remote login shell, which may be fish. */
+    quoted_script = nautilus_terminal_quote_path (script->str);
     return g_strdup_printf ("exec sh -c %s", quoted_script);
 }
 
@@ -2631,8 +2984,15 @@ spawn_pending_ssh_connection (NautilusTerminalWidget *self)
     if (!nautilus_terminal_ssh_field_is_safe (hostname) ||
         (username != NULL && !nautilus_terminal_ssh_field_is_safe (username)))
     {
+        /* _initiate_ssh_connection() checks before it lets go of the local
+         * shell, so this is not reached. Should it be anyway, do not leave
+         * the pane without a child. */
         g_warning ("Refusing to connect: suspicious host or user in the SFTP location");
-        g_ptr_array_free (argv_array, TRUE);
+        _reset_to_local_state (self);
+        if (priv->is_visible)
+        {
+            spawn_terminal_async (self);
+        }
         return;
     }
 
@@ -2657,7 +3017,10 @@ spawn_pending_ssh_connection (NautilusTerminalWidget *self)
 
     gtk_widget_set_visible(priv->ssh_indicator, TRUE);
 
-    priv->ignore_next_terminal_cd_signal = TRUE;
+    g_clear_pointer (&priv->expected_cd_path, g_free);
+    g_clear_pointer (&priv->unsynced_spawn_cwd, g_free);
+    g_clear_object (&priv->pending_cd_location);
+    priv->ssh_session_ready = FALSE;
     priv->state = NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH;
     g_clear_object (&priv->spawn_cancellable);
     priv->spawn_cancellable = g_cancellable_new ();
@@ -2690,6 +3053,15 @@ _initiate_ssh_connection (NautilusTerminalWidget *self,
 
     if (hostname == NULL || *hostname == '\0' || priv->disposing)
     {
+        return;
+    }
+
+    /* Before the local shell is told to go: refusing afterwards would leave
+     * the pane with nothing running in it. */
+    if (!nautilus_terminal_ssh_field_is_safe (hostname) ||
+        !nautilus_terminal_ssh_field_is_safe (username))
+    {
+        g_warning ("Refusing to connect: suspicious host or user in the SFTP location");
         return;
     }
 
@@ -2920,8 +3292,6 @@ void
 nautilus_terminal_widget_set_current_location(NautilusTerminalWidget *self, GFile *location)
 {
     NautilusTerminalWidgetPrivate *priv;
-    g_autofree gchar *hostname = NULL, *username = NULL, *port = NULL;
-    g_autofree gchar *scheme = NULL;
     gboolean is_first_location_set;
 
     g_return_if_fail(NAUTILUS_IS_TERMINAL_WIDGET(self));
@@ -2943,6 +3313,22 @@ nautilus_terminal_widget_set_current_location(NautilusTerminalWidget *self, GFil
         /* Location is unchanged, no further action needed. */
         return;
     }
+
+    follow_location (self, is_first_location_set);
+}
+
+/* Brings the session in line with the current location: the right kind of
+ * session for it, in the right folder. */
+static void
+follow_location (NautilusTerminalWidget *self,
+                 gboolean                is_first_location_set)
+{
+    NautilusTerminalWidgetPrivate *priv = self->priv;
+    GFile *location = priv->current_location;
+    g_autofree gchar *hostname = NULL, *username = NULL, *port = NULL;
+    g_autofree gchar *scheme = NULL;
+
+    priv->session_switch_deferred = FALSE;
 
     scheme = g_file_get_uri_scheme(location);
     if (scheme == NULL) {
@@ -2991,6 +3377,15 @@ nautilus_terminal_widget_set_current_location(NautilusTerminalWidget *self, GFil
         {
             NautilusTerminalSyncMode sync_mode;
 
+            /* Connecting replaces the shell that is there. Browsing to a
+             * server is no reason to kill the build running in it; the menu
+             * still connects on request. */
+            if (session_is_busy (self))
+            {
+                priv->session_switch_deferred = TRUE;
+                return;
+            }
+
             switch (priv->ssh_auto_connect_mode)
             {
                 case NAUTILUS_TERMINAL_SSH_AUTOCONNECT_SYNC_BOTH: sync_mode = NAUTILUS_TERMINAL_SYNC_BOTH; break;
@@ -3012,6 +3407,14 @@ nautilus_terminal_widget_set_current_location(NautilusTerminalWidget *self, GFil
 
     if (priv->state != NAUTILUS_TERMINAL_STATE_LOCAL)
     {
+        /* Same the other way round: leaving the server in the file manager
+         * must not take down what the remote shell is in the middle of. */
+        if (session_is_busy (self))
+        {
+            priv->session_switch_deferred = TRUE;
+            return;
+        }
+
         switch_to_local_terminal (self);
         return;
     }
