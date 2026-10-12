@@ -663,7 +663,7 @@ nautilus_application_handle_file_args (NautilusApplication *self,
     {
         for (idx = 0; remaining[idx] != NULL; idx++)
         {
-            gchar *cwd;
+            gchar *cwd = NULL;
 
             g_variant_dict_lookup (options, "cwd", "s", &cwd);
             if (cwd == NULL)

@@ -728,8 +728,42 @@ test_copy_fourth_hierarchy (void)
 }
 
 static void
+on_copy_nothing_done (GHashTable *debuting_uris,
+                      gboolean    success,
+                      gpointer    user_data)
+{
+    guint *n_calls = user_data;
+
+    g_assert_false (success);
+    (*n_calls)++;
+}
+
+/* Any client of the session bus can ask for this, through CopyURIs with an
+ * empty list. It used to dereference the first source. The caller counts on
+ * the callback to let go of what it holds, so it has to come all the same. */
+static void
+test_copy_nothing (void)
+{
+    g_autofree char *target = g_filename_to_uri (g_get_tmp_dir (), NULL, NULL);
+    guint n_calls = 0;
+
+    nautilus_file_operations_copy_move (NULL, target, GDK_ACTION_COPY, NULL, NULL,
+                                        on_copy_nothing_done, &n_calls);
+    g_assert_cmpuint (n_calls, ==, 1);
+
+    nautilus_file_operations_copy_move (NULL, target, GDK_ACTION_MOVE, NULL, NULL,
+                                        on_copy_nothing_done, &n_calls);
+    g_assert_cmpuint (n_calls, ==, 2);
+
+    /* Without a callback either. */
+    nautilus_file_operations_copy_move (NULL, target, GDK_ACTION_COPY, NULL, NULL, NULL, NULL);
+}
+
+static void
 setup_test_suite (void)
 {
+    g_test_add_func ("/copy/nothing",
+                     test_copy_nothing);
     g_test_add_func ("/copy/one-file",
                      test_copy_one_file);
     g_test_add_func ("/copy/one-empty-directory",

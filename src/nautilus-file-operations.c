@@ -5147,8 +5147,6 @@ nautilus_file_operations_copy (GTask        *task,
     job = task_data;
     common = &job->common;
 
-    inhibit_power_manager ((CommonJob *) job, _("Copying Files"));
-
     if (!nautilus_file_undo_manager_is_operating ())
     {
         g_autoptr (GFile) src_dir = NULL;
@@ -5222,6 +5220,7 @@ nautilus_file_operations_copy_sync (GList *files,
 
     task = g_task_new (NULL, job->common.cancellable, NULL, job);
     g_task_set_task_data (task, job, NULL);
+    inhibit_power_manager ((CommonJob *) job, _("Copying Files"));
     g_task_run_in_thread_sync (task, nautilus_file_operations_copy);
     g_object_unref (task);
     /* Since g_task_run_in_thread_sync doesn't work with callbacks (in this case not reaching
@@ -5250,6 +5249,8 @@ nautilus_file_operations_copy_async (GList                          *files,
 
     task = g_task_new (NULL, job->common.cancellable, copy_task_done, job);
     g_task_set_task_data (task, job, NULL);
+    /* Here and not in the thread: GtkApplication is not to be used from one. */
+    inhibit_power_manager ((CommonJob *) job, _("Copying Files"));
     g_task_run_in_thread (task, nautilus_file_operations_copy);
     g_object_unref (task);
 }
@@ -5733,6 +5734,7 @@ nautilus_file_operations_move_sync (GList *files,
     job = move_job_setup (files, target_dir, NULL, NULL, NULL, NULL);
     task = g_task_new (NULL, job->common.cancellable, NULL, job);
     g_task_set_task_data (task, job, NULL);
+    inhibit_power_manager ((CommonJob *) job, _("Moving Files"));
     g_task_run_in_thread_sync (task, nautilus_file_operations_move);
     g_object_unref (task);
     /* Since g_task_run_in_thread_sync doesn't work with callbacks (in this case not reaching
@@ -5761,6 +5763,8 @@ nautilus_file_operations_move_async (GList                          *files,
 
     task = g_task_new (NULL, job->common.cancellable, move_task_done, job);
     g_task_set_task_data (task, job, NULL);
+    /* Here and not in the thread: GtkApplication is not to be used from one. */
+    inhibit_power_manager ((CommonJob *) job, _("Moving Files"));
     g_task_run_in_thread (task, nautilus_file_operations_move);
     g_object_unref (task);
 }
@@ -5780,8 +5784,6 @@ nautilus_file_operations_move (GTask        *task,
     GList *fallback_files;
 
     job = task_data;
-
-    inhibit_power_manager ((CommonJob *) job, _("Moving Files"));
 
     if (!nautilus_file_undo_manager_is_operating ())
     {
@@ -6205,6 +6207,8 @@ nautilus_file_operations_duplicate (GList                          *files,
 
     task = g_task_new (NULL, job->common.cancellable, copy_task_done, job);
     g_task_set_task_data (task, job, NULL);
+    /* Here and not in the thread: GtkApplication is not to be used from one. */
+    inhibit_power_manager ((CommonJob *) job, _("Copying Files"));
     g_task_run_in_thread (task, nautilus_file_operations_copy);
 }
 
@@ -6460,6 +6464,19 @@ nautilus_file_operations_copy_move (const GList                    *item_uris,
 
     locations = location_list_from_uri_list (item_uris);
 
+    if (locations == NULL)
+    {
+        /* Reachable over D-Bus, with an empty list of sources. */
+        g_clear_object (&dest);
+
+        if (done_callback != NULL)
+        {
+            done_callback (NULL, FALSE, done_callback_data);
+        }
+
+        return;
+    }
+
     for (p = locations; p != NULL; p = p->next)
     {
         if (!g_file_has_uri_scheme ((GFile * ) p->data, SCHEME_BURN))
@@ -6589,6 +6606,16 @@ create_task_done (GObject      *source_object,
     CreateJob *job;
 
     job = user_data;
+
+    if (job->created_file != NULL)
+    {
+        /* From here, the main thread, rather than from the one that created
+         * the file: GtkRecentManager is not to be used from another. */
+        g_autofree char *created_uri = g_file_get_uri (job->created_file);
+
+        gtk_recent_manager_add_item (gtk_recent_manager_get_default (), created_uri);
+    }
+
     if (job->done_callback)
     {
         job->done_callback (job->created_file,
@@ -6623,7 +6650,6 @@ create_task_thread_func (GTask        *task,
     CommonJob *common;
     int count;
     g_autoptr (GFile) dest = NULL;
-    g_autofree gchar *dest_uri = NULL;
     g_autofree char *filename = NULL;
     g_autofree char *dest_fs_type = NULL;
     gboolean res;
@@ -6828,8 +6854,6 @@ create_task_thread_func (GTask        *task,
         {
             job->created_file = g_object_ref (dest);
             nautilus_file_changes_queue_file_added (dest);
-            dest_uri = g_file_get_uri (dest);
-            gtk_recent_manager_add_item (gtk_recent_manager_get_default (), dest_uri);
         }
         else
         {

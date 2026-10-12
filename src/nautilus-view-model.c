@@ -580,7 +580,8 @@ nautilus_view_model_remove_items (NautilusViewModel *self,
         g_hash_table_remove (self->map_files_to_model, file);
         if (nautilus_file_is_directory (file))
         {
-            g_hash_table_remove (self->directory_reverse_map, file);
+            /* Also forgets the descendants loaded under it. */
+            nautilus_view_model_clear_subdirectory (self, item);
         }
 
         /* The previous item is contiguous, keep growing the range. */
@@ -696,8 +697,13 @@ nautilus_view_model_clear_subdirectory (NautilusViewModel *self,
     for (guint i = 0; i < n_children; i++)
     {
         g_autoptr (NautilusViewItem) child = g_list_model_get_item (children, i);
+        NautilusFile *child_file = nautilus_view_item_get_file (child);
 
-        if (nautilus_file_is_directory (nautilus_view_item_get_file (child)))
+        /* The map holds no reference; the store dropped below is what keeps
+         * the children alive. */
+        g_hash_table_remove (self->map_files_to_model, child_file);
+
+        if (nautilus_file_is_directory (child_file))
         {
             /* Clear recursively */
             nautilus_view_model_clear_subdirectory (self, child);

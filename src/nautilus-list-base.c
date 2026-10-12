@@ -475,10 +475,24 @@ hover_timer (gpointer user_data)
 {
     NautilusViewCell *cell = user_data;
     NautilusListBase *self = nautilus_view_cell_get_view (cell);
+    g_autoptr (NautilusViewItem) item = NULL;
+
+    if (self == NULL)
+    {
+        return G_SOURCE_REMOVE;
+    }
+
     NautilusListBasePrivate *priv = nautilus_list_base_get_instance_private (self);
-    g_autoptr (NautilusViewItem) item = nautilus_view_cell_get_item (cell);
 
     priv->hover_timer_id = 0;
+
+    /* The timeout keeps the cell alive, not what it showed: the model may
+     * have let go of the row while the pointer rested on it. */
+    item = nautilus_view_cell_get_item (cell);
+    if (item == NULL)
+    {
+        return G_SOURCE_REMOVE;
+    }
 
     if (priv->drag_item_action == 0)
     {
@@ -563,7 +577,9 @@ on_item_drag_hover_motion (GtkDropControllerMotion *controller,
     if (gtk_drag_check_threshold (GTK_WIDGET (cell), start.x, start.y, x, y))
     {
         g_clear_handle_id (&priv->hover_timer_id, g_source_remove);
-        priv->hover_timer_id = g_timeout_add (HOVER_TIMEOUT, hover_timer, cell);
+        priv->hover_timer_id = g_timeout_add_full (G_PRIORITY_DEFAULT, HOVER_TIMEOUT,
+                                                   hover_timer,
+                                                   g_object_ref (cell), g_object_unref);
         priv->hover_start_point.x = x;
         priv->hover_start_point.y = y;
     }

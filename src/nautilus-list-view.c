@@ -958,7 +958,7 @@ unbind_name_cell (GtkSignalListItemFactory *factory,
                                               self);
         g_signal_handlers_disconnect_by_func (gtk_column_view_cell_get_item (listitem),
                                               on_row_children_changed,
-                                              self);
+                                              nautilus_name_cell_get_expander (NAUTILUS_NAME_CELL (gtk_column_view_cell_get_child (listitem))));
     }
 }
 

@@ -3952,23 +3952,36 @@ info_provider_idle_callback (gpointer user_data)
 }
 
 static void
+info_provider_response_free (InfoProviderResponse *response)
+{
+    nautilus_directory_unref (response->directory);
+    g_free (response);
+}
+
+static void
 info_provider_callback (NautilusInfoProvider    *provider,
                         NautilusOperationHandle *handle,
                         NautilusOperationResult  result,
                         gpointer                 user_data)
 {
+    NautilusDirectory *directory = NAUTILUS_DIRECTORY (user_data);
     InfoProviderResponse *response;
 
     response = g_new0 (InfoProviderResponse, 1);
     response->provider = provider;
     response->handle = handle;
     response->result = result;
-    response->directory = NAUTILUS_DIRECTORY (user_data);
+    /* The closure this runs from may be all that keeps the directory alive
+     * -- an answer to a request cancelled long ago -- and the extension lets
+     * go of it as soon as this returns. Whether the answer is still wanted
+     * is for the idle to tell: an extension may answer from inside
+     * update_file_info(), before the handle it answers for is on record. */
+    response->directory = nautilus_directory_ref (directory);
 
-    response->directory->details->extension_info_idle =
+    directory->details->extension_info_idle =
         g_idle_add_full (G_PRIORITY_DEFAULT_IDLE,
                          info_provider_idle_callback, response,
-                         g_free);
+                         (GDestroyNotify) info_provider_response_free);
 }
 
 static void

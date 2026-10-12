@@ -347,7 +347,16 @@ show_ok_dialog_idle (gpointer user_data)
     AdwDialog *dialog = user_data;
     GtkWidget *parent = g_object_get_data (G_OBJECT (dialog), "parent-widget");
 
-    adw_dialog_present (dialog, parent);
+    if (parent == NULL || gtk_widget_get_mapped (parent))
+    {
+        adw_dialog_present (dialog, parent);
+    }
+    else
+    {
+        /* Nothing will ever own the dialog now. */
+        g_object_ref_sink (dialog);
+        g_object_unref (dialog);
+    }
 }
 
 void
@@ -373,7 +382,11 @@ nautilus_show_ok_dialog (const char *heading,
     }
     else
     {
-        g_object_set_data (G_OBJECT (dialog), "parent-widget", parent);
+        if (parent != NULL)
+        {
+            g_object_set_data_full (G_OBJECT (dialog), "parent-widget",
+                                    g_object_ref (parent), g_object_unref);
+        }
 
         g_idle_add_once (show_ok_dialog_idle, dialog);
     }
