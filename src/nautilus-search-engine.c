@@ -54,6 +54,9 @@ struct _NautilusSearchEngine
     GPtrArray *held;
     guint n_handed_over;
     guint held_timeout_id;
+    /* The search has stood long enough once: what comes in later only waits
+     * its turn. */
+    gboolean hold_is_over;
     gboolean paced;
 };
 
@@ -99,6 +102,15 @@ G_DEFINE_FINAL_TYPE (NautilusSearchEngine, nautilus_search_engine, G_TYPE_OBJECT
  * nautilus_search_engine_set_paced(). */
 #define SEARCH_ENGINE_FIRST_HITS 60
 #define SEARCH_ENGINE_HOLD_MS 500
+
+/* And the rest does not go out in one piece either. A list builds rows for
+ * the first couple of hundred items it is given and for none after that, so
+ * handing those over at once is one long frame -- 200 ms in the list view --
+ * where a few at a time is several short ones. Past that point the remainder
+ * costs little and goes in one go. */
+#define SEARCH_ENGINE_SLICE_HITS 30
+#define SEARCH_ENGINE_SLICE_MS 25
+#define SEARCH_ENGINE_SLICED_UNTIL 300
 
 static void
 check_providers_status (NautilusSearchEngine *self);
@@ -164,6 +176,7 @@ search_engine_start_real (NautilusSearchEngine *self)
 
     self->n_hits = 0;
     self->n_handed_over = 0;
+    self->hold_is_over = FALSE;
     g_clear_handle_id (&self->limit_idle_id, g_source_remove);
     search_engine_drop_held (self);
 
@@ -292,29 +305,69 @@ search_engine_drop_held (NautilusSearchEngine *self)
     g_clear_pointer (&self->held, g_ptr_array_unref);
 }
 
-/* The search is still standing: out with the rest. */
+/* The search is still standing: out with the rest, a slice at a time while
+ * slices matter. */
 static gboolean
 search_engine_hand_over_held (gpointer user_data)
 {
     NautilusSearchEngine *self = user_data;
-    g_autoptr (GPtrArray) held = g_steal_pointer (&self->held);
 
     self->held_timeout_id = 0;
 
     if (!self->running)
     {
+        g_clear_pointer (&self->held, g_ptr_array_unref);
         return G_SOURCE_REMOVE;
     }
 
-    if (held != NULL && held->len > 0 && !self->restart)
+    if (self->held != NULL && self->held->len > 0 && !self->restart)
     {
-        self->n_handed_over += held->len;
-        g_signal_emit (self, signals[HITS_ADDED], 0, held);
+        g_autoptr (GPtrArray) batch = NULL;
+        guint n = self->held->len;
+
+        self->hold_is_over = TRUE;
+
+        if (self->n_handed_over < SEARCH_ENGINE_SLICED_UNTIL)
+        {
+            n = MIN (n, SEARCH_ENGINE_SLICE_HITS);
+        }
+
+        if (n == self->held->len)
+        {
+            batch = g_steal_pointer (&self->held);
+        }
+        else
+        {
+            batch = g_ptr_array_new_with_free_func (g_object_unref);
+            for (guint i = 0; i < n; i++)
+            {
+                g_ptr_array_add (batch, g_object_ref (g_ptr_array_index (self->held, i)));
+            }
+            g_ptr_array_remove_range (self->held, 0, n);
+        }
+
+        self->n_handed_over += n;
+        g_signal_emit (self, signals[HITS_ADDED], 0, batch);
+
+        if (self->running && self->held != NULL && self->held->len > 0 &&
+            self->held_timeout_id == 0)
+        {
+            self->held_timeout_id = g_timeout_add (SEARCH_ENGINE_SLICE_MS,
+                                                   search_engine_hand_over_held, self);
+            return G_SOURCE_REMOVE;
+        }
+    }
+    else
+    {
+        g_clear_pointer (&self->held, g_ptr_array_unref);
     }
 
     /* The providers may all be done, with only this left to wait for. Last:
      * it can be what lets go of the engine. */
-    check_providers_status (self);
+    if (self->running && self->held_timeout_id == 0)
+    {
+        check_providers_status (self);
+    }
 
     return G_SOURCE_REMOVE;
 }
@@ -387,7 +440,8 @@ search_provider_hits_added (NautilusSearchProvider *provider,
 
     if (self->held != NULL && self->held->len > 0 && self->held_timeout_id == 0)
     {
-        self->held_timeout_id = g_timeout_add (SEARCH_ENGINE_HOLD_MS,
+        self->held_timeout_id = g_timeout_add (self->hold_is_over ? SEARCH_ENGINE_SLICE_MS
+                                                                  : SEARCH_ENGINE_HOLD_MS,
                                                search_engine_hand_over_held, self);
     }
 
