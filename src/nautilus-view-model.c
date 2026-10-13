@@ -43,6 +43,13 @@ struct _NautilusViewModel
     gboolean single_selection;
     gboolean expand_as_a_tree;
     GList *cut_files;
+
+    /* What is in the root store is on its way out, and leaves in the same
+     * breath as the items that take its place come in. */
+    gboolean removal_deferred;
+    /* File -> item for what is on its way out, while it is: an item that
+     * comes right back stays where it is. Borrowed from the root store. */
+    GHashTable *outgoing;
 };
 
 static inline GListStore *
@@ -245,6 +252,7 @@ finalize (GObject *object)
 
     G_OBJECT_CLASS (nautilus_view_model_parent_class)->finalize (object);
 
+    g_clear_pointer (&self->outgoing, g_hash_table_unref);
     g_hash_table_destroy (self->map_files_to_model);
     g_hash_table_destroy (self->directory_reverse_map);
 
@@ -604,9 +612,66 @@ nautilus_view_model_remove_items (NautilusViewModel *self,
 void
 nautilus_view_model_remove_all_items (NautilusViewModel *self)
 {
+    self->removal_deferred = FALSE;
+    g_clear_pointer (&self->outgoing, g_hash_table_unref);
     g_list_store_remove_all (G_LIST_STORE (gtk_filter_list_model_get_model (self->root_filter_model)));
     g_hash_table_remove_all (self->map_files_to_model);
     g_hash_table_remove_all (self->directory_reverse_map);
+}
+
+/**
+ * nautilus_view_model_defer_removal:
+ *
+ * Like nautilus_view_model_remove_all_items() as far as the model's own
+ * records go -- no file maps to an item any more -- but the items stay in the
+ * list until the next nautilus_view_model_add_items(), which swaps them for
+ * the new ones in one change, or until nautilus_view_model_finish_removal().
+ *
+ * Emptying a list and filling it again are two changes to GTK, and it throws
+ * every row away on the first and builds new ones on the second. Put off,
+ * the removal can be told apart from what merely stays: the results of a
+ * search mostly do from one letter typed to the next, and an item that stays
+ * keeps its row, its place on the screen and the text already laid out for
+ * it.
+ */
+void
+nautilus_view_model_defer_removal (NautilusViewModel *self)
+{
+    GListModel *root = gtk_filter_list_model_get_model (self->root_filter_model);
+
+    g_clear_pointer (&self->outgoing, g_hash_table_unref);
+
+    if (g_hash_table_size (self->directory_reverse_map) == 0)
+    {
+        /* A flat list, where every item is in the root store. */
+        self->outgoing = g_steal_pointer (&self->map_files_to_model);
+        self->map_files_to_model = g_hash_table_new (NULL, NULL);
+    }
+    else
+    {
+        g_hash_table_remove_all (self->map_files_to_model);
+        g_hash_table_remove_all (self->directory_reverse_map);
+    }
+
+    self->removal_deferred = (g_list_model_get_n_items (root) > 0);
+}
+
+/**
+ * nautilus_view_model_finish_removal:
+ *
+ * Carries out a removal that nautilus_view_model_defer_removal() put off and
+ * that no addition took care of. Does nothing otherwise.
+ */
+void
+nautilus_view_model_finish_removal (NautilusViewModel *self)
+{
+    g_clear_pointer (&self->outgoing, g_hash_table_unref);
+
+    if (self->removal_deferred)
+    {
+        self->removal_deferred = FALSE;
+        g_list_store_remove_all (G_LIST_STORE (gtk_filter_list_model_get_model (self->root_filter_model)));
+    }
 }
 
 void
@@ -623,16 +688,99 @@ nautilus_view_model_add_item (NautilusViewModel *self,
     g_hash_table_insert (self->map_files_to_model, file, item);
 }
 
+/* Puts @items in the place of everything in @store, the root store. */
 static void
-splice_items_into_common_parent (NautilusViewModel *self,
-                                 GPtrArray         *items,
-                                 NautilusFile      *common_parent)
+replace_root_items (NautilusViewModel *self,
+                    GListStore        *store,
+                    GPtrArray         *items)
 {
-    GListStore *dir_store;
+    g_autoptr (GHashTable) outgoing = g_steal_pointer (&self->outgoing);
+    g_autoptr (GHashTable) staying = g_hash_table_new (NULL, NULL);
+    g_autoptr (GPtrArray) coming = g_ptr_array_new ();
+    guint n_old = g_list_model_get_n_items (G_LIST_MODEL (store));
+    guint range_start = 0, n_in_range = 0;
 
-    dir_store = get_directory_store (self, common_parent);
-    g_list_store_splice (dir_store,
-                         g_list_model_get_n_items (G_LIST_MODEL (dir_store)),
+    for (guint i = 0; outgoing != NULL && i < items->len; i++)
+    {
+        NautilusViewItem *item = g_ptr_array_index (items, i);
+        NautilusFile *file = nautilus_view_item_get_file (item);
+        NautilusViewItem *old_item = g_hash_table_lookup (outgoing, file);
+
+        if (old_item != NULL)
+        {
+            /* The same file as before: the item that is there stands for
+             * it, and the one made for it is not needed. */
+            g_hash_table_add (staying, old_item);
+            g_hash_table_insert (self->map_files_to_model, file, old_item);
+        }
+        else
+        {
+            g_ptr_array_add (coming, item);
+        }
+    }
+
+    if (g_hash_table_size (staying) == 0)
+    {
+        /* Nothing in common: out with the old and in with the new, as one
+         * change. */
+        g_list_store_splice (store, 0, n_old, items->pdata, items->len);
+        return;
+    }
+
+    /* Out with what does not stay, in as few changes as its place in the
+     * store allows, from the end so that positions hold... */
+    for (guint i = n_old; i > 0; i--)
+    {
+        g_autoptr (NautilusViewItem) old_item = g_list_model_get_item (G_LIST_MODEL (store), i - 1);
+
+        if (g_hash_table_contains (staying, old_item))
+        {
+            if (n_in_range > 0)
+            {
+                g_list_store_splice (store, range_start, n_in_range, NULL, 0);
+                n_in_range = 0;
+            }
+
+            continue;
+        }
+
+        range_start = i - 1;
+        n_in_range++;
+    }
+
+    if (n_in_range > 0)
+    {
+        g_list_store_splice (store, range_start, n_in_range, NULL, 0);
+    }
+
+    /* ...and in with what is new. */
+    if (coming->len > 0)
+    {
+        g_list_store_splice (store, g_list_model_get_n_items (G_LIST_MODEL (store)), 0,
+                             coming->pdata, coming->len);
+    }
+
+    /* What stayed may belong elsewhere in the order now: how well a file
+     * matches is part of what it is sorted by, and that just changed. */
+    nautilus_view_model_sort (self);
+}
+
+static void
+splice_items_into_store (NautilusViewModel *self,
+                         GListStore        *store,
+                         GPtrArray         *items)
+{
+    GListStore *root = G_LIST_STORE (gtk_filter_list_model_get_model (self->root_filter_model));
+
+    if (self->removal_deferred && store == root)
+    {
+        self->removal_deferred = FALSE;
+        replace_root_items (self, store, items);
+        return;
+    }
+
+    g_list_store_splice (store,
+                         g_list_model_get_n_items (G_LIST_MODEL (store)),
                          0, items->pdata, items->len);
 }
 
@@ -641,8 +789,8 @@ nautilus_view_model_add_items (NautilusViewModel *self,
                                GList             *items)
 {
     g_autoptr (GPtrArray) array = g_ptr_array_new ();
-    g_autoptr (NautilusFile) previous_parent = NULL;
     g_autoptr (GList) sorted_items = NULL;
+    GListStore *previous_store = NULL;
     NautilusViewItem *item;
 
     /* The first added file becomes the initial focus and scroll anchor, so we
@@ -652,20 +800,26 @@ nautilus_view_model_add_items (NautilusViewModel *self,
     for (GList *l = sorted_items; l != NULL; l = l->next)
     {
         g_autoptr (NautilusFile) parent = NULL;
+        GListStore *store;
 
         item = NAUTILUS_VIEW_ITEM (l->data);
         parent = nautilus_file_get_parent (nautilus_view_item_get_file (item));
+        store = get_directory_store (self, parent);
 
-        if (previous_parent != NULL && previous_parent != parent)
+        /* By the store they go into, not by the folder they are in: the
+         * results of a search come from as many folders as there are
+         * results, and all go into the one list. Told apart by folder, a
+         * thousand of them were a thousand changes to that list, each
+         * sorted and laid out on its own. */
+        if (previous_store != NULL && previous_store != store)
         {
-            /* The pending items share a common parent. */
-            splice_items_into_common_parent (self, array, previous_parent);
+            splice_items_into_store (self, previous_store, array);
 
-            /* Clear pending items and start a new with a new parent. */
+            /* Clear pending items and start a new with a new store. */
             g_ptr_array_unref (array);
             array = g_ptr_array_new ();
         }
-        g_set_object (&previous_parent, parent);
+        previous_store = store;
 
         g_ptr_array_add (array, item);
         g_hash_table_insert (self->map_files_to_model,
@@ -673,10 +827,10 @@ nautilus_view_model_add_items (NautilusViewModel *self,
                              item);
     }
 
-    if (previous_parent != NULL)
+    if (previous_store != NULL)
     {
         /* Flush the pending items. */
-        splice_items_into_common_parent (self, array, previous_parent);
+        splice_items_into_store (self, previous_store, array);
     }
 }
 

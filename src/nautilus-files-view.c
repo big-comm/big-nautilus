@@ -173,6 +173,9 @@ struct _NautilusFilesView
 
     guint search_transition_timeout_id;
     gboolean begin_loading_delayed;
+    /* The clear being emitted is followed at once by what replaces the
+     * contents. */
+    gboolean clear_is_a_replacement;
 
     guint display_pending_source_id;
     guint changes_timeout_id;
@@ -4283,6 +4286,10 @@ process_pending_files (NautilusFilesView *self)
                        signals[ADD_FILES], 0, pending_additions);
     }
 
+    /* Nothing came to take the place of the old contents after all. Before
+     * anything below looks at the model. */
+    nautilus_view_model_finish_removal (self->model);
+
     for (GList *node = files_changed; node != NULL; node = node->next)
     {
         FileAndDirectory *pending = node->data;
@@ -4349,11 +4356,19 @@ process_pending_files (NautilusFilesView *self)
 static void
 display_pending_files (NautilusFilesView *view)
 {
-    search_transition_emit_delayed_signals_if_pending (view);
+    /* From one search to the next, the old results are kept on screen until
+     * the new ones are here, which is now. Take them out and put the new
+     * ones in as one change to the model rather than two. */
+    gboolean replacing = (view->search_transition_timeout_id != 0);
 
-    /* Get selection after delayed signals are emitted. */
+    view->clear_is_a_replacement = replacing;
+    search_transition_emit_delayed_signals_if_pending (view);
+    view->clear_is_a_replacement = FALSE;
+
+    /* Get selection after delayed signals are emitted. What is being
+     * replaced still holds its selection, and loses it with its items. */
     g_autoptr (GtkBitset) selection = gtk_selection_model_get_selection (GTK_SELECTION_MODEL (view->model));
-    gboolean no_selection = gtk_bitset_is_empty (selection);
+    gboolean no_selection = replacing || gtk_bitset_is_empty (selection);
 
     process_pending_files (view);
 
@@ -8469,7 +8484,14 @@ view_directory_changed_callback (NautilusFile *file,
 static void
 files_view_clear (NautilusFilesView *self)
 {
-    nautilus_view_model_remove_all_items (self->model);
+    if (self->clear_is_a_replacement)
+    {
+        nautilus_view_model_defer_removal (self->model);
+    }
+    else
+    {
+        nautilus_view_model_remove_all_items (self->model);
+    }
 }
 
 static void

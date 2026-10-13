@@ -105,7 +105,11 @@ update_captions (NautilusGridCell *self)
     G_STATIC_ASSERT (G_N_ELEMENTS (caption_labels) == NAUTILUS_GRID_CELL_N_CAPTIONS);
 
     item = nautilus_view_cell_get_item (NAUTILUS_VIEW_CELL (self));
-    g_return_if_fail (item != NULL);
+    if (item == NULL)
+    {
+        /* Not showing anything at the moment: a cell kept for reuse. */
+        return;
+    }
     file = nautilus_view_item_get_file (item);
     for (guint i = 0; i < NAUTILUS_GRID_CELL_N_CAPTIONS; i++)
     {
@@ -157,7 +161,11 @@ update_emblems (NautilusGridCell *self)
     g_autofree gchar *file_uri = NULL;
 
     item = nautilus_view_cell_get_item (NAUTILUS_VIEW_CELL (self));
-    g_return_if_fail (item != NULL);
+    if (item == NULL)
+    {
+        /* Not showing anything at the moment: a cell kept for reuse. */
+        return;
+    }
     file = nautilus_view_item_get_file (item);
     file_uri = nautilus_file_get_activation_uri (file);
 

@@ -30,7 +30,23 @@ struct _NautilusGridView
 
     GQuark sort_attribute;
     gboolean reversed;
+
+    NautilusCellPool *cell_pool;
+    guint cell_pool_fill_id;
+
+    guint update_max_columns_id;
 };
+
+/* As many columns as upstream allows a very wide window to have. */
+#define MAX_COLUMNS 20
+
+/* GTK builds cells for some 640 items of a grid, whatever fits the window. */
+#define CELL_POOL_SIZE 660
+/* How many are built before they are asked for. The rest of the pool fills
+ * as cells are needed. */
+#define CELL_POOL_PREFILL 240
+/* Built ahead of need a few at a time, in between everything else. */
+#define CELL_POOL_FILL_STEP 6
 
 G_DEFINE_TYPE (NautilusGridView, nautilus_grid_view, NAUTILUS_TYPE_LIST_BASE)
 
@@ -399,6 +415,12 @@ on_captions_preferences_changed (NautilusGridView *self)
 static void
 dispose (GObject *object)
 {
+    NautilusGridView *self = NAUTILUS_GRID_VIEW (object);
+
+    g_clear_handle_id (&self->cell_pool_fill_id, g_source_remove);
+    g_clear_handle_id (&self->update_max_columns_id, g_source_remove);
+    g_clear_pointer (&self->cell_pool, nautilus_cell_pool_free);
+
     G_OBJECT_CLASS (nautilus_grid_view_parent_class)->dispose (object);
 }
 
@@ -406,6 +428,24 @@ static void
 finalize (GObject *object)
 {
     G_OBJECT_CLASS (nautilus_grid_view_parent_class)->finalize (object);
+}
+
+/* Everything about a cell that is its own, and not the list item's. */
+static NautilusGridCell *
+create_cell (NautilusGridView *self)
+{
+    NautilusGridCell *cell = nautilus_grid_cell_new (NAUTILUS_LIST_BASE (self));
+
+    setup_cell_controllers (NAUTILUS_VIEW_CELL (cell));
+    setup_cell_hover (NAUTILUS_VIEW_CELL (cell));
+
+    g_object_bind_property (self, "icon-size",
+                            cell, "icon-size",
+                            G_BINDING_SYNC_CREATE);
+
+    nautilus_grid_cell_set_caption_attributes (cell, self->caption_attributes);
+
+    return cell;
 }
 
 static void
@@ -422,13 +462,14 @@ bind_cell (GtkSignalListItemFactory *factory,
 
     nautilus_view_item_set_item_ui (item, cell);
 
-    if (nautilus_view_cell_once (NAUTILUS_VIEW_CELL (cell)))
     {
         GtkWidget *parent;
 
         /* At the time of ::setup emission, the item ui has got no parent yet,
-         * that's why we need to complete the widget setup process here, on the
-         * first time ::bind is emitted. */
+         * that's why we need to complete the widget setup process here, when
+         * ::bind is emitted. Every time and not just the first: a cell
+         * outlives its parent, see setup_cell(). The setters do nothing
+         * when there is nothing to change. */
         parent = gtk_widget_get_parent (cell);
         gtk_widget_set_halign (parent, GTK_ALIGN_CENTER);
         gtk_widget_set_valign (parent, GTK_ALIGN_START);
@@ -460,16 +501,22 @@ setup_cell (GtkSignalListItemFactory *factory,
     NautilusGridCell *cell;
     GtkExpression *expression;
 
-    cell = nautilus_grid_cell_new (NAUTILUS_LIST_BASE (self));
-    gtk_list_item_set_child (listitem, GTK_WIDGET (cell));
-    setup_cell_common (G_OBJECT (listitem), NAUTILUS_VIEW_CELL (cell));
-    setup_cell_hover (NAUTILUS_VIEW_CELL (cell));
+    /* One the view has and GTK let go of, if there is one: see
+     * NautilusCellPool. Building it is some 0.6 ms, for the template alone. */
+    cell = NAUTILUS_GRID_CELL (nautilus_cell_pool_take (self->cell_pool));
+    if (cell == NULL)
+    {
+        cell = create_cell (self);
+        gtk_list_item_set_child (listitem, GTK_WIDGET (cell));
+        /* In use already, which the pool tells by its having a parent. */
+        nautilus_cell_pool_add (self->cell_pool, NAUTILUS_VIEW_CELL (cell));
+    }
+    else
+    {
+        gtk_list_item_set_child (listitem, GTK_WIDGET (cell));
+    }
 
-    g_object_bind_property (self, "icon-size",
-                            cell, "icon-size",
-                            G_BINDING_SYNC_CREATE);
-
-    nautilus_grid_cell_set_caption_attributes (cell, self->caption_attributes);
+    setup_cell_links (G_OBJECT (listitem), NAUTILUS_VIEW_CELL (cell));
 
     /* Use file display name as accessible label. Explaining in pseudo-code:
      * listitem:accessible-name :- listitem:item:item:file:a11y-name */
@@ -478,6 +525,107 @@ setup_cell (GtkSignalListItemFactory *factory,
     expression = gtk_property_expression_new (NAUTILUS_TYPE_VIEW_ITEM, expression, "file");
     expression = gtk_property_expression_new (NAUTILUS_TYPE_FILE, expression, "a11y-name");
     gtk_expression_bind (expression, listitem, "accessible-label", listitem);
+}
+
+static void
+teardown_cell (GtkSignalListItemFactory *factory,
+               GtkListItem              *listitem,
+               gpointer                  user_data)
+{
+    /* The cell has left the list item by now, and is back among the free
+     * ones if it is one the view keeps. What is left of the two is what
+     * tied them together. */
+    teardown_cell_links (G_OBJECT (listitem));
+}
+
+static gboolean
+fill_cell_pool (gpointer user_data)
+{
+    NautilusGridView *self = NAUTILUS_GRID_VIEW (user_data);
+
+    for (guint i = 0;
+         i < CELL_POOL_FILL_STEP && nautilus_cell_pool_get_n_cells (self->cell_pool) < CELL_POOL_PREFILL;
+         i++)
+    {
+        nautilus_cell_pool_add (self->cell_pool, NAUTILUS_VIEW_CELL (create_cell (self)));
+    }
+
+    if (nautilus_cell_pool_get_n_cells (self->cell_pool) < CELL_POOL_PREFILL)
+    {
+        return G_SOURCE_CONTINUE;
+    }
+
+    self->cell_pool_fill_id = 0;
+
+    return G_SOURCE_REMOVE;
+}
+
+/* GTK builds cells for 32 rows of as many columns as the grid may have at
+ * most, not as many as it has: 641 of them with the limit at 20, for a window
+ * that shows six columns and thirty items. Each one is built when a list is
+ * shown and thrown away when it is replaced, which is what a search does to
+ * its results on every letter typed.
+ *
+ * So the limit follows the window: as many columns as fit, and one to spare,
+ * which is never reached and so changes nothing about the layout. */
+static gboolean
+update_max_columns (gpointer user_data)
+{
+    NautilusGridView *self = NAUTILUS_GRID_VIEW (user_data);
+    GtkWidget *scrolled_window = nautilus_list_base_get_scrolled_window (NAUTILUS_LIST_BASE (self));
+    GtkAdjustment *adjustment = gtk_scrolled_window_get_hadjustment (GTK_SCROLLED_WINDOW (scrolled_window));
+    GtkWidget *child = gtk_widget_get_first_child (GTK_WIDGET (self->view_ui));
+    double width = gtk_adjustment_get_page_size (adjustment);
+    int column_width = 0;
+    guint columns;
+
+    self->update_max_columns_id = 0;
+
+    if (child == NULL || width <= 0)
+    {
+        /* Nothing to go by. */
+        return G_SOURCE_REMOVE;
+    }
+
+    /* What GTK goes by when it decides how many fit: the least a column can
+     * be, which is the same for every cell at a given icon size. */
+    gtk_widget_measure (child, GTK_ORIENTATION_HORIZONTAL, -1, &column_width, NULL, NULL, NULL);
+    if (column_width <= 0)
+    {
+        return G_SOURCE_REMOVE;
+    }
+
+    columns = CLAMP ((guint) (width / column_width) + 1, 2, MAX_COLUMNS);
+    if (columns != gtk_grid_view_get_max_columns (self->view_ui))
+    {
+        gtk_grid_view_set_max_columns (self->view_ui, columns);
+    }
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+schedule_update_max_columns (NautilusGridView *self)
+{
+    if (self->update_max_columns_id == 0)
+    {
+        /* After the layout this was called from the middle of. */
+        self->update_max_columns_id = g_idle_add (update_max_columns, self);
+    }
+}
+
+static void
+on_model_items_changed (NautilusGridView *self,
+                        guint             position,
+                        guint             removed,
+                        guint             added,
+                        GListModel       *model)
+{
+    /* The first items of a view that had none: something to measure. */
+    if (added > 0 && g_list_model_get_n_items (model) == added)
+    {
+        schedule_update_max_columns (self);
+    }
 }
 
 static void
@@ -492,6 +640,13 @@ on_model_changed (NautilusGridView *self)
     }
 
     gtk_grid_view_set_model (self->view_ui, GTK_SELECTION_MODEL (model));
+
+    if (model != NULL)
+    {
+        g_signal_connect_object (model, "items-changed",
+                                 G_CALLBACK (on_model_items_changed), self,
+                                 G_CONNECT_SWAPPED);
+    }
 }
 static GtkGridView *
 create_view_ui (NautilusGridView *self)
@@ -503,6 +658,7 @@ create_view_ui (NautilusGridView *self)
     g_signal_connect (factory, "setup", G_CALLBACK (setup_cell), self);
     g_signal_connect (factory, "bind", G_CALLBACK (bind_cell), self);
     g_signal_connect (factory, "unbind", G_CALLBACK (unbind_cell), self);
+    g_signal_connect (factory, "teardown", G_CALLBACK (teardown_cell), self);
 
     widget = gtk_grid_view_new (NULL, factory);
 
@@ -513,7 +669,7 @@ create_view_ui (NautilusGridView *self)
      * activation, as it affects the selection behavior as well (e.g. selects on
      * hover). Setting it to FALSE gives us the expected behavior. */
     gtk_grid_view_set_single_click_activate (GTK_GRID_VIEW (widget), FALSE);
-    gtk_grid_view_set_max_columns (GTK_GRID_VIEW (widget), 20);
+    gtk_grid_view_set_max_columns (GTK_GRID_VIEW (widget), MAX_COLUMNS);
     gtk_grid_view_set_tab_behavior (GTK_GRID_VIEW (widget), GTK_LIST_TAB_ITEM);
 
     gtk_accessible_update_property (GTK_ACCESSIBLE (widget),
@@ -567,8 +723,19 @@ nautilus_grid_view_init (NautilusGridView *self)
                              G_CONNECT_SWAPPED);
 
 
+    self->cell_pool = nautilus_cell_pool_new (CELL_POOL_SIZE);
     self->view_ui = create_view_ui (self);
     nautilus_list_base_setup_gestures (NAUTILUS_LIST_BASE (self));
+
+    g_signal_connect_object (gtk_scrolled_window_get_hadjustment (GTK_SCROLLED_WINDOW (scrolled_window)),
+                             "notify::page-size",
+                             G_CALLBACK (schedule_update_max_columns), self,
+                             G_CONNECT_SWAPPED);
+    g_signal_connect (self, "notify::icon-size", G_CALLBACK (schedule_update_max_columns), NULL);
+
+    /* When there is nothing else to do, so that the first long list finds
+     * its cells built. */
+    self->cell_pool_fill_id = g_idle_add_full (G_PRIORITY_LOW, fill_cell_pool, self, NULL);
 
     g_signal_connect_swapped (self, "notify::model", G_CALLBACK (on_model_changed), self);
 

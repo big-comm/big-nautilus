@@ -52,11 +52,16 @@ struct _NautilusListView
     GtkColumnViewColumn *star_column;
     GtkWidget *column_editor;
     GHashTable *factory_to_column_map;
+    /* The cells of each column, which the view keeps: see NautilusCellPool. */
+    GHashTable *factory_to_pool_map;
 
     GtkSorter *view_model_sorter;
 };
 
 G_DEFINE_TYPE (NautilusListView, nautilus_list_view, NAUTILUS_TYPE_LIST_BASE)
+
+/* GTK builds the rows of some 200 items of a list, whatever fits the window. */
+#define CELL_POOL_SIZE 220
 
 enum
 {
@@ -842,35 +847,72 @@ setup_name_cell (GtkSignalListItemFactory *factory,
                  gpointer                  user_data)
 {
     NautilusListView *self = NAUTILUS_LIST_VIEW (user_data);
+    NautilusCellPool *pool = g_hash_table_lookup (self->factory_to_pool_map, factory);
     NautilusViewCell *cell;
+    GtkTreeExpander *expander;
 
-    cell = nautilus_name_cell_new (NAUTILUS_LIST_BASE (self));
-    gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
-    setup_cell_common (G_OBJECT (listitem), cell);
-    setup_cell_hover_inner_target (cell, nautilus_name_cell_get_content (NAUTILUS_NAME_CELL (cell)));
+    cell = nautilus_cell_pool_take (pool);
+    if (cell == NULL)
+    {
+        /* What is the cell's own, and done once in its life. */
+        cell = nautilus_name_cell_new (NAUTILUS_LIST_BASE (self));
+        gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
+        nautilus_cell_pool_add (pool, cell);
+        setup_cell_controllers (cell);
+        setup_cell_hover_inner_target (cell, nautilus_name_cell_get_content (NAUTILUS_NAME_CELL (cell)));
 
-    g_object_bind_property (self, "icon-size",
-                            cell, "icon-size",
-                            G_BINDING_SYNC_CREATE);
+        g_object_bind_property (self, "icon-size",
+                                cell, "icon-size",
+                                G_BINDING_SYNC_CREATE);
+    }
+    else
+    {
+        gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
+    }
+
+    /* What depends on the list item, or on what the view shows at the
+     * moment: a cell that is handed back may have served another folder. */
+    setup_cell_links (G_OBJECT (listitem), cell);
 
     nautilus_name_cell_set_path (NAUTILUS_NAME_CELL (cell),
                                  self->path_attribute_q,
                                  self->file_path_base_location);
-    if (self->search_directory != NULL)
-    {
-        nautilus_name_cell_show_snippet (NAUTILUS_NAME_CELL (cell));
-    }
+    nautilus_name_cell_set_show_snippet (NAUTILUS_NAME_CELL (cell),
+                                         self->search_directory != NULL);
 
+    expander = nautilus_name_cell_get_expander (NAUTILUS_NAME_CELL (cell));
+    gtk_tree_expander_set_indent_for_icon (expander, self->expand_as_a_tree);
     if (self->expand_as_a_tree)
     {
-        GtkTreeExpander *expander;
+        GBinding *binding = g_object_bind_property (listitem, "item",
+                                                    expander, "list-row",
+                                                    G_BINDING_SYNC_CREATE);
 
-        expander = nautilus_name_cell_get_expander (NAUTILUS_NAME_CELL (cell));
-        gtk_tree_expander_set_indent_for_icon (expander, TRUE);
-        g_object_bind_property (listitem, "item",
-                                expander, "list-row",
-                                G_BINDING_SYNC_CREATE);
+        g_object_set_data_full (G_OBJECT (listitem), "nautilus-expander-binding",
+                                g_object_ref (binding), g_object_unref);
     }
+    else
+    {
+        gtk_tree_expander_set_list_row (expander, NULL);
+    }
+}
+
+/* The cell has left the list item by now. What is left of the two is what
+ * tied them together. */
+static void
+teardown_cell (GtkSignalListItemFactory *factory,
+               GtkColumnViewCell        *listitem,
+               gpointer                  user_data)
+{
+    GBinding *expander_binding = g_object_get_data (G_OBJECT (listitem), "nautilus-expander-binding");
+
+    if (expander_binding != NULL)
+    {
+        g_binding_unbind (expander_binding);
+        g_object_set_data (G_OBJECT (listitem), "nautilus-expander-binding", NULL);
+    }
+
+    teardown_cell_links (G_OBJECT (listitem));
 }
 
 static void
@@ -967,12 +1009,25 @@ setup_star_cell (GtkSignalListItemFactory *factory,
                  GtkColumnViewCell        *listitem,
                  gpointer                  user_data)
 {
+    NautilusListView *self = NAUTILUS_LIST_VIEW (user_data);
+    NautilusCellPool *pool = g_hash_table_lookup (self->factory_to_pool_map, factory);
     NautilusViewCell *cell;
 
-    cell = nautilus_star_cell_new (NAUTILUS_LIST_BASE (user_data));
-    gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
-    setup_cell_common (G_OBJECT (listitem), cell);
-    setup_cell_hover (cell);
+    cell = nautilus_cell_pool_take (pool);
+    if (cell == NULL)
+    {
+        cell = nautilus_star_cell_new (NAUTILUS_LIST_BASE (self));
+        gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
+        nautilus_cell_pool_add (pool, cell);
+        setup_cell_controllers (cell);
+        setup_cell_hover (cell);
+    }
+    else
+    {
+        gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
+    }
+
+    setup_cell_links (G_OBJECT (listitem), cell);
 }
 
 static void
@@ -981,15 +1036,27 @@ setup_label_cell (GtkSignalListItemFactory *factory,
                   gpointer                  user_data)
 {
     NautilusListView *self = user_data;
+    NautilusCellPool *pool = g_hash_table_lookup (self->factory_to_pool_map, factory);
     NautilusColumn *nautilus_column;
     NautilusViewCell *cell;
 
-    nautilus_column = g_hash_table_lookup (self->factory_to_column_map, factory);
+    cell = nautilus_cell_pool_take (pool);
+    if (cell == NULL)
+    {
+        nautilus_column = g_hash_table_lookup (self->factory_to_column_map, factory);
 
-    cell = nautilus_label_cell_new (NAUTILUS_LIST_BASE (user_data), nautilus_column);
-    gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
-    setup_cell_common (G_OBJECT (listitem), cell);
-    setup_cell_hover (cell);
+        cell = nautilus_label_cell_new (NAUTILUS_LIST_BASE (user_data), nautilus_column);
+        gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
+        nautilus_cell_pool_add (pool, cell);
+        setup_cell_controllers (cell);
+        setup_cell_hover (cell);
+    }
+    else
+    {
+        gtk_column_view_cell_set_child (listitem, GTK_WIDGET (cell));
+    }
+
+    setup_cell_links (G_OBJECT (listitem), cell);
 }
 
 static void
@@ -1004,6 +1071,10 @@ setup_view_columns (NautilusListView *self)
                                                          g_direct_equal,
                                                          NULL,
                                                          g_object_unref);
+    self->factory_to_pool_map = g_hash_table_new_full (g_direct_hash,
+                                                       g_direct_equal,
+                                                       NULL,
+                                                       (GDestroyNotify) nautilus_cell_pool_free);
 
     for (GList *l = nautilus_columns; l != NULL; l = l->next)
     {
@@ -1027,6 +1098,9 @@ setup_view_columns (NautilusListView *self)
                                         NULL);
 
         factory = gtk_signal_list_item_factory_new ();
+        g_hash_table_insert (self->factory_to_pool_map, factory,
+                             nautilus_cell_pool_new (CELL_POOL_SIZE));
+        g_signal_connect (factory, "teardown", G_CALLBACK (teardown_cell), self);
         view_column = gtk_column_view_column_new (NULL, factory);
         gtk_column_view_column_set_expand (view_column, FALSE);
         gtk_column_view_column_set_resizable (view_column, TRUE);
@@ -1186,6 +1260,7 @@ nautilus_list_view_dispose (GObject *object)
 
     g_clear_object (&self->file_path_base_location);
     g_clear_pointer (&self->factory_to_column_map, g_hash_table_destroy);
+    g_clear_pointer (&self->factory_to_pool_map, g_hash_table_destroy);
 
     g_signal_handlers_disconnect_by_func (gtk_column_view_get_sorter (self->view_ui), on_sorter_changed, self);
 

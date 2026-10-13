@@ -877,18 +877,187 @@ on_view_drop (GtkDropTarget *target,
     return accepted;
 }
 
-void
-setup_cell_common (GObject          *listitem,
-                   NautilusViewCell *cell)
+struct _NautilusCellPool
 {
+    /* All of them, owned... */
+    GPtrArray *cells;
+    /* ...and the ones nothing shows at the moment. */
+    GQueue free_cells;
+    guint max_cells;
+};
+
+/* Set on a cell while it is in the queue of free ones, which it must not be
+ * in twice. */
+#define CELL_IS_FREE_KEY "nautilus-cell-pool-free"
+
+static void
+cell_pool_release (NautilusCellPool *pool,
+                   GtkWidget        *cell,
+                   gboolean          at_head)
+{
+    if (g_object_get_data (G_OBJECT (cell), CELL_IS_FREE_KEY) != NULL)
+    {
+        return;
+    }
+
+    g_object_set_data (G_OBJECT (cell), CELL_IS_FREE_KEY, GINT_TO_POINTER (TRUE));
+    if (at_head)
+    {
+        g_queue_push_head (&pool->free_cells, cell);
+    }
+    else
+    {
+        g_queue_push_tail (&pool->free_cells, cell);
+    }
+}
+
+static void
+on_pooled_cell_parent_changed (NautilusCellPool *pool,
+                               GParamSpec       *pspec,
+                               GtkWidget        *cell)
+{
+    /* GTK is done with it: the list item that showed it is gone. */
+    if (gtk_widget_get_parent (cell) == NULL)
+    {
+        cell_pool_release (pool, cell, TRUE);
+    }
+}
+
+NautilusCellPool *
+nautilus_cell_pool_new (guint max_cells)
+{
+    NautilusCellPool *pool = g_new0 (NautilusCellPool, 1);
+
+    pool->cells = g_ptr_array_new_with_free_func (g_object_unref);
+    g_queue_init (&pool->free_cells);
+    pool->max_cells = max_cells;
+
+    return pool;
+}
+
+void
+nautilus_cell_pool_free (NautilusCellPool *pool)
+{
+    for (guint i = 0; i < pool->cells->len; i++)
+    {
+        g_signal_handlers_disconnect_by_data (g_ptr_array_index (pool->cells, i), pool);
+    }
+
+    g_queue_clear (&pool->free_cells);
+    g_ptr_array_unref (pool->cells);
+    g_free (pool);
+}
+
+guint
+nautilus_cell_pool_get_n_cells (NautilusCellPool *pool)
+{
+    return pool->cells->len;
+}
+
+NautilusViewCell *
+nautilus_cell_pool_take (NautilusCellPool *pool)
+{
+    GtkWidget *cell;
+
+    while ((cell = g_queue_pop_head (&pool->free_cells)) != NULL)
+    {
+        g_object_set_data (G_OBJECT (cell), CELL_IS_FREE_KEY, NULL);
+
+        /* Released, and then taken up again by GTK without passing through
+         * here: not free after all. */
+        if (gtk_widget_get_parent (cell) == NULL)
+        {
+            return NAUTILUS_VIEW_CELL (cell);
+        }
+    }
+
+    return NULL;
+}
+
+void
+nautilus_cell_pool_add (NautilusCellPool *pool,
+                        NautilusViewCell *cell)
+{
+    if (pool->cells->len >= pool->max_cells)
+    {
+        return;
+    }
+
+    g_ptr_array_add (pool->cells, g_object_ref_sink (cell));
+    g_signal_connect_swapped (cell, "notify::parent",
+                              G_CALLBACK (on_pooled_cell_parent_changed), pool);
+
+    if (gtk_widget_get_parent (GTK_WIDGET (cell)) == NULL)
+    {
+        cell_pool_release (pool, GTK_WIDGET (cell), FALSE);
+    }
+}
+
+typedef struct
+{
+    GtkExpressionWatch *item_watch;
+    GBinding *position_binding;
+} CellLinks;
+
+static void
+cell_links_free (CellLinks *links)
+{
+    /* The watch belongs to the cell and goes with it. */
+    g_clear_object (&links->position_binding);
+    g_free (links);
+}
+
+/**
+ * setup_cell_links:
+ *
+ * The part of setting a cell up that ties it to the list item showing it:
+ * what the list item shows is what the cell shows. Undone by
+ * teardown_cell_links(), after which the cell can be tied to another.
+ */
+void
+setup_cell_links (GObject          *listitem,
+                  NautilusViewCell *cell)
+{
+    CellLinks *links = g_new0 (CellLinks, 1);
     GtkExpression *expression;
-    GtkEventController *controller;
-    GtkDropTarget *drop_target;
 
     expression = gtk_property_expression_new (GTK_TYPE_LIST_ITEM, NULL, "item");
     expression = gtk_property_expression_new (GTK_TYPE_TREE_LIST_ROW, expression, "item");
-    gtk_expression_bind (expression, cell, "item", listitem);
-    g_object_bind_property (listitem, "position", cell, "position", G_BINDING_SYNC_CREATE);
+    links->item_watch = gtk_expression_bind (expression, cell, "item", listitem);
+    links->position_binding = g_object_ref (g_object_bind_property (listitem, "position",
+                                                                    cell, "position",
+                                                                    G_BINDING_SYNC_CREATE));
+
+    g_object_set_data_full (listitem, "nautilus-cell-links", links,
+                            (GDestroyNotify) cell_links_free);
+}
+
+void
+teardown_cell_links (GObject *listitem)
+{
+    CellLinks *links = g_object_get_data (listitem, "nautilus-cell-links");
+
+    if (links == NULL)
+    {
+        return;
+    }
+
+    gtk_expression_watch_unwatch (links->item_watch);
+    g_binding_unbind (links->position_binding);
+    g_object_set_data (listitem, "nautilus-cell-links", NULL);
+}
+
+/**
+ * setup_cell_controllers:
+ *
+ * The part of setting a cell up that is the cell's own, and done once in its
+ * life: how it answers to clicks, drags and drops.
+ */
+void
+setup_cell_controllers (NautilusViewCell *cell)
+{
+    GtkEventController *controller;
+    GtkDropTarget *drop_target;
 
     controller = GTK_EVENT_CONTROLLER (gtk_gesture_click_new ());
     gtk_widget_add_controller (GTK_WIDGET (cell), controller);
@@ -920,6 +1089,14 @@ setup_cell_common (GObject          *listitem,
     g_signal_connect (drop_target, "motion", G_CALLBACK (on_item_drag_motion), cell);
     g_signal_connect (drop_target, "drop", G_CALLBACK (on_item_drop), cell);
     gtk_widget_add_controller (GTK_WIDGET (cell), GTK_EVENT_CONTROLLER (drop_target));
+}
+
+void
+setup_cell_common (GObject          *listitem,
+                   NautilusViewCell *cell)
+{
+    setup_cell_links (listitem, cell);
+    setup_cell_controllers (cell);
 }
 
 static void

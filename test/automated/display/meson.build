@@ -15,6 +15,7 @@ tests = {
   'test-terminal-widget': {
     'is_parallel' : false,
   },
+  'test-view-model': {},
 }
 
 foreach test_name, extra_args : tests

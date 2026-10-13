@@ -118,10 +118,26 @@ folder while the daemon is answering: hidden files, and by default whatever a
 `.gitignore` excludes (`respect_gitignore` in the daemon's `config.toml`).
 Files in the folder you are looking at are always matched.
 
-Whatever engine answers, the window stays responsive. A search hands the view
-at most 1000 results, the first 60 at once and the rest when the typing
-pauses, because every result is a row the view builds and, one letter later,
-throws away.
+Whatever engine answers, the window stays responsive while you type. A search
+hands the view at most 1000 results: the first 60 at once, the rest in small
+slices once the typing has paused for half a second.
+
+The view does its part, for a search and for any folder:
+
+- results that are still there after the next letter keep their place on the
+  screen, instead of the whole list being emptied and filled again;
+- the cells a view builds are kept and reused, where GTK would throw them
+  away and build new ones every time the contents change;
+- the grid tells GTK how many columns fit the window, so it builds cells for
+  those — around 200 in an ordinary window — rather than for the 20 columns
+  it would otherwise assume, which was 641 whatever the window.
+
+Measured by typing into a real window on a 660,000-file home folder, the main
+loop is held for a median of 8 to 30 ms per letter in the grid view, and for
+about 100 ms at worst, on the first letter of a new word. Before this, every
+letter cost 130 to 330 ms, and a single letter without the daemon froze the
+window for 6.8 seconds. `test/automated/display/search-probe.c` is the tool
+those numbers come from.
 
 The daemon is entirely optional. When it is not running, search falls back to
 the engines GNOME Files ships with, and nothing changes.
