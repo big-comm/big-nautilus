@@ -50,6 +50,9 @@ static DaemonMode daemon_mode;
 static char *daemon_answer;
 static char *last_request;
 static guint n_requests;
+/* What the daemon says of itself, when asked after an empty answer. */
+static gint64 daemon_indexed = 1000;
+static char *daemon_root;
 static GStrv daemon_pages;
 static GList *held_connections;
 
@@ -71,9 +74,32 @@ on_incoming (GSocketService    *service,
     input = g_data_input_stream_new (g_io_stream_get_input_stream (G_IO_STREAM (connection)));
     g_filter_input_stream_set_close_base_stream (G_FILTER_INPUT_STREAM (input), FALSE);
 
-    g_free (last_request);
-    last_request = g_data_input_stream_read_line (input, NULL, NULL, NULL);
-    n_requests++;
+    {
+        g_autofree char *request = g_data_input_stream_read_line (input, NULL, NULL, NULL);
+        g_autofree char *answer = NULL;
+
+        if (request != NULL && strstr (request, "\"cmd\":\"status\"") != NULL)
+        {
+            answer = g_strdup_printf ("{\"kind\":\"status\",\"v\":2,\"indexed\":%" G_GINT64_FORMAT ","
+                                      "\"activity\":\"idle\"}\n", daemon_indexed);
+        }
+        else if (request != NULL && strstr (request, "\"cmd\":\"sources\"") != NULL)
+        {
+            answer = g_strdup_printf ("{\"kind\":\"sources\",\"v\":2,\"roots\":[{\"path\":\"%s\","
+                                      "\"available\":true}]}\n",
+                                      daemon_root != NULL ? daemon_root : runtime_dir);
+        }
+
+        if (answer != NULL)
+        {
+            g_output_stream_write_all (output, answer, strlen (answer), NULL, NULL, NULL);
+            return TRUE;
+        }
+
+        g_free (last_request);
+        last_request = g_steal_pointer (&request);
+        n_requests++;
+    }
 
     switch (daemon_mode)
     {
@@ -359,10 +385,11 @@ test_hidden_files_are_left_out (void)
     g_assert_true (collector_has (&c, "needle.txt"));
     collector_clear (&c);
 
-    /* A search that wants them takes what the daemon has, and asks for the
-     * walk as well: the index does not hold hidden files. */
+    /* A search that shows them takes what the daemon sends. It does not ask
+     * for the walk on that account: with hidden files shown at all times,
+     * as many have it, every search would walk the whole home folder. */
     nautilus_query_set_show_hidden_files (query, TRUE);
-    g_assert_true (provider_search (query, &c));
+    g_assert_false (provider_search (query, &c));
     g_assert_cmpuint (g_list_length (c.uris), ==, 4);
     collector_clear (&c);
 
@@ -510,9 +537,80 @@ test_unusable_answers_ask_for_fallback (void)
     assert_asks_for_fallback (DAEMON_ANSWERS, "{\"kind\":\"error\",\"message\":\"unsupported version\"}");
     g_test_assert_expected_messages ();
 
-    /* Malformed entries are skipped, not fatal; nothing found still asks. */
-    assert_asks_for_fallback (DAEMON_ANSWERS, "{\"kind\":\"hits\",\"hits\":[7,{\"path\":\"relative\"},{}]}");
-    assert_asks_for_fallback (DAEMON_ANSWERS, "{\"kind\":\"hits\",\"hits\":[]}");
+}
+
+static gboolean
+empty_answer_asks_for_fallback (const char *answer)
+{
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    gboolean asked;
+    Collector c;
+
+    daemon_start (DAEMON_ANSWERS, answer);
+    asked = provider_search (query, &c);
+    g_assert_null (c.uris);
+    collector_clear (&c);
+    daemon_stop (FALSE);
+
+    return asked;
+}
+
+/* "Nothing found" is an answer like any other, and must not set the slow
+ * engines going -- unless the daemon could not have known: the folder is not
+ * among the ones it indexes, or it has not indexed anything yet. */
+static void
+test_empty_answer_is_trusted_where_the_index_reaches (void)
+{
+    const char *empty = "{\"kind\":\"query\",\"v\":2,\"hits\":[],\"total\":0,\"next_offset\":null}";
+
+    g_assert_false (empty_answer_asks_for_fallback (empty));
+    /* Malformed entries are skipped, not fatal. */
+    g_assert_false (empty_answer_asks_for_fallback ("{\"kind\":\"query\",\"hits\":[7,{\"path\":\"relative\"},{}]}"));
+
+    /* The folder searched is the root itself. */
+    daemon_root = scope_dir;
+    g_assert_false (empty_answer_asks_for_fallback (empty));
+
+    /* A sibling whose name merely starts the same is not inside it. */
+    daemon_root = g_strconcat (scope_dir, "-other", NULL);
+    g_assert_true (empty_answer_asks_for_fallback (empty));
+    g_clear_pointer (&daemon_root, g_free);
+
+    daemon_root = (char *) "/somewhere/else";
+    g_assert_true (empty_answer_asks_for_fallback (empty));
+    daemon_root = NULL;
+
+    /* Just installed, still on its first pass over the disk. */
+    daemon_indexed = 0;
+    g_assert_true (empty_answer_asks_for_fallback (empty));
+    daemon_indexed = 1000;
+}
+
+/* With the search set to look inside the files, the daemon is asked for
+ * that as well, since the engine it stands in for would have. */
+static void
+test_asks_for_contents_when_the_search_does (void)
+{
+    const char * const names[] = { "needle.txt", NULL };
+    g_autofree char *answer = answer_with_paths (names);
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    Collector c;
+
+    daemon_start (DAEMON_ANSWERS, answer);
+    provider_search (query, &c);
+
+    g_assert_nonnull (last_request);
+    if (nautilus_query_get_search_content (query))
+    {
+        g_assert_nonnull (strstr (last_request, "\"mode\":\"both\""));
+    }
+    else
+    {
+        g_assert_nonnull (strstr (last_request, "\"mode\":\"name\""));
+    }
+
+    collector_clear (&c);
+    daemon_stop (FALSE);
 }
 
 static void
@@ -604,9 +702,50 @@ test_engine_walks_when_the_index_fails (void)
     daemon_stop (FALSE);
 
     /* A daemon that knows nothing about this folder. */
+    daemon_root = (char *) "/somewhere/else";
     daemon_start (DAEMON_ANSWERS, "{\"kind\":\"hits\",\"hits\":[]}");
     engine_search (query, &c);
     g_assert_true (collector_has (&c, "needle.txt"));
+    collector_clear (&c);
+    daemon_stop (FALSE);
+    daemon_root = NULL;
+}
+
+/* The files are on disk, and the walk would find them. It must not be run:
+ * the daemon indexes this folder and says there is nothing, and waiting for
+ * a walk of the tree is what made every search slow. */
+static void
+test_engine_trusts_an_empty_answer (void)
+{
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    Collector c;
+
+    daemon_start (DAEMON_ANSWERS, "{\"kind\":\"query\",\"hits\":[],\"next_offset\":null}");
+    engine_search (query, &c);
+    g_assert_null (c.uris);
+    collector_clear (&c);
+    daemon_stop (FALSE);
+}
+
+/* However much a provider finds, the view is handed a bounded number: it is
+ * the main loop that pays for every one of them. */
+static void
+test_engine_bounds_what_it_hands_over (void)
+{
+    g_autoptr (GString) answer = g_string_new ("{\"kind\":\"query\",\"hits\":[");
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    Collector c;
+
+    for (guint i = 0; i < 2500; i++)
+    {
+        g_string_append_printf (answer, "%s{\"path\":\"%s/needle-%u\",\"mime\":\"text/plain\"}",
+                                (i > 0) ? "," : "", scope_dir, i);
+    }
+    g_string_append (answer, "],\"next_offset\":null}");
+
+    daemon_start (DAEMON_ANSWERS, answer->str);
+    engine_search (query, &c);
+    g_assert_cmpuint (g_list_length (c.uris), ==, 1000);
     collector_clear (&c);
     daemon_stop (FALSE);
 }
@@ -727,6 +866,214 @@ test_live_engine_covers_what_is_not_indexed (void)
     g_rmdir (outside);
 }
 
+static char *
+answer_with_many (const char *prefix,
+                  guint       n)
+{
+    g_autoptr (GString) answer = g_string_new ("{\"kind\":\"query\",\"hits\":[");
+
+    for (guint i = 0; i < n; i++)
+    {
+        g_string_append_printf (answer, "%s{\"path\":\"%s/%s-%u\",\"mime\":\"text/plain\"}",
+                                (i > 0) ? "," : "", scope_dir, prefix, i);
+    }
+    g_string_append (answer, "],\"next_offset\":null}");
+
+    return g_string_free (g_steal_pointer (&answer), FALSE);
+}
+
+typedef struct
+{
+    Collector collector;
+    guint first_batch;
+    gint64 first_at;
+    gint64 finished_at;
+    gint64 started_at;
+} PacedSearch;
+
+static void
+on_paced_hits_added (GObject   *source,
+                     GPtrArray *hits,
+                     gpointer   user_data)
+{
+    PacedSearch *search = user_data;
+
+    if (search->first_at == 0)
+    {
+        search->first_at = g_get_monotonic_time ();
+        search->first_batch = hits->len;
+    }
+
+    on_hits_added (source, hits, &search->collector);
+}
+
+static void
+on_paced_finished (PacedSearch *search)
+{
+    search->finished_at = g_get_monotonic_time ();
+    on_finished (&search->collector);
+}
+
+static NautilusSearchEngine *
+paced_engine_new (PacedSearch *search)
+{
+    NautilusSearchEngine *engine = nautilus_search_engine_new (NAUTILUS_SEARCH_TYPE_BIGSEARCH);
+
+    *search = (PacedSearch) { .collector = { .loop = g_main_loop_new (NULL, FALSE) } };
+    nautilus_search_engine_set_paced (engine, TRUE);
+    g_signal_connect (engine, "hits-added", G_CALLBACK (on_paced_hits_added), search);
+    g_signal_connect_swapped (engine, "search-finished", G_CALLBACK (on_paced_finished), search);
+    search->started_at = g_get_monotonic_time ();
+
+    return engine;
+}
+
+/* A view is handed what fills the screen at once, and the rest only when the
+ * search has stood for a moment -- and all of it in the end. */
+static void
+test_paced_engine_hands_over_in_two_steps (void)
+{
+    g_autofree char *answer = answer_with_many ("needle", 700);
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    g_autoptr (NautilusSearchEngine) engine = NULL;
+    PacedSearch search;
+
+    daemon_start (DAEMON_ANSWERS, answer);
+    engine = paced_engine_new (&search);
+    nautilus_search_engine_start (engine, query);
+    collector_run (&search.collector);
+
+    g_assert_cmpuint (search.first_batch, ==, 60);
+    g_assert_cmpuint (g_list_length (search.collector.uris), ==, 700);
+    /* The first ones did not wait, the search as a whole did. */
+    g_assert_cmpint (search.first_at - search.started_at, <, 200 * G_TIME_SPAN_MILLISECOND);
+    g_assert_cmpint (search.finished_at - search.started_at, >=, 400 * G_TIME_SPAN_MILLISECOND);
+
+    collector_clear (&search.collector);
+    daemon_stop (FALSE);
+}
+
+/* A search small enough to go out whole has nothing to wait for. */
+static void
+test_paced_engine_does_not_wait_without_reason (void)
+{
+    g_autofree char *answer = answer_with_many ("needle", 40);
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    g_autoptr (NautilusSearchEngine) engine = NULL;
+    PacedSearch search;
+
+    daemon_start (DAEMON_ANSWERS, answer);
+    engine = paced_engine_new (&search);
+    nautilus_search_engine_start (engine, query);
+    collector_run (&search.collector);
+
+    g_assert_cmpuint (g_list_length (search.collector.uris), ==, 40);
+    g_assert_cmpint (search.finished_at - search.started_at, <, 200 * G_TIME_SPAN_MILLISECOND);
+
+    collector_clear (&search.collector);
+    daemon_stop (FALSE);
+}
+
+static void
+start_next_search (gpointer user_data)
+{
+    gpointer *data = user_data;
+
+    /* What the daemon answers from here on. */
+    g_set_str (&daemon_answer, data[2]);
+    nautilus_search_engine_start (data[0], data[1]);
+}
+
+/* The next letter typed, with every provider done and only held hits keeping
+ * the search open: the new search must start right away, not when the hold
+ * runs out, and none of the old hits may still turn up. */
+static void
+test_paced_engine_restarts_at_once (void)
+{
+    g_autofree char *first_answer = answer_with_many ("old", 700);
+    g_autofree char *second_answer = answer_with_many ("new", 30);
+    g_autoptr (NautilusQuery) first_query = query_new ("old");
+    g_autoptr (NautilusQuery) second_query = query_new ("new");
+    g_autoptr (NautilusSearchEngine) engine = NULL;
+    gpointer next[3];
+    PacedSearch search;
+    guint n_old = 0;
+    guint n_new = 0;
+
+    daemon_start (DAEMON_ANSWERS, first_answer);
+    engine = paced_engine_new (&search);
+    nautilus_search_engine_start (engine, first_query);
+
+    next[0] = engine;
+    next[1] = second_query;
+    next[2] = second_answer;
+    g_timeout_add_once (80, start_next_search, next);
+    collector_run (&search.collector);
+
+    for (GList *l = search.collector.uris; l != NULL; l = l->next)
+    {
+        if (strstr (l->data, "/old-") != NULL)
+        {
+            n_old++;
+        }
+        else if (strstr (l->data, "/new-") != NULL)
+        {
+            n_new++;
+        }
+    }
+
+    /* The first batch, which went out before the second search, and no more. */
+    g_assert_cmpuint (n_old, ==, 60);
+    g_assert_cmpuint (n_new, ==, 30);
+    /* 80 ms until the second search, and it finished without sitting out a
+     * hold of the first. */
+    g_assert_cmpint (search.finished_at - search.started_at, <, 400 * G_TIME_SPAN_MILLISECOND);
+
+    collector_clear (&search.collector);
+    daemon_stop (FALSE);
+}
+
+static void
+stop_engine (gpointer user_data)
+{
+    nautilus_search_engine_stop (user_data);
+}
+
+/* Erasing the query stops the search. With only held hits keeping it open,
+ * no provider is left to close it: it must close all the same, or the engine
+ * stays "running" and every later search waits for a restart that never
+ * comes. */
+static void
+test_paced_engine_stops_while_holding (void)
+{
+    g_autofree char *answer = answer_with_many ("needle", 700);
+    g_autofree char *small_answer = answer_with_many ("after", 5);
+    g_autoptr (NautilusQuery) query = query_new ("needle");
+    g_autoptr (NautilusQuery) later_query = query_new ("after");
+    g_autoptr (NautilusSearchEngine) engine = NULL;
+    PacedSearch search;
+
+    daemon_start (DAEMON_ANSWERS, answer);
+    engine = paced_engine_new (&search);
+    nautilus_search_engine_start (engine, query);
+    g_timeout_add_once (80, stop_engine, engine);
+    collector_run (&search.collector);
+
+    g_assert_cmpuint (g_list_length (search.collector.uris), ==, 60);
+    g_assert_cmpint (search.finished_at - search.started_at, <, 400 * G_TIME_SPAN_MILLISECOND);
+
+    /* And the engine is good for another search. */
+    g_list_free_full (g_steal_pointer (&search.collector.uris), g_free);
+    search.collector.finished = FALSE;
+    g_set_str (&daemon_answer, small_answer);
+    nautilus_search_engine_start (engine, later_query);
+    collector_run (&search.collector);
+    g_assert_cmpuint (g_list_length (search.collector.uris), ==, 5);
+
+    collector_clear (&search.collector);
+    daemon_stop (FALSE);
+}
+
 static void
 make_file (const char *name)
 {
@@ -790,10 +1137,21 @@ main (int   argc,
     g_test_add_func ("/bigsearch/one-page-without-a-type", test_one_page_without_a_type);
     g_test_add_func ("/bigsearch/declines-what-the-index-lacks", test_declines_what_the_index_lacks);
     g_test_add_func ("/bigsearch/unusable-answers-ask-for-fallback", test_unusable_answers_ask_for_fallback);
+    g_test_add_func ("/bigsearch/empty-answer-is-trusted-where-the-index-reaches",
+                     test_empty_answer_is_trusted_where_the_index_reaches);
+    g_test_add_func ("/bigsearch/asks-for-contents-when-the-search-does",
+                     test_asks_for_contents_when_the_search_does);
     g_test_add_func ("/bigsearch/stale-socket-asks-for-fallback", test_stale_socket_asks_for_fallback);
     g_test_add_func ("/bigsearch/stop-interrupts-a-silent-daemon", test_stop_interrupts_a_silent_daemon);
     g_test_add_func ("/bigsearch/engine-walks-when-the-index-fails", test_engine_walks_when_the_index_fails);
     g_test_add_func ("/bigsearch/engine-trusts-an-answering-index", test_engine_trusts_an_answering_index);
+    g_test_add_func ("/bigsearch/engine-trusts-an-empty-answer", test_engine_trusts_an_empty_answer);
+    g_test_add_func ("/bigsearch/engine-bounds-what-it-hands-over", test_engine_bounds_what_it_hands_over);
+    g_test_add_func ("/bigsearch/paced-engine-hands-over-in-two-steps", test_paced_engine_hands_over_in_two_steps);
+    g_test_add_func ("/bigsearch/paced-engine-does-not-wait-without-reason",
+                     test_paced_engine_does_not_wait_without_reason);
+    g_test_add_func ("/bigsearch/paced-engine-restarts-at-once", test_paced_engine_restarts_at_once);
+    g_test_add_func ("/bigsearch/paced-engine-stops-while-holding", test_paced_engine_stops_while_holding);
 
     result = g_test_run ();
 

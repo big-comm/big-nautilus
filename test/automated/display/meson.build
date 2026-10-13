@@ -48,3 +48,6 @@ foreach test_name, extra_args : tests
     suite: suite,
   )
 endforeach
+
+# A measuring tool, not a test: see the top of the file.
+executable('search-probe', 'search-probe.c', dependencies: [libnautilus_dep, libtestutils_dep])

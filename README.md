@@ -98,23 +98,30 @@ filesystem. Measured on one machine, searching the same tree:
 | Directory traversal | seconds |
 
 The location you are searching in, and any type or modification-date filter,
-are pushed into the index rather than applied afterwards. The query runs off
-the main thread, so a daemon that is slow to answer never freezes the window.
+are pushed into the index rather than applied afterwards. When the search is
+set to look inside files, the daemon does that too, from the same index.
 
-The index does not hold everything, and the directory walk still covers what
-it leaves out:
+A search is as slow as its slowest engine, so when the daemon answers it has
+the search to itself: neither the directory walk nor LocalSearch runs next to
+it. Measured on one home folder, for a single letter typed, LocalSearch took
+11 seconds to answer and the walk matched 66,926 entries; the daemon answers
+in 3 to 80 ms. The other engines only step in where the daemon cannot answer:
 
-- when the daemon fails to answer, or answers with nothing — which is also
-  what a folder outside the index looks like;
-- when hidden files are shown, since the index skips them;
+- when it fails, or says it does not index the folder searched, or has not
+  finished its first pass over the disk;
 - in the trash, recent files, tag folders and remote locations, when
   searching the current folder only, and when filtering by access or
   creation date.
 
-One difference remains: by default the daemon skips whatever a `.gitignore`
-excludes, so inside a repository a search that does find something will not
-list build output next to it. That is `respect_gitignore` in the daemon's
-`config.toml`.
+Two things the index leaves out are therefore not found below the current
+folder while the daemon is answering: hidden files, and by default whatever a
+`.gitignore` excludes (`respect_gitignore` in the daemon's `config.toml`).
+Files in the folder you are looking at are always matched.
+
+Whatever engine answers, the window stays responsive. A search hands the view
+at most 1000 results, the first 60 at once and the rest when the typing
+pauses, because every result is a row the view builds and, one letter later,
+throws away.
 
 The daemon is entirely optional. When it is not running, search falls back to
 the engines GNOME Files ships with, and nothing changes.

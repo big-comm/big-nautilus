@@ -46,6 +46,20 @@ void
 nautilus_search_engine_set_search_type (NautilusSearchEngine *self,
                                         NautilusSearchType search_type);
 
+/**
+ * nautilus_search_engine_set_paced:
+ *
+ * A paced engine hands over the first hits of a search as they come and
+ * holds the rest back for a moment, dropping them if the search is replaced
+ * meanwhile. For results that go into a view while someone types: each
+ * letter replaces the search, and every result handed over is a row built
+ * and torn down again. Not for a caller that waits for the search to finish
+ * before it does anything, which would only be kept waiting.
+ */
+void
+nautilus_search_engine_set_paced (NautilusSearchEngine *self,
+                                  gboolean              paced);
+
 void
 nautilus_search_engine_start (NautilusSearchEngine *self,
                               NautilusQuery        *query);

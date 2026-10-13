@@ -832,6 +832,8 @@ nautilus_search_directory_init (NautilusSearchDirectory *self)
                                               g_object_unref, NULL);
 
     self->engine = nautilus_search_engine_new (NAUTILUS_SEARCH_TYPE_FOLDER);
+    /* What it finds goes into a view, while the query is being typed. */
+    nautilus_search_engine_set_paced (self->engine, TRUE);
     search_connect_engine (self);
 }
 

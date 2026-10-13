@@ -170,10 +170,12 @@ build_request (NautilusQuery *query,
     json_builder_set_member_name (builder, "q");
     json_builder_add_string_value (builder, text);
 
-    /* Content search is a separate, slower mode and a different feature than
-     * what this provider is wired up to answer. */
+    /* When the search is to look inside the files as well, the daemon does
+     * that too, from the same index: this provider then stands in for the
+     * LocalSearch one, which the engine leaves out. */
     json_builder_set_member_name (builder, "mode");
-    json_builder_add_string_value (builder, "name");
+    json_builder_add_string_value (builder,
+                                   nautilus_query_get_search_content (query) ? "both" : "name");
 
     json_builder_set_member_name (builder, "filter");
     json_builder_begin_object (builder);
@@ -470,6 +472,97 @@ add_hits_from_response (NautilusSearchEngineBigsearch *self,
     return MAX (json_object_get_int_member_with_default (root, "next_offset", 0), 0);
 }
 
+/* Whether the daemon has an index to speak of, and @under in it. Asked only
+ * after a search that came back empty. Any doubt counts as no: the price is a
+ * directory walk on a search that had nothing to show. */
+static gboolean
+index_covers (const char   *under,
+              GCancellable *cancellable)
+{
+    g_autofree char *status = round_trip ("{\"v\":" G_STRINGIFY (BIGSEARCH_PROTOCOL_VERSION) ",\"cmd\":\"status\"}",
+                                          cancellable, NULL);
+    g_autofree char *sources = NULL;
+    g_autoptr (JsonParser) status_parser = json_parser_new ();
+    g_autoptr (JsonParser) sources_parser = json_parser_new ();
+    JsonNode *node;
+    JsonNode *roots_node;
+    JsonArray *roots;
+
+    if (status == NULL || !json_parser_load_from_data (status_parser, status, -1, NULL))
+    {
+        return FALSE;
+    }
+
+    /* Nothing indexed yet: the first run after the daemon was installed. */
+    node = json_parser_get_root (status_parser);
+    if (node == NULL || !JSON_NODE_HOLDS_OBJECT (node) ||
+        json_object_get_int_member_with_default (json_node_get_object (node), "indexed", 0) <= 0)
+    {
+        return FALSE;
+    }
+
+    if (under == NULL)
+    {
+        /* A search of everything, which is whatever the index holds. */
+        return TRUE;
+    }
+
+    sources = round_trip ("{\"v\":" G_STRINGIFY (BIGSEARCH_PROTOCOL_VERSION) ",\"cmd\":\"sources\"}",
+                          cancellable, NULL);
+    if (sources == NULL || !json_parser_load_from_data (sources_parser, sources, -1, NULL))
+    {
+        return FALSE;
+    }
+
+    node = json_parser_get_root (sources_parser);
+    if (node == NULL || !JSON_NODE_HOLDS_OBJECT (node))
+    {
+        return FALSE;
+    }
+
+    roots_node = json_object_get_member (json_node_get_object (node), "roots");
+    if (roots_node == NULL || !JSON_NODE_HOLDS_ARRAY (roots_node))
+    {
+        return FALSE;
+    }
+
+    roots = json_node_get_array (roots_node);
+    for (guint i = 0; i < json_array_get_length (roots); i++)
+    {
+        JsonNode *root_node = json_array_get_element (roots, i);
+        JsonObject *root;
+        const char *path;
+        gsize length;
+
+        if (!JSON_NODE_HOLDS_OBJECT (root_node))
+        {
+            continue;
+        }
+
+        root = json_node_get_object (root_node);
+        path = json_object_get_string_member_with_default (root, "path", NULL);
+        if (path == NULL || *path != '/' ||
+            !json_object_get_boolean_member_with_default (root, "available", TRUE))
+        {
+            continue;
+        }
+
+        length = strlen (path);
+        while (length > 1 && path[length - 1] == '/')
+        {
+            length--;
+        }
+
+        if (strncmp (under, path, length) == 0 &&
+            (length == 1 || under[length] == '\0' || under[length] == '/'))
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 static gpointer
 search_thread_func (NautilusSearchEngineBigsearch *self)
 {
@@ -506,18 +599,13 @@ search_thread_func (NautilusSearchEngineBigsearch *self)
 
     if (error == NULL)
     {
-        /* Nothing found may just as well mean the place searched is not in
-         * the index -- another disk, a system folder. The daemon does not say
-         * which, so have the walk check. It costs time only on a search that
-         * had nothing to show anyway. */
-        self->needs_fallback = (self->n_hits == 0);
-
-        /* The index leaves hidden files out. A search that wants them gets
-         * what the index has right away, and the rest from the walk. */
-        if (nautilus_query_get_show_hidden_files (query))
-        {
-            self->needs_fallback = TRUE;
-        }
+        /* An answer is the answer, also when it lists little: the other
+         * engines are slower by orders of magnitude, and running them next
+         * to this one makes the search exactly as slow as they are. The one
+         * thing an empty answer cannot tell apart is "no such file" from "I
+         * do not know that folder" -- so that is asked. */
+        self->needs_fallback = (self->n_hits == 0 &&
+                                !index_covers (under, cancellable));
     }
     else if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
     {
