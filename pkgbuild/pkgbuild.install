@@ -14,10 +14,11 @@ printMsg() {
     echo -e "${blueDark}[${lightBlue}big-nautilus${blueDark}]${reset} ${cyan}→${reset} ${white}${message}${reset}"
 }
 
-# The version this shipped in; keep it equal to pkgver-pkgrel of the release
-# that first carried this script. Upgrades crossing it enable the daemon once,
-# later ones leave the choice alone.
-_daemon_enabled_since=50.4-1
+# Upgrades crossing this version enable the daemon once, and later ones leave
+# the choice alone. It moved from 50.4-1 to 50.4-2 on purpose: 50.4-1 enabled
+# the daemon without starting it, so whoever installed that one and has not
+# logged in again since is still searching without the index.
+_daemon_enabled_since=50.4-2
 
 # big-search ships a systemd *user* unit with WantedBy=default.target, which
 # says where the link belongs but does not create it, and the package has no
@@ -27,20 +28,54 @@ _daemon_enabled_since=50.4-1
 # to walking the filesystem, and the search stays as slow as it was.
 #
 # --global writes to /etc/systemd/user/, covering every user including
-# accounts created later. It takes effect at the next login; an existing
-# session can start it now with "systemctl --user start big-search".
+# accounts created later. That alone only takes effect at the next login: the
+# link is read by each user's own service manager, when it starts.
 enable_search_daemon() {
     if ! systemctl --global enable big-search.service &>/dev/null; then
         printMsg "Could not enable big-search.service; fast search stays off until it is enabled"
         return
     fi
 
-    printMsg "Index-backed search enabled; it starts at the next login"
-    printMsg "To start it now:  systemctl --user start big-search"
+    if start_search_daemon_for_sessions; then
+        printMsg "Index-backed search enabled and started"
+    else
+        printMsg "Index-backed search enabled; it starts at the next login"
+        printMsg "To start it now:  systemctl --user start big-search"
+    fi
     # Not "disable": the link lives in /etc/systemd/user, which a user cannot
     # remove, so disabling would stop it until the next login and no further.
     # Masking is what actually opts out, and it survives this script.
     printMsg "To opt out:       systemctl --user mask --now big-search"
+}
+
+# Whoever is logged in while the package is installed would otherwise search
+# without the index until they log in again -- which is how the first people
+# to upgrade met this package. This script runs as root, outside any session,
+# so each user's manager is reached through its own socket.
+#
+# Succeeds when the daemon runs for at least one user. A user who masked the
+# unit is left alone: systemd refuses to start it.
+start_search_daemon_for_sessions() {
+    local runtime_dir uid user started=1
+
+    for runtime_dir in /run/user/*; do
+        uid=${runtime_dir##*/}
+
+        # Real accounts with a service manager running: not the display
+        # manager's own user, not a session that is going away.
+        [[ $uid =~ ^[0-9]+$ ]] || continue
+        (( uid >= 1000 )) || continue
+        [[ -S $runtime_dir/systemd/private ]] || continue
+        user=$(id -nu "$uid" 2>/dev/null) || continue
+
+        # The unit may have arrived in this same transaction.
+        timeout 15 systemctl --user -M "${user}@" daemon-reload &>/dev/null
+        if timeout 15 systemctl --user -M "${user}@" start big-search.service &>/dev/null; then
+            started=0
+        fi
+    done
+
+    return $started
 }
 
 post_install() {
