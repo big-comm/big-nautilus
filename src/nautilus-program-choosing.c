@@ -21,6 +21,8 @@
  */
 
 #include <config.h>
+
+#define GNOME_DESKTOP_USE_UNSTABLE_API
 #include "nautilus-program-choosing.h"
 
 #include "nautilus-file.h"
@@ -35,6 +37,7 @@
 #include <stdlib.h>
 
 #include <gdk/gdk.h>
+#include <libgnome-desktop/gnome-systemd.h>
 
 static void
 add_file_to_recent (NautilusFile *file,
@@ -116,6 +119,62 @@ nautilus_launch_application (GAppInfo         *application,
     g_list_free_full (uris, g_free);
 }
 
+static void
+on_scope_started (GObject      *source,
+                  GAsyncResult *result,
+                  gpointer      user_data)
+{
+    g_autoptr (GError) error = NULL;
+
+    if (!gnome_start_systemd_scope_finish (result, &error))
+    {
+        g_debug ("Could not move a launched application into its own scope: %s",
+                 error->message);
+    }
+}
+
+/* Without this, what Nautilus starts is part of Nautilus as far as systemd
+ * can tell: it lives in Nautilus' own cgroup. A browser opened from a file,
+ * its forty renderer processes and its four gigabytes then show up in the
+ * system monitor as Nautilus, outlive it inside its unit, and go wherever
+ * Nautilus goes -- killed with it by an out-of-memory daemon, for one. The
+ * shell gives what it launches a scope of its own; do the same. */
+static void
+on_application_launched (GAppLaunchContext *context,
+                         GAppInfo          *info,
+                         GVariant          *platform_data,
+                         gpointer           user_data)
+{
+    const char *app_id = info != NULL ? g_app_info_get_id (info) : NULL;
+    gint32 pid = 0;
+
+    if (platform_data == NULL ||
+        !g_variant_lookup (platform_data, "pid", "i", &pid) ||
+        pid <= 0)
+    {
+        /* Activated over D-Bus, say: the bus put it where it belongs. */
+        return;
+    }
+
+    if (app_id == NULL && info != NULL)
+    {
+        app_id = g_app_info_get_executable (info);
+    }
+
+    gnome_start_systemd_scope (app_id != NULL ? app_id : "nautilus-launched",
+                               pid, NULL, NULL, NULL, on_scope_started, NULL);
+}
+
+static GdkAppLaunchContext *
+new_launch_context (GdkDisplay *display)
+{
+    GdkAppLaunchContext *launch_context = gdk_display_get_app_launch_context (display);
+
+    g_signal_connect (launch_context, "launched", G_CALLBACK (on_application_launched), NULL);
+
+    return launch_context;
+}
+
 static GdkAppLaunchContext *
 get_launch_context (GtkWindow *parent_window)
 {
@@ -131,7 +190,7 @@ get_launch_context (GtkWindow *parent_window)
         display = gdk_display_get_default ();
     }
 
-    launch_context = gdk_display_get_app_launch_context (display);
+    launch_context = new_launch_context (display);
 
     return launch_context;
 }
@@ -233,7 +292,7 @@ launch_application_from_command_internal (const gchar *full_command,
     {
         g_autoptr (GdkAppLaunchContext) context = NULL;
 
-        context = gdk_display_get_app_launch_context (display);
+        context = new_launch_context (display);
 
         g_app_info_launch (app, NULL, G_APP_LAUNCH_CONTEXT (context), &error);
     }
