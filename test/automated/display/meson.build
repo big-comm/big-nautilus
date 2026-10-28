@@ -16,6 +16,7 @@ tests = {
     'is_parallel' : false,
   },
   'test-view-model': {},
+  'test-program-choosing': {},
 }
 
 foreach test_name, extra_args : tests

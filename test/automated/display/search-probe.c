@@ -440,6 +440,16 @@ settle (NautilusWindowSlot *slot,
         g_print ("[%7.3f] %u cells built for the view, %u columns\n", now_s (),
                  n_cells (GTK_WIDGET (slot)), n_columns);
     }
+    {
+        g_autofree char *status = NULL;
+        const char *rss;
+
+        if (g_file_get_contents ("/proc/self/status", &status, NULL, NULL) &&
+            (rss = strstr (status, "VmRSS:")) != NULL)
+        {
+            g_print ("[%7.3f] memory: %.*s\n", now_s (), (int) strcspn (rss, "\n"), rss);
+        }
+    }
     g_print ("[%7.3f] \"%s\": %u items, first after %" G_GINT64_FORMAT " ms, %s after %" G_GINT64_FORMAT " ms\n",
              now_s (), text, n_items (slot),
              first_items != 0 ? (first_items - begin) / 1000 : -1,
@@ -795,6 +805,15 @@ main (int   argc,
         signal (SIGPROF, SIG_IGN);
         profile_report ();
     }
+
+#if defined(__SANITIZE_ADDRESS__)
+    {
+        /* _exit() below skips the check LeakSanitizer does at exit. */
+        extern void __lsan_do_leak_check (void);
+
+        __lsan_do_leak_check ();
+    }
+#endif
 
     /* Leaving through the front door would wait for whatever is still
      * walking the disk. */
