@@ -407,7 +407,7 @@ struct _NautilusFileUndoInfoExt
     GQueue *destinations;     /* Relative to dest_dir */
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoExt, nautilus_file_undo_info_ext, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoExt, nautilus_file_undo_info_ext, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static char *
 ext_get_first_target_short_name (NautilusFileUndoInfoExt *self)
@@ -809,7 +809,7 @@ struct _NautilusFileUndoInfoCreate
     gsize length;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoCreate, nautilus_file_undo_info_create, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoCreate, nautilus_file_undo_info_create, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 create_strings_func (NautilusFileUndoInfo  *info,
@@ -1040,7 +1040,7 @@ struct _NautilusFileUndoInfoRename
     gchar *new_display_name;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoRename, nautilus_file_undo_info_rename, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoRename, nautilus_file_undo_info_rename, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 rename_strings_func (NautilusFileUndoInfo  *info,
@@ -1163,7 +1163,7 @@ struct _NautilusFileUndoInfoBatchRename
     GList *new_display_names;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoBatchRename, nautilus_file_undo_info_batch_rename, NAUTILUS_TYPE_FILE_UNDO_INFO);
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoBatchRename, nautilus_file_undo_info_batch_rename, NAUTILUS_TYPE_FILE_UNDO_INFO);
 
 static void
 batch_rename_strings_func (NautilusFileUndoInfo  *info,
@@ -1366,7 +1366,7 @@ struct _NautilusFileUndoInfoStarred
     gboolean starred;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoStarred, nautilus_file_undo_info_starred, NAUTILUS_TYPE_FILE_UNDO_INFO);
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoStarred, nautilus_file_undo_info_starred, NAUTILUS_TYPE_FILE_UNDO_INFO);
 
 enum
 {
@@ -1374,6 +1374,8 @@ enum
     PROP_STARRED,
     NUM_PROPERTIES
 };
+
+static GParamSpec *properties[NUM_PROPERTIES];
 
 static void
 starred_strings_func (NautilusFileUndoInfo  *info,
@@ -1540,21 +1542,19 @@ nautilus_file_undo_info_starred_class_init (NautilusFileUndoInfoStarredClass *kl
     iclass->redo_func = starred_redo_func;
     iclass->strings_func = starred_strings_func;
 
-    g_object_class_install_property (oclass,
-                                     PROP_FILES,
-                                     g_param_spec_pointer ("files",
-                                                           "files",
-                                                           "The files for which to undo star/unstar",
-                                                           G_PARAM_WRITABLE |
-                                                           G_PARAM_CONSTRUCT_ONLY));
-    g_object_class_install_property (oclass,
-                                     PROP_STARRED,
-                                     g_param_spec_boolean ("starred",
-                                                           "starred",
-                                                           "Whether the files were starred or unstarred",
-                                                           FALSE,
-                                                           G_PARAM_WRITABLE |
-                                                           G_PARAM_CONSTRUCT_ONLY));
+    properties[PROP_FILES] = g_param_spec_pointer ("files",
+                                                   "files",
+                                                   "The files for which to undo star/unstar",
+                                                   G_PARAM_WRITABLE |
+                                                   G_PARAM_CONSTRUCT_ONLY);
+    properties[PROP_STARRED] = g_param_spec_boolean ("starred",
+                                                     "starred",
+                                                     "Whether the files were starred or unstarred",
+                                                     FALSE,
+                                                     G_PARAM_WRITABLE |
+                                                     G_PARAM_CONSTRUCT_ONLY);
+
+    g_object_class_install_properties (oclass, G_N_ELEMENTS (properties), properties);
 }
 
 GList *
@@ -1765,7 +1765,7 @@ struct _NautilusFileUndoInfoTrash
     GHashTable *trashed;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoTrash, nautilus_file_undo_info_trash, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoTrash, nautilus_file_undo_info_trash, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 trash_strings_func (NautilusFileUndoInfo  *info,
@@ -1869,12 +1869,11 @@ trash_retrieve_files_to_restore_thread (GTask        *task,
 {
     NautilusFileUndoInfoTrash *self = NAUTILUS_FILE_UNDO_INFO_TRASH (source_object);
     GFileEnumerator *enumerator;
-    GHashTable *to_restore;
     GFile *trash;
     GError *error = NULL;
-
-    to_restore = g_hash_table_new_full (g_file_hash, (GEqualFunc) g_file_equal,
-                                        g_object_unref, g_object_unref);
+    /* The original locations moved back, for the tags: the tag store belongs
+     * to the main thread. */
+    g_autoptr (GPtrArray) restored = g_ptr_array_new_with_free_func (g_object_unref);
 
     trash = g_file_new_for_uri (SCHEME_TRASH ":///");
 
@@ -1889,7 +1888,6 @@ trash_retrieve_files_to_restore_thread (GTask        *task,
     {
         GFileInfo *info;
         gpointer lookupvalue;
-        GFile *item;
         gint64 orig_trash_time;
         gint64 trash_time;
         const char *origpath;
@@ -1920,8 +1918,14 @@ trash_retrieve_files_to_restore_thread (GTask        *task,
                 if (ABS (orig_trash_time - trash_time) <= TRASH_TIME_EPSILON)
                 {
                     /* File in the trash */
-                    item = g_file_get_child (trash, g_file_info_get_name (info));
-                    g_hash_table_insert (to_restore, item, g_object_ref (origfile));
+                    g_autoptr (GFile) item = g_file_get_child (trash, g_file_info_get_name (info));
+
+                    if (g_file_move (item, origfile,
+                                     G_FILE_COPY_NOFOLLOW_SYMLINKS,
+                                     NULL, NULL, NULL, NULL))
+                    {
+                        g_ptr_array_add (restored, g_object_ref (origfile));
+                    }
                 }
             }
 
@@ -1935,11 +1939,11 @@ trash_retrieve_files_to_restore_thread (GTask        *task,
     if (error != NULL)
     {
         g_task_return_error (task, error);
-        g_hash_table_destroy (to_restore);
     }
     else
     {
-        g_task_return_pointer (task, to_restore, NULL);
+        g_task_return_pointer (task, g_steal_pointer (&restored),
+                               (GDestroyNotify) g_ptr_array_unref);
     }
 }
 
@@ -1963,48 +1967,23 @@ trash_retrieve_files_ready (GObject      *source,
                             gpointer      user_data)
 {
     NautilusFileUndoInfoTrash *self = NAUTILUS_FILE_UNDO_INFO_TRASH (source);
-    GHashTable *files_to_restore;
-    GError *error = NULL;
+    g_autoptr (GError) error = NULL;
+    g_autoptr (GPtrArray) restored = g_task_propagate_pointer (G_TASK (res), &error);
 
-    files_to_restore = g_task_propagate_pointer (G_TASK (res), &error);
-
-    if (error == NULL && g_hash_table_size (files_to_restore) > 0)
+    if (restored != NULL)
     {
-        GList *gfiles_in_trash, *l;
-        GFile *item;
-        GFile *dest;
+        NautilusTagColors *tag_colors = nautilus_tag_colors_get ();
 
-        gfiles_in_trash = g_hash_table_get_keys (files_to_restore);
-
-        for (l = gfiles_in_trash; l != NULL; l = l->next)
+        for (guint i = 0; i < restored->len; i++)
         {
-            item = l->data;
-            dest = g_hash_table_lookup (files_to_restore, item);
+            g_autofree char *uri = g_file_get_uri (g_ptr_array_index (restored, i));
 
-            if (g_file_move (item, dest, G_FILE_COPY_NOFOLLOW_SYMLINKS, NULL, NULL, NULL, NULL))
-            {
-                g_autofree char *dest_uri = g_file_get_uri (dest);
-
-                nautilus_tag_colors_file_restored (nautilus_tag_colors_get (), dest_uri);
-            }
+            nautilus_tag_colors_file_restored (tag_colors, uri);
         }
-
-        g_list_free (gfiles_in_trash);
-
-        /* Here we must do what's necessary for the callback */
-        file_undo_info_transfer_callback (NULL, (error == NULL), self);
-    }
-    else
-    {
-        file_undo_info_transfer_callback (NULL, FALSE, self);
     }
 
-    if (files_to_restore != NULL)
-    {
-        g_hash_table_destroy (files_to_restore);
-    }
-
-    g_clear_error (&error);
+    /* Here we must do what's necessary for the callback */
+    file_undo_info_transfer_callback (NULL, restored != NULL && restored->len > 0, self);
 }
 
 static void
@@ -2085,7 +2064,7 @@ struct _NautilusFileUndoInfoRecPermissions
     guint32 file_permissions;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoRecPermissions, nautilus_file_undo_info_rec_permissions, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoRecPermissions, nautilus_file_undo_info_rec_permissions, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 rec_permissions_strings_func (NautilusFileUndoInfo  *info,
@@ -2130,36 +2109,60 @@ rec_permissions_redo_func (NautilusFileUndoInfo           *info,
 }
 
 static void
+rec_permissions_undo_thread (GTask        *task,
+                             gpointer      source_object,
+                             gpointer      task_data,
+                             GCancellable *cancellable)
+{
+    NautilusFileUndoInfoRecPermissions *self = NAUTILUS_FILE_UNDO_INFO_REC_PERMISSIONS (source_object);
+
+    for (GList *l = g_task_get_task_data (task); l != NULL; l = l->next)
+    {
+        char *item = l->data;
+        guint32 perm = GPOINTER_TO_UINT (g_hash_table_lookup (self->original_permissions, item));
+        g_autoptr (GFile) dest = g_file_new_for_uri (item);
+
+        g_file_set_attribute_uint32 (dest,
+                                     G_FILE_ATTRIBUTE_UNIX_MODE,
+                                     perm,
+                                     G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                     cancellable,
+                                     NULL);
+    }
+
+    g_task_return_boolean (task, TRUE);
+}
+
+static void
+rec_permissions_undo_callback (GObject      *source,
+                               GAsyncResult *res,
+                               gpointer      user_data)
+{
+    NautilusFileUndoInfoRecPermissions *self = NAUTILUS_FILE_UNDO_INFO_REC_PERMISSIONS (source);
+    gboolean success = g_task_propagate_boolean (G_TASK (res), NULL);
+
+    file_undo_info_transfer_callback (NULL, success, self);
+}
+
+static void
 rec_permissions_undo_func (NautilusFileUndoInfo           *info,
                            GtkWindow                      *parent_window,
                            NautilusFileOperationsDBusData *dbus_data)
 {
     NautilusFileUndoInfoRecPermissions *self = NAUTILUS_FILE_UNDO_INFO_REC_PERMISSIONS (info);
+    g_autoptr (GList) files_list = g_hash_table_get_keys (self->original_permissions);
 
-    if (g_hash_table_size (self->original_permissions) > 0)
+    if (files_list == NULL)
     {
-        GList *gfiles_list;
-        guint32 perm;
-        GList *l;
-        GFile *dest;
-        char *item;
-
-        gfiles_list = g_hash_table_get_keys (self->original_permissions);
-        for (l = gfiles_list; l != NULL; l = l->next)
-        {
-            item = l->data;
-            perm = GPOINTER_TO_UINT (g_hash_table_lookup (self->original_permissions, item));
-            dest = g_file_new_for_uri (item);
-            g_file_set_attribute_uint32 (dest,
-                                         G_FILE_ATTRIBUTE_UNIX_MODE,
-                                         perm, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, NULL);
-            g_object_unref (dest);
-        }
-
-        g_list_free (gfiles_list);
-        /* Here we must do what's necessary for the callback */
-        file_undo_info_transfer_callback (NULL, TRUE, self);
+        return;
     }
+
+    g_autoptr (GTask) task = g_task_new (G_OBJECT (self), NULL,
+                                         rec_permissions_undo_callback,
+                                         NULL);
+    g_task_set_task_data (task, g_steal_pointer (&files_list), (GDestroyNotify) g_list_free);
+
+    g_task_run_in_thread (task, rec_permissions_undo_thread);
 }
 
 static void
@@ -2235,7 +2238,7 @@ struct _NautilusFileUndoInfoPermissions
     guint32 new_permissions;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoPermissions, nautilus_file_undo_info_permissions, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoPermissions, nautilus_file_undo_info_permissions, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 permissions_strings_func (NautilusFileUndoInfo  *info,
@@ -2344,7 +2347,7 @@ struct _NautilusFileUndoInfoOwnership
     char *new_ownership;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoOwnership, nautilus_file_undo_info_ownership, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoOwnership, nautilus_file_undo_info_ownership, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 ownership_strings_func (NautilusFileUndoInfo  *info,
@@ -2486,7 +2489,7 @@ struct _NautilusFileUndoInfoExtract
     GList *outputs;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoExtract, nautilus_file_undo_info_extract, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoExtract, nautilus_file_undo_info_extract, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 extract_callback (GList    *outputs,
@@ -2661,7 +2664,7 @@ struct _NautilusFileUndoInfoCompress
     gchar *passphrase;
 };
 
-G_DEFINE_TYPE (NautilusFileUndoInfoCompress, nautilus_file_undo_info_compress, NAUTILUS_TYPE_FILE_UNDO_INFO)
+G_DEFINE_FINAL_TYPE (NautilusFileUndoInfoCompress, nautilus_file_undo_info_compress, NAUTILUS_TYPE_FILE_UNDO_INFO)
 
 static void
 compress_callback (GFile    *new_file,

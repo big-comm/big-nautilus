@@ -31,7 +31,7 @@ struct _NautilusAppChooser
     NautilusAppChooserWidget *app_chooser_widget;
 };
 
-G_DEFINE_TYPE (NautilusAppChooser, nautilus_app_chooser, ADW_TYPE_DIALOG)
+G_DEFINE_FINAL_TYPE (NautilusAppChooser, nautilus_app_chooser, ADW_TYPE_DIALOG)
 
 enum
 {
@@ -41,6 +41,8 @@ enum
     PROP_FILE_NAME,
     LAST_PROP
 };
+
+static GParamSpec *properties[LAST_PROP];
 
 enum
 {
@@ -176,6 +178,9 @@ nautilus_app_chooser_init (NautilusAppChooser *self)
     gtk_widget_add_controller (self->search_entry, controller);
     g_signal_connect_swapped (controller, "key-pressed",
                               G_CALLBACK (on_search_entry_key_pressed), self);
+
+    gtk_search_entry_set_key_capture_widget (GTK_SEARCH_ENTRY (self->search_entry),
+                                             GTK_WIDGET (self));
 }
 
 static gboolean
@@ -199,9 +204,6 @@ nautilus_app_chooser_constructed (GObject *object)
     gtk_widget_add_css_class (GTK_WIDGET (self->app_chooser_widget), "lowres-icon");
     gtk_box_append (GTK_BOX (self->content_box), GTK_WIDGET (self->app_chooser_widget));
 
-    nautilus_app_chooser_widget_set_show_default (self->app_chooser_widget, TRUE);
-    nautilus_app_chooser_widget_set_show_fallback (self->app_chooser_widget, TRUE);
-    nautilus_app_chooser_widget_set_show_other (self->app_chooser_widget, TRUE);
     nautilus_app_chooser_widget_set_search_entry (self->app_chooser_widget,
                                                   GTK_EDITABLE (self->search_entry));
 
@@ -214,7 +216,7 @@ nautilus_app_chooser_constructed (GObject *object)
     }
 
     g_signal_connect_object (self->app_chooser_widget, "application-selected",
-                             G_CALLBACK (on_application_selected), self, 0);
+                             G_CALLBACK (on_application_selected), self, G_CONNECT_DEFAULT);
     g_signal_connect_object (self->app_chooser_widget, "application-activated",
                              G_CALLBACK (on_application_activated), self, G_CONNECT_SWAPPED);
 
@@ -302,23 +304,22 @@ nautilus_app_chooser_class_init (NautilusAppChooserClass *klass)
 
     gtk_widget_class_bind_template_callback (widget_class, open_cb);
 
-    g_object_class_install_property (object_class,
-                                     PROP_CONTENT_TYPE,
-                                     g_param_spec_string ("content-type", "", "",
-                                                          NULL,
-                                                          G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE));
+    properties[PROP_CONTENT_TYPE] =
+        g_param_spec_string ("content-type", "", "",
+                             NULL,
+                             G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE);
 
-    g_object_class_install_property (object_class,
-                                     PROP_FILE_NAME,
-                                     g_param_spec_string ("file-name", "", "",
-                                                          NULL,
-                                                          G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE));
+    properties[PROP_FILE_NAME] =
+        g_param_spec_string ("file-name", "", "",
+                             NULL,
+                             G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE);
 
-    g_object_class_install_property (object_class,
-                                     PROP_SINGLE_CONTENT_TYPE,
-                                     g_param_spec_boolean ("single-content-type", "", "",
-                                                           TRUE,
-                                                           G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE));
+    properties[PROP_SINGLE_CONTENT_TYPE] =
+        g_param_spec_boolean ("single-content-type", "", "",
+                              TRUE,
+                              G_PARAM_CONSTRUCT_ONLY | G_PARAM_WRITABLE);
+
+    g_object_class_install_properties (object_class, G_N_ELEMENTS (properties), properties);
 }
 
 NautilusAppChooser *

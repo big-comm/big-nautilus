@@ -237,7 +237,7 @@ static GMountOperation * get_mount_operation (NautilusSidebar *sidebar);
 static GMountOperation * get_unmount_operation (NautilusSidebar *sidebar);
 
 
-G_DEFINE_TYPE (NautilusSidebar, nautilus_sidebar, GTK_TYPE_WIDGET);
+G_DEFINE_FINAL_TYPE (NautilusSidebar, nautilus_sidebar, GTK_TYPE_WIDGET);
 
 static void
 call_open_location (NautilusSidebar    *self,
@@ -1230,7 +1230,7 @@ nautilus_sidebar_set_show_trash (NautilusSidebar *sidebar,
     update_places (sidebar);
 }
 
-static gboolean
+static void
 hover_timer (gpointer user_data)
 {
     NautilusSidebar *sidebar = user_data;
@@ -1262,8 +1262,6 @@ hover_timer (gpointer user_data)
             call_open_location (sidebar, location, NULL, 0);
         }
     }
-
-    return G_SOURCE_REMOVE;
 }
 
 static gboolean
@@ -1294,7 +1292,7 @@ check_valid_drop_target (NautilusSidebar    *sidebar,
 
     g_object_get (row,
                   "place-type", &place_type,
-                  "section_type", &section_type,
+                  "section-type", &section_type,
                   "uri", &uri,
                   "file", &dest_file,
                   NULL);
@@ -1466,7 +1464,7 @@ drag_motion_callback (GtkDropTarget   *target,
     {
         g_clear_handle_id (&sidebar->hover_timer_id, g_source_remove);
         g_set_weak_pointer (&sidebar->hover_row, row);
-        sidebar->hover_timer_id = g_timeout_add (HOVER_TIMEOUT, hover_timer, sidebar);
+        sidebar->hover_timer_id = g_timeout_add_once (HOVER_TIMEOUT, hover_timer, sidebar);
         sidebar->hover_start_point.x = x;
         sidebar->hover_start_point.y = y;
     }
@@ -2342,11 +2340,13 @@ properties_cb (GSimpleAction *action,
     GList *list;
     NautilusFile *file;
     g_autofree gchar *uri = NULL;
+    g_autoptr (GFile) location = NULL;
 
     g_object_get (sidebar->context_row, "uri", &uri, NULL);
     file = nautilus_file_get_by_uri (uri);
     list = g_list_append (NULL, file);
-    nautilus_properties_present_dialog (list, GTK_WIDGET (sidebar));
+    location = nautilus_file_get_location (file);
+    nautilus_properties_present_dialog (list, GTK_WIDGET (sidebar), location);
 
     nautilus_file_list_free (list);
 }
@@ -3358,7 +3358,7 @@ on_row_pressed (GtkGestureClick    *gesture,
 
     g_object_get (row,
                   "sidebar", &sidebar,
-                  "section_type", &section_type,
+                  "section-type", &section_type,
                   NULL);
 
     if (section_type == NAUTILUS_SIDEBAR_SECTION_BOOKMARKS)
@@ -3664,23 +3664,23 @@ create_volume_monitor (NautilusSidebar *sidebar)
 
     sidebar->volume_monitor = g_volume_monitor_get ();
 
-    g_signal_connect_object (sidebar->volume_monitor, "volume_added",
+    g_signal_connect_object (sidebar->volume_monitor, "volume-added",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "volume_removed",
+    g_signal_connect_object (sidebar->volume_monitor, "volume-removed",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "volume_changed",
+    g_signal_connect_object (sidebar->volume_monitor, "volume-changed",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "mount_added",
+    g_signal_connect_object (sidebar->volume_monitor, "mount-added",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "mount_removed",
+    g_signal_connect_object (sidebar->volume_monitor, "mount-removed",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "mount_changed",
+    g_signal_connect_object (sidebar->volume_monitor, "mount-changed",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "drive_disconnected",
+    g_signal_connect_object (sidebar->volume_monitor, "drive-disconnected",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "drive_connected",
+    g_signal_connect_object (sidebar->volume_monitor, "drive-connected",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
-    g_signal_connect_object (sidebar->volume_monitor, "drive_changed",
+    g_signal_connect_object (sidebar->volume_monitor, "drive-changed",
                              G_CALLBACK (update_places), sidebar, G_CONNECT_SWAPPED);
 }
 

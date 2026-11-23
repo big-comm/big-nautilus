@@ -71,7 +71,7 @@ struct _NautilusSearchDirectory
 typedef struct
 {
     gboolean monitor_hidden_files;
-    NautilusFileAttributes monitor_attributes;
+    NautilusAttributes monitor_attributes;
 
     gconstpointer client;
 } SearchMonitor;
@@ -83,8 +83,7 @@ typedef struct
     NautilusDirectoryCallback callback;
     gpointer callback_data;
 
-    NautilusFileAttributes wait_for_attributes;
-    gboolean wait_for_file_list;
+    NautilusAttributes wait_for_attributes;
     GList *file_list;
     GHashTable *non_ready_hash;
 } SearchCallback;
@@ -96,18 +95,12 @@ enum
     NUM_PROPERTIES
 };
 
-G_DEFINE_TYPE_WITH_CODE (NautilusSearchDirectory, nautilus_search_directory, NAUTILUS_TYPE_DIRECTORY,
-                         nautilus_ensure_extension_points ();
-                         /* It looks like you’re implementing an extension point.
-                          * Did you modify nautilus_ensure_extension_builtins() accordingly?
-                          *
-                          * • Yes
-                          * • Doing it right now
-                          */
-                         g_io_extension_point_implement (NAUTILUS_DIRECTORY_PROVIDER_EXTENSION_POINT_NAME,
-                                                         g_define_type_id,
-                                                         NAUTILUS_SEARCH_DIRECTORY_PROVIDER_NAME,
-                                                         0));
+G_DEFINE_FINAL_TYPE_WITH_CODE (NautilusSearchDirectory, nautilus_search_directory, NAUTILUS_TYPE_DIRECTORY,
+                               nautilus_ensure_extension_points ();
+                               g_io_extension_point_implement (NAUTILUS_DIRECTORY_PROVIDER_EXTENSION_POINT_NAME,
+                                                               g_define_type_id,
+                                                               NAUTILUS_SEARCH_DIRECTORY_PROVIDER_NAME,
+                                                               0))
 
 static GParamSpec *properties[NUM_PROPERTIES] = { NULL, };
 
@@ -207,7 +200,7 @@ static void
 search_monitor_add (NautilusDirectory         *directory,
                     gconstpointer              client,
                     gboolean                   monitor_hidden_files,
-                    NautilusFileAttributes     file_attributes,
+                    NautilusAttributes         attributes,
                     NautilusDirectoryCallback  callback,
                     gpointer                   callback_data)
 {
@@ -221,7 +214,7 @@ search_monitor_add (NautilusDirectory         *directory,
 
     monitor = g_new0 (SearchMonitor, 1);
     monitor->monitor_hidden_files = monitor_hidden_files;
-    monitor->monitor_attributes = file_attributes;
+    monitor->monitor_attributes = attributes;
     monitor->client = client;
 
     self->monitor_list = g_list_prepend (self->monitor_list, monitor);
@@ -237,7 +230,7 @@ search_monitor_add (NautilusDirectory         *directory,
         file = list->data;
 
         /* Add monitors */
-        nautilus_file_monitor_add (file, monitor, file_attributes);
+        nautilus_file_monitor_add (file, monitor, attributes);
     }
 
     start_search (self);
@@ -433,8 +426,7 @@ file_list_to_hash_table (GList *file_list)
 
 static void
 search_call_when_ready (NautilusDirectory         *directory,
-                        NautilusFileAttributes     file_attributes,
-                        gboolean                   wait_for_file_list,
+                        NautilusAttributes         attributes,
                         NautilusDirectoryCallback  callback,
                         gpointer                   callback_data)
 {
@@ -459,10 +451,10 @@ search_call_when_ready (NautilusDirectory         *directory,
     search_callback->search_directory = self;
     search_callback->callback = callback;
     search_callback->callback_data = callback_data;
-    search_callback->wait_for_attributes = file_attributes;
-    search_callback->wait_for_file_list = wait_for_file_list;
+    search_callback->wait_for_attributes = attributes;
 
-    if (wait_for_file_list && !self->search_ready_and_valid)
+    if (IS_ATTRIBUTE_SET (attributes, NAUTILUS_ATTRIBUTE_FILE_LIST) &&
+        !self->search_ready_and_valid)
     {
         /* Add it to the pending callback list, which will be
          * processed when the directory has valid data from the new
@@ -885,7 +877,7 @@ update_base_model (NautilusSearchDirectory *self)
         if (self->base_model != NULL)
         {
             nautilus_directory_file_monitor_add (self->base_model, &self->base_model,
-                                                 TRUE, NAUTILUS_FILE_ATTRIBUTE_INFO,
+                                                 TRUE, NAUTILUS_ATTRIBUTE_INFO,
                                                  NULL, NULL);
         }
     }

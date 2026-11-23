@@ -12,6 +12,7 @@
 #include "nautilus-filename-utilities.h"
 
 #include <glib/gi18n.h>
+#include <gtk/gtk.h>
 
 #define FILE_NAME_DUPLICATED_LABEL_TIMEOUT 500
 
@@ -58,7 +59,7 @@ enum
 static guint signals[LAST_SIGNAL];
 static GParamSpec *properties[NUM_PROPERTIES];
 
-G_DEFINE_TYPE (NautilusFilenameValidator, nautilus_filename_validator, G_TYPE_OBJECT)
+G_DEFINE_FINAL_TYPE (NautilusFilenameValidator, nautilus_filename_validator, G_TYPE_OBJECT)
 
 void
 nautilus_filename_validator_set_target_is_folder (NautilusFilenameValidator *self,
@@ -71,8 +72,7 @@ void
 nautilus_filename_validator_set_original_name (NautilusFilenameValidator *self,
                                                const char                *original_name)
 {
-    g_free (self->original_name);
-    self->original_name = g_strdup (original_name);
+    g_set_str (&self->original_name, original_name);
 }
 
 void
@@ -136,17 +136,11 @@ nautilus_filename_validator_name_is_valid (NautilusFilenameValidator  *self,
         *error_message = is_folder ? _("Folder names cannot contain “/”") :
                                      _("File names cannot contain “/”");
     }
-    else if (strcmp (name, ".") == 0)
+    else if (strcmp (name, ".") == 0 || strcmp (name, "..") == 0)
     {
         is_valid = FALSE;
-        *error_message = is_folder ? _("A folder cannot be called “.”") :
-                                     _("A file cannot be called “.”");
-    }
-    else if (strcmp (name, "..") == 0)
-    {
-        is_valid = FALSE;
-        *error_message = is_folder ? _("A folder cannot be called “..”") :
-                                     _("A file cannot be called “..”");
+        *error_message = is_folder ? _("A folder cannot be called “.” or “..”") :
+                                     _("A file cannot be called “.” or “..”");
     }
     else if (nautilus_filename_validator_is_name_too_long (self, name))
     {
@@ -165,18 +159,47 @@ nautilus_filename_validator_name_is_valid (NautilusFilenameValidator  *self,
     return is_valid;
 }
 
+static void
+set_feedback_text (NautilusFilenameValidator *self,
+                   const char                *text)
+{
+    GtkWindow *window;
+
+    if (self->feedback_text == text)
+    {
+        return;
+    }
+
+    self->feedback_text = text;
+    g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_FEEDBACK_TEXT]);
+    g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_HAS_FEEDBACK]);
+
+    if (self->feedback_text == NULL)
+    {
+        return;
+    }
+
+    window = gtk_application_get_active_window (GTK_APPLICATION (g_application_get_default ()));
+    if (window == NULL)
+    {
+        return;
+    }
+
+    /* FIXME: Screen readers skip reading "/" at default punctuation verbosity.
+     * In the future, we should replace occurrences of "/" with "slash" spelled out. */
+
+    gtk_accessible_announce (GTK_ACCESSIBLE (window),
+                             self->feedback_text,
+                             GTK_ACCESSIBLE_ANNOUNCEMENT_PRIORITY_MEDIUM);
+}
+
 static gboolean
 duplicated_file_label_show (NautilusFilenameValidator *self)
 {
     const char *text = self->duplicated_is_folder ? _("A folder with that name already exists") :
                                                     _("A file with that name already exists");
 
-    if (self->feedback_text != text)
-    {
-        self->feedback_text = text;
-        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_FEEDBACK_TEXT]);
-        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_HAS_FEEDBACK]);
-    }
+    set_feedback_text (self, text);
 
     self->duplicated_label_timeout_id = 0;
 
@@ -198,13 +221,7 @@ filename_validator_process_new_name (NautilusFilenameValidator *self)
                                                                   name,
                                                                   &error_message);
 
-    if (self->feedback_text != error_message)
-    {
-        self->feedback_text = error_message;
-        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_FEEDBACK_TEXT]);
-        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_HAS_FEEDBACK]);
-    }
-
+    set_feedback_text (self, error_message);
     existing_file = nautilus_directory_get_file_by_name (self->containing_directory, name);
     self->duplicated_name = existing_file != NULL &&
                             !nautilus_filename_validator_ignore_existing_file (self,
@@ -281,8 +298,7 @@ nautilus_filename_validator_validate (NautilusFilenameValidator *self)
     g_return_if_fail (NAUTILUS_IS_DIRECTORY (self->containing_directory));
 
     nautilus_directory_call_when_ready (self->containing_directory,
-                                        NAUTILUS_FILE_ATTRIBUTE_INFO,
-                                        TRUE,
+                                        NAUTILUS_ATTRIBUTE_INFO | NAUTILUS_ATTRIBUTE_FILE_LIST,
                                         on_directory_info_ready_to_validate,
                                         self);
 }
@@ -329,8 +345,7 @@ nautilus_filename_validator_try_accept (NautilusFilenameValidator *self)
     g_return_if_fail (NAUTILUS_IS_DIRECTORY (self->containing_directory));
 
     nautilus_directory_call_when_ready (self->containing_directory,
-                                        NAUTILUS_FILE_ATTRIBUTE_INFO,
-                                        TRUE,
+                                        NAUTILUS_ATTRIBUTE_INFO | NAUTILUS_ATTRIBUTE_FILE_LIST,
                                         on_directory_info_ready_to_try_accept,
                                         self);
 }

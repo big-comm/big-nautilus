@@ -20,6 +20,7 @@ template $NautilusPropertiesWidget: Adw.Bin {
               visible: bind popout_button.visible;
               icon-name: "external-link-symbolic";
               clicked => $popout_window_clicked(template);
+              tooltip-text: bind popout_button.tooltip-text;
             }
           }
 
@@ -56,6 +57,7 @@ template $NautilusPropertiesWidget: Adw.Bin {
             Button popout_button {
               visible: false;
               icon-name: "external-link-symbolic";
+              tooltip-text: _("Detach Window");
               clicked => $popout_window_clicked(template);
             }
           }
@@ -75,18 +77,33 @@ template $NautilusPropertiesWidget: Adw.Bin {
                     vhomogeneous: false;
 
                     StackPage {
-                      child: Image icon_image {
-                        icon-name: "image-missing";
+                      child: Adw.Bin icon_bin {
+                        width-request: 96;
+                        height-request: 96;
 
-                        styles [
-                          "icon-dropshadow",
-                        ]
+                        child: $NautilusImage icon_image {
+                          halign: center;
+                          valign: center;
+                          size: 96;
 
-                        accessibility {
-                          labelled-by: [
-                            name_value_label,
-                          ];
-                        }
+                          styles [
+                            "icon-dropshadow",
+                          ]
+
+                          accessibility {
+                            labelled-by: [
+                              name_value_label,
+                            ];
+                          }
+                        };
+                      };
+                    }
+
+                    StackPage {
+                      name: "loading";
+                      child: Adw.Spinner {
+                        height-request: 96;
+                        width-request: 96;
                       };
                     }
 
@@ -97,13 +114,21 @@ template $NautilusPropertiesWidget: Adw.Bin {
                             "image-frame",
                           ]
 
-                          Image {
-                            paintable: bind icon_image.paintable;
-                            pixel-size: bind icon_image.pixel-size;
+                          Adw.Bin {
+                            width-request: 96;
+                            height-request: 96;
 
-                            styles [
-                              "icon-dropshadow",
-                            ]
+                            child: $NautilusImage {
+                              halign: center;
+                              valign: center;
+                              size: 96;
+                              fallback: bind icon_image.fallback;
+                              source: bind icon_image.source;
+
+                              styles [
+                                "icon-dropshadow",
+                              ]
+                            };
                           }
                         }
 

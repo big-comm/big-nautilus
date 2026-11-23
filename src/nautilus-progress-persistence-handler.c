@@ -44,7 +44,9 @@ struct _NautilusProgressPersistenceHandler
     guint active_infos;
 };
 
-G_DEFINE_TYPE (NautilusProgressPersistenceHandler, nautilus_progress_persistence_handler, G_TYPE_OBJECT);
+G_DEFINE_FINAL_TYPE (NautilusProgressPersistenceHandler,
+                     nautilus_progress_persistence_handler,
+                     G_TYPE_OBJECT)
 
 /* Our policy for showing progress notification is the following:
  * - file operations that end within two seconds do not get notified in any way
@@ -113,6 +115,7 @@ progress_persistence_handler_update_notification (NautilusProgressPersistenceHan
                                       self->active_infos),
                             self->active_infos);
     g_notification_set_body (notification, body);
+    g_notification_set_category (notification, XDG_NOTIFICATION_CATEGORY_TRANSFER);
 
     nautilus_application_send_notification (self->app,
                                             "progress", notification);
@@ -121,13 +124,10 @@ progress_persistence_handler_update_notification (NautilusProgressPersistenceHan
     g_free (body);
 }
 
-void
-nautilus_progress_persistence_handler_make_persistent (NautilusProgressPersistenceHandler *self)
+static void
+make_persistent (NautilusProgressPersistenceHandler *self)
 {
-    GList *windows;
-
-    windows = nautilus_application_get_windows (self->app);
-    if (self->active_infos > 0 && windows == NULL)
+    if (self->active_infos > 0)
     {
         progress_persistence_handler_update_notification (self);
     }
@@ -146,6 +146,7 @@ progress_persistence_handler_show_complete_notification (NautilusProgressPersist
     complete_notification = g_notification_new (_("File Operations"));
     g_notification_set_body (complete_notification,
                              _("All file operations have been completed"));
+    g_notification_set_category (complete_notification, XDG_NOTIFICATION_CATEGORY_TRANSFER_COMPLETE);
     nautilus_application_send_notification (self->app,
                                             "transfer-complete",
                                             complete_notification);
@@ -245,7 +246,7 @@ new_op_started_timeout (TimeoutData *data)
 
     if (nautilus_progress_info_get_is_paused (info))
     {
-        return TRUE;
+        return G_SOURCE_CONTINUE;
     }
 
     if (!nautilus_progress_info_get_is_finished (info))
@@ -255,7 +256,7 @@ new_op_started_timeout (TimeoutData *data)
 
     timeout_data_free (data);
 
-    return FALSE;
+    return G_SOURCE_REMOVE;
 }
 
 static void
@@ -362,6 +363,8 @@ nautilus_progress_persistence_handler_init (NautilusProgressPersistenceHandler *
     self->manager = nautilus_progress_info_manager_dup_singleton ();
     g_signal_connect (self->manager, "new-progress-info",
                       G_CALLBACK (new_progress_info_cb), self);
+    g_signal_connect_object (g_application_get_default (), "last-window-closed",
+                             G_CALLBACK (make_persistent), self, G_CONNECT_SWAPPED);
 }
 
 static void

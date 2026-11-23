@@ -23,7 +23,7 @@ struct _NautilusNetworkView
     GtkListView *view_ui;
 };
 
-G_DEFINE_TYPE (NautilusNetworkView, nautilus_network_view, NAUTILUS_TYPE_LIST_BASE)
+G_DEFINE_FINAL_TYPE (NautilusNetworkView, nautilus_network_view, NAUTILUS_TYPE_LIST_BASE)
 
 #define get_view_item(li) \
         (NAUTILUS_VIEW_ITEM (gtk_tree_list_row_get_item (GTK_TREE_LIST_ROW (gtk_list_item_get_item (li)))))
@@ -231,8 +231,7 @@ setup_cell (GtkSignalListItemFactory *factory,
 
     cell = nautilus_network_cell_new (NAUTILUS_LIST_BASE (self));
     gtk_list_item_set_child (listitem, GTK_WIDGET (cell));
-    setup_cell_common (G_OBJECT (listitem), cell);
-    setup_cell_hover (cell);
+    setup_cell_common (G_OBJECT (listitem), cell, GTK_WIDGET (cell));
 
     g_object_bind_property (self, "icon-size",
                             cell, "icon-size",

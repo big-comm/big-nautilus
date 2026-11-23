@@ -22,7 +22,7 @@ struct _NautilusStarCell
     GtkButton *star;
 };
 
-G_DEFINE_TYPE (NautilusStarCell, nautilus_star_cell, NAUTILUS_TYPE_VIEW_CELL)
+G_DEFINE_FINAL_TYPE (NautilusStarCell, nautilus_star_cell, NAUTILUS_TYPE_VIEW_CELL)
 
 static void
 toggle_star (NautilusStarCell *self)
@@ -73,7 +73,7 @@ update_star (GtkButton    *star,
 
     /* Setting the tooltip is somewhat expensive as it involves system calls, so only
      * update UI on change. */
-    if (g_strcmp0 (gtk_widget_get_tooltip_text (GTK_WIDGET (star)), tooltip))
+    if (g_strcmp0 (gtk_widget_get_tooltip_text (GTK_WIDGET (star)), tooltip) != 0)
     {
         gtk_button_set_icon_name (star, is_starred ? "starred-symbolic" : "non-starred-symbolic");
         gtk_widget_set_tooltip_text (GTK_WIDGET (star), tooltip);
@@ -135,7 +135,7 @@ nautilus_star_cell_init (NautilusStarCell *self)
 
     /* Update on tag changes */
     g_signal_connect_object (nautilus_tag_manager_get (), "starred-changed",
-                             G_CALLBACK (on_starred_changed), self, 0);
+                             G_CALLBACK (on_starred_changed), self, G_CONNECT_DEFAULT);
 
     /* Connect automatically to an item. */
     self->item_signal_group = g_signal_group_new (NAUTILUS_TYPE_VIEW_ITEM);

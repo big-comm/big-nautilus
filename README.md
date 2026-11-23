@@ -6,7 +6,7 @@ A file manager for [BigLinux](https://www.biglinux.com.br/) and
 terminal, colour tags, and an optional index-backed search that answers in
 under a millisecond.
 
-Tracks upstream GNOME Files closely — currently **50.4** — so everything you
+Tracks upstream GNOME Files closely (currently **51.1**), so everything you
 already know about Files still applies. The additions sit alongside it rather
 than replacing it.
 
@@ -136,7 +136,7 @@ Measured by typing into a real window on a 660,000-file home folder, the main
 loop is held for a median of 8 to 30 ms per letter in the grid view, and for
 about 100 ms at worst, on the first letter of a new word. Before this, every
 letter cost 130 to 330 ms, and a single letter without the daemon froze the
-window for 6.8 seconds. `test/automated/display/search-probe.c` is the tool
+window for 6.8 seconds. `test/display/search-probe.c` is the tool
 those numbers come from.
 
 The daemon is entirely optional. When it is not running, search falls back to
@@ -158,7 +158,7 @@ package, it is replaced in place.
 
 ### Building from source
 
-Dependencies match GNOME Files 50, plus VTE for the terminal and json-glib
+Dependencies match GNOME Files 51, plus VTE for the terminal and json-glib
 for the search client:
 
 ```sh

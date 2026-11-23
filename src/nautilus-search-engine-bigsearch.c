@@ -343,10 +343,10 @@ path_is_hidden (const char *path,
 /* Returns: where the next page starts, 0 when this was the last one, or -1
  * with @error set. */
 static gint64
-add_hits_from_response (NautilusSearchEngineBigsearch *self,
-                        const char                    *response,
-                        const char                    *under,
-                        GError                       **error)
+add_hits_from_response (NautilusSearchEngineBigsearch  *self,
+                        const char                     *response,
+                        const char                     *under,
+                        GError                        **error)
 {
     g_autoptr (JsonParser) parser = json_parser_new ();
     JsonNode *root_node;

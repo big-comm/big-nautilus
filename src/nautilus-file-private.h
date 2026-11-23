@@ -89,7 +89,6 @@ struct NautilusFilePrivate
 	char *thumbnail_path;
 	GdkTexture *thumbnail;
 	time_t thumbnail_mtime;
-        GCancellable *thumbnail_cancellable;
 
 	char *activation_uri;
 
@@ -112,11 +111,9 @@ struct NautilusFilePrivate
 
 	/* Emblems provided by extensions */
 	GList *extension_emblems;
-	GList *pending_extension_emblems;
 
 	/* Attributes provided by extensions */
 	GHashTable *extension_attributes;
-	GHashTable *pending_extension_attributes;
 
 	GHashTable *metadata;
 
@@ -251,14 +248,12 @@ void          nautilus_file_set_mount                      (NautilusFile        
  * I/O or kicking off new I/O.
  */
 void                   nautilus_file_invalidate_attributes_internal     (NautilusFile           *file,
-									 NautilusFileAttributes  file_attributes);
-NautilusFileAttributes nautilus_file_get_all_attributes                 (void);
+									 NautilusAttributes      attributes);
+NautilusAttributes     nautilus_file_get_all_attributes                 (void);
 gboolean               nautilus_file_is_self_owned                      (NautilusFile           *file);
 void                   nautilus_file_invalidate_count                   (NautilusFile           *file);
 gboolean               nautilus_file_rename_in_progress                 (NautilusFile           *file);
 void                   nautilus_file_invalidate_extension_info_internal (NautilusFile           *file);
-void                   nautilus_file_info_providers_done                (NautilusFile           *file);
-
 
 /* Thumbnailing: */
 gboolean          nautilus_file_set_thumbnail              (NautilusFile           *file,

@@ -45,13 +45,12 @@ void              nautilus_cell_pool_add  (NautilusCellPool *pool,
 
 /* Shareable helpers */
 void                          setup_cell_common                 (GObject          *listitem,
-                                                                 NautilusViewCell *cell);
+                                                                 NautilusViewCell *cell,
+                                                                 GtkWidget        *hover_target);
 void                          setup_cell_links                  (GObject          *listitem,
                                                                  NautilusViewCell *cell);
 void                          teardown_cell_links               (GObject          *listitem);
-void                          setup_cell_controllers            (NautilusViewCell *cell);
-void                          setup_cell_hover                  (NautilusViewCell *cell);
-void                          setup_cell_hover_inner_target     (NautilusViewCell *cell,
-                                                                 GtkWidget        *target);
+void                          setup_cell_controllers            (NautilusViewCell *cell,
+                                                                 GtkWidget        *hover_target);
 
 G_END_DECLS

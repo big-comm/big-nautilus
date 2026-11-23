@@ -1,5 +1,4 @@
-/* nautilusgtkplacesview.c
- *
+/*
  * Copyright (C) 2015 Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
  *
  * SPDX-License-Identifier: LGPL-2.1-or-later
@@ -28,7 +27,7 @@ struct _NautilusRecentServers
 static void        nautilus_recent_servers_set_loading (NautilusRecentServers *self,
                                                         gboolean               loading);
 
-G_DEFINE_TYPE (NautilusRecentServers, nautilus_recent_servers, G_TYPE_OBJECT)
+G_DEFINE_FINAL_TYPE (NautilusRecentServers, nautilus_recent_servers, G_TYPE_OBJECT)
 
 enum
 {

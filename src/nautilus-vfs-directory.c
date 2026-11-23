@@ -35,8 +35,7 @@ nautilus_vfs_directory_init (NautilusVFSDirectory *directory)
 
 static void
 vfs_call_when_ready (NautilusDirectory         *directory,
-                     NautilusFileAttributes     file_attributes,
-                     gboolean                   wait_for_file_list,
+                     NautilusAttributes         attributes,
                      NautilusDirectoryCallback  callback,
                      gpointer                   callback_data)
 {
@@ -45,8 +44,7 @@ vfs_call_when_ready (NautilusDirectory         *directory,
     nautilus_directory_call_when_ready_internal
         (directory,
         NULL,
-        file_attributes,
-        wait_for_file_list,
+        attributes,
         callback,
         NULL,
         callback_data);
@@ -71,7 +69,7 @@ static void
 vfs_file_monitor_add (NautilusDirectory         *directory,
                       gconstpointer              client,
                       gboolean                   monitor_hidden_files,
-                      NautilusFileAttributes     file_attributes,
+                      NautilusAttributes         attributes,
                       NautilusDirectoryCallback  callback,
                       gpointer                   callback_data)
 {
@@ -82,7 +80,7 @@ vfs_file_monitor_add (NautilusDirectory         *directory,
         (directory, NULL,
         client,
         monitor_hidden_files,
-        file_attributes,
+        attributes,
         callback, callback_data);
 }
 
@@ -99,7 +97,7 @@ vfs_file_monitor_remove (NautilusDirectory *directory,
 static void
 vfs_force_reload (NautilusDirectory *directory)
 {
-    NautilusFileAttributes all_attributes;
+    NautilusAttributes all_attributes;
 
     g_assert (NAUTILUS_IS_DIRECTORY (directory));
 

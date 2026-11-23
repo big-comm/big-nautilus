@@ -6,14 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a fork of GNOME Files (Nautilus), the default file manager for GNOME desktop. The codebase is written in C and uses GTK4/Libadwaita for the UI. This fork includes an embedded terminal feature using VTE (Virtual Terminal Emulator).
 
-**Key Dependencies (Nautilus 50):**
-- GTK4 >= 4.20.0
+**Key Dependencies (Nautilus 51):**
+- GTK4 >= 4.24.0
 - Libadwaita >= 1.8.alpha
-- GLib >= 2.84.0
+- GLib >= 2.89.0
 - VTE >= 0.78.0 (for terminal widget, vte-2.91-gtk4)
 - glycin >= 2 (image loader)
 - blueprint-compiler >= 0.19.0 (build-time, for .blp UIs)
-- TinySPARQL 3.0 (for search and metadata)
+- TinySPARQL >= 3.8 (for search and metadata)
+- libgxdp (portal helper, built as a subproject)
 
 **Runtime Dependencies:**
 - Bubblewrap (for sandboxing)
@@ -162,8 +163,8 @@ File operations are asynchronous and progress-tracked:
 ## Testing
 
 Tests are located in `test/` directory:
-- `test/automated/displayless/`: Tests that don't require display
-- `test/automated/display/`: Tests requiring display/GTK
+- `test/displayless/`: Tests that don't require display
+- `test/display/`: Tests requiring display/GTK
 - `test/file-torture.py`: File system torture test
 
 Run specific test categories:
@@ -249,7 +250,7 @@ flatpak run org.gnome.Nautilus.Devel
 - Warning level 2
 - Strict compiler warnings (see meson.build for full list)
 - Use GLib/GTK conventions
-- Deprecation warnings currently disabled (see meson.build line 73)
+- Deprecation warnings currently disabled (see meson.build line 69)
 
 ## Resources
 

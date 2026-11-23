@@ -45,7 +45,7 @@
     <!-- Images -->
     <file>image/checkerboard.png</file>
     <file>image/filmholes.png</file>
-    <file>image/text-x-preview.png</file>
+    <file preprocess="xml-stripblanks">image/text-x-preview.svg</file>
 
     <file>style.css</file>
 
@@ -55,9 +55,9 @@
     <file preprocess="xml-stripblanks">icons/scalable/actions/cancel-operation-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/cut-large-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/cut-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/emblem-not-accessible-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/emblem-readonly-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/emblem-symbolic-link-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/emblem-unwritable-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/external-link-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/file-operation-cancelled-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/scalable/actions/file-operation-finished-symbolic.svg</file>

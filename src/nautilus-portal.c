@@ -12,13 +12,14 @@
 
 #include <config.h>
 #include <glib/gi18n.h>
-#include <xdp-gnome/externalwindow.h>
-#include <xdp-gnome/request.h>
-#include <xdp-gnome/xdg-desktop-portal-dbus.h>
+#include <gxdp.h>
+#include <gxdp-dbus.h>
+#include <xdg-desktop-portal-dbus.h>
 
 #include "nautilus-file-chooser.h"
 #include "nautilus-file-utilities.h"
 #include "nautilus-global-preferences.h"
+#include "nautilus-portal-request.h"
 
 #define DESKTOP_PORTAL_OBJECT_PATH "/org/freedesktop/portal/desktop"
 
@@ -35,16 +36,16 @@ struct _NautilusPortal
     XdpImplFileChooser *impl_file_chooser_skeleton;
 };
 
-G_DEFINE_TYPE (NautilusPortal, nautilus_portal, G_TYPE_OBJECT);
+G_DEFINE_FINAL_TYPE (NautilusPortal, nautilus_portal, G_TYPE_OBJECT);
 
 typedef struct
 {
     NautilusPortal *self;
 
     GDBusMethodInvocation *invocation;
-    Request *request;
+    NautilusPortalRequest *request;
 
-    ExternalWindow *external_parent;
+    GxdpExternalWindow *external_parent;
     GtkWindow *window;
 
     GActionGroup *choices_action_group;
@@ -122,7 +123,7 @@ complete_file_chooser (FileChooserData *data,
         g_assert_not_reached ();
     }
 
-    request_unexport (data->request);
+    nautilus_portal_request_unexport (data->request);
 
     save_window_size (data->window);
     gtk_window_destroy (data->window);
@@ -589,7 +590,7 @@ handle_file_chooser_methods (XdpImplFileChooser    *object,
     /* Show window */
     if (arg_parent_window != NULL && *arg_parent_window != '\0')
     {
-        data->external_parent = create_external_window_from_handle (arg_parent_window);
+        data->external_parent = gxdp_external_window_new_from_handle (arg_parent_window);
         if (data->external_parent == NULL)
         {
             g_warning ("Failed to associate portal window with parent window %s",
@@ -604,7 +605,7 @@ handle_file_chooser_methods (XdpImplFileChooser    *object,
 
             (void) g_variant_lookup (arg_options, "modal", "b", &modal);
 
-            external_window_set_parent_of (data->external_parent, surface);
+            gxdp_external_window_set_parent_of (data->external_parent, surface);
             gtk_window_set_modal (data->window, modal);
         }
     }
@@ -613,11 +614,12 @@ handle_file_chooser_methods (XdpImplFileChooser    *object,
     gtk_window_present (data->window);
 
     /* Setup request. */
-    data->request = request_new (g_dbus_method_invocation_get_sender (invocation),
-                                 arg_app_id,
-                                 arg_handle);
+    data->request = nautilus_portal_request_new (g_dbus_method_invocation_get_sender (invocation),
+                                                 arg_app_id,
+                                                 arg_handle);
     g_signal_connect (data->request, "handle-close", G_CALLBACK (handle_close), data);
-    request_export (data->request, g_dbus_method_invocation_get_connection (invocation));
+    nautilus_portal_request_export (data->request,
+                                    g_dbus_method_invocation_get_connection (invocation));
 
     return G_DBUS_METHOD_INVOCATION_HANDLED;
 }

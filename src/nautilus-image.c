@@ -13,7 +13,6 @@
 #include "nautilus-file.h"
 #include "nautilus-global-preferences.h"
 #include "nautilus-hash-queue.h"
-#include "nautilus-icon-info.h"
 #include "nautilus-mime-actions.h"
 #include "nautilus-scheme.h"
 #include "nautilus-thumbnails.h"
@@ -43,6 +42,7 @@ enum
     PROP_0,
     PROP_SOURCE,
     PROP_SIZE,
+    PROP_FALLBACK,
     N_PROPS,
 };
 
@@ -494,25 +494,24 @@ file_info_ready_callback (GObject      *source_object,
                                      self);
 }
 
-typedef enum
-{
-    NAUTILUS_IMAGE_STATUS_THUMBNAIL,
-    NAUTILUS_IMAGE_STATUS_LOADING,
-    NAUTILUS_IMAGE_STATUS_FALLBACK,
-} NautilusImageStatus;
-
-static NautilusImageStatus
+NautilusImageStatus
 nautilus_image_get_status (NautilusImage *self)
 {
     if (self->texture != NULL)
     {
         return NAUTILUS_IMAGE_STATUS_THUMBNAIL;
     }
+    else if (self->is_loading_attributes &&
+             self->cancellable != NULL &&
+             self->error == NULL)
+    {
+        return NAUTILUS_IMAGE_STATUS_LOADING_ATTRIBUTES;
+    }
     else if (!self->is_loading_attributes &&
              self->cancellable != NULL &&
              self->error == NULL)
     {
-        return NAUTILUS_IMAGE_STATUS_LOADING;
+        return NAUTILUS_IMAGE_STATUS_LOADING_THUMBNAIL;
     }
 
     return NAUTILUS_IMAGE_STATUS_FALLBACK;
@@ -544,13 +543,25 @@ nautilus_image_set_texture (NautilusImage *self,
 
         if (texture != NULL)
         {
-            gtk_widget_add_css_class (GTK_WIDGET (self), "thumbnail");
+            gtk_widget_add_css_class (GTK_WIDGET (self), "file-thumbnail");
         }
         else
         {
-            gtk_widget_remove_css_class (GTK_WIDGET (self), "thumbnail");
+            gtk_widget_remove_css_class (GTK_WIDGET (self), "file-thumbnail");
         }
     }
+}
+
+/**
+ * nautilus_image_get_fallback:
+ * @self: A #NautilusImage
+ *
+ * Returns: (transfer none): The fallback paintable for the image.
+ */
+GdkPaintable *
+nautilus_image_get_fallback (NautilusImage *self)
+{
+    return self->fallback_paintable;
 }
 
 void
@@ -558,6 +569,7 @@ nautilus_image_set_fallback (NautilusImage *self,
                              GdkPaintable  *paintable)
 {
     gboolean resize = (self->fallback_paintable != paintable);
+    NautilusImageStatus status = nautilus_image_get_status (self);
 
     if (resize && self->fallback_paintable != NULL && paintable != NULL)
     {
@@ -568,7 +580,8 @@ nautilus_image_set_fallback (NautilusImage *self,
     }
 
     if (g_set_object (&self->fallback_paintable, paintable) &&
-        nautilus_image_get_status (self) == NAUTILUS_IMAGE_STATUS_FALLBACK)
+        (status == NAUTILUS_IMAGE_STATUS_LOADING_ATTRIBUTES ||
+         status == NAUTILUS_IMAGE_STATUS_FALLBACK))
     {
         if (resize)
         {
@@ -578,7 +591,21 @@ nautilus_image_set_fallback (NautilusImage *self,
         {
             gtk_widget_queue_draw (GTK_WIDGET (self));
         }
+
+        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_FALLBACK]);
     }
+}
+
+/**
+ * nautilus_image_get_source:
+ * @self: A #NautilusImage
+ *
+ * Returns: (transfer none): The source file for the image.
+ */
+GFile *
+nautilus_image_get_source (NautilusImage *self)
+{
+    return self->source;
 }
 
 /**
@@ -648,6 +675,12 @@ nautilus_image_set_source (NautilusImage *self,
     g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_SOURCE]);
 }
 
+int
+nautilus_image_get_size (NautilusImage *self)
+{
+    return self->size;
+}
+
 void
 nautilus_image_set_size (NautilusImage *self,
                          gint           size)
@@ -674,7 +707,19 @@ nautilus_image_get_property (GObject    *object,
     {
         case PROP_SOURCE:
         {
-            g_value_set_object (value, self->source);
+            g_value_set_object (value, nautilus_image_get_source (self));
+        }
+        break;
+
+        case PROP_SIZE:
+        {
+            g_value_set_int (value, nautilus_image_get_size (self));
+        }
+        break;
+
+        case PROP_FALLBACK:
+        {
+            g_value_set_object (value, nautilus_image_get_fallback (self));
         }
         break;
 
@@ -701,6 +746,18 @@ nautilus_image_set_property (GObject      *object,
         }
         break;
 
+        case PROP_SIZE:
+        {
+            nautilus_image_set_size (self, g_value_get_int (value));
+        }
+        break;
+
+        case PROP_FALLBACK:
+        {
+            nautilus_image_set_fallback (self, g_value_get_object (value));
+        }
+        break;
+
         default:
         {
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -712,6 +769,8 @@ static void
 nautilus_image_init (NautilusImage *self)
 {
     gtk_widget_add_css_class (GTK_WIDGET (self), "nautilus-image");
+
+    self->size = NAUTILUS_GRID_ICON_SIZE_SMALL;
 }
 
 static void
@@ -754,7 +813,7 @@ real_snapshot (GtkWidget   *widget,
         /* End rounded clip */
         gtk_snapshot_pop (snapshot);
     }
-    else if (status == NAUTILUS_IMAGE_STATUS_LOADING)
+    else if (status == NAUTILUS_IMAGE_STATUS_LOADING_THUMBNAIL)
     {
         gdk_paintable_snapshot (get_loading_paintable (self),
                                 GDK_SNAPSHOT (snapshot),
@@ -807,8 +866,9 @@ real_measure (GtkWidget      *widget,
 
         length = round (orientation == GTK_ORIENTATION_HORIZONTAL ? width : height);
     }
-    else if (status == NAUTILUS_IMAGE_STATUS_FALLBACK &&
-             self->fallback_paintable != NULL)
+    else if (self->fallback_paintable != NULL &&
+             (status == NAUTILUS_IMAGE_STATUS_LOADING_ATTRIBUTES ||
+              status == NAUTILUS_IMAGE_STATUS_FALLBACK))
     {
         GdkPaintable *paintable = self->fallback_paintable;
 
@@ -862,12 +922,20 @@ nautilus_image_class_init (NautilusImageClass *klass)
     properties[PROP_SOURCE] = g_param_spec_object ("source", NULL, NULL,
                                                    G_TYPE_FILE,
                                                    G_PARAM_READWRITE |
+                                                   G_PARAM_EXPLICIT_NOTIFY |
                                                    G_PARAM_STATIC_STRINGS);
 
     properties[PROP_SIZE] = g_param_spec_int ("size", NULL, NULL,
-                                              0, 1024, 0,
+                                              0, 1024, NAUTILUS_GRID_ICON_SIZE_SMALL,
                                               G_PARAM_READWRITE |
+                                              G_PARAM_EXPLICIT_NOTIFY |
                                               G_PARAM_STATIC_STRINGS);
+
+    properties[PROP_FALLBACK] = g_param_spec_object ("fallback", NULL, NULL,
+                                                     GDK_TYPE_PAINTABLE,
+                                                     G_PARAM_READWRITE |
+                                                     G_PARAM_EXPLICIT_NOTIFY |
+                                                     G_PARAM_STATIC_STRINGS);
 
     g_object_class_install_properties (object_class, N_PROPS, properties);
 }
