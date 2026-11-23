@@ -10,8 +10,8 @@
 pkgbase=big-nautilus
 pkgname=big-nautilus
 pkgdesc="File manager for BigLinux - GNOME Files with an embedded terminal, colour tags and more"
-pkgver=50.4
-pkgrel=3
+pkgver=51.1
+pkgrel=1
 conflicts=('nautilus' 'nautilus-with-terminal')
 provides=('nautilus')
 replaces=('nautilus' 'nautilus-with-terminal')
@@ -30,7 +30,7 @@ depends=(
   dconf
   gcc-libs
   gdk-pixbuf2
-  glib2
+  'glib2>=2.89.0'
   glibc
   glycin
   glycin-gtk4
@@ -39,7 +39,7 @@ depends=(
   graphene
   gst-plugins-base-libs
   gstreamer
-  gtk4
+  'gtk4>=1:4.24.0'
   gvfs
   hicolor-icon-theme
   icu
@@ -83,9 +83,10 @@ build() {
     -D selinux=disabled
   )
 
-  # --wrap-mode=default overrides arch-meson's --wrap-mode=nodownload so that
-  # blueprint-compiler can be pulled as a subproject when the chroot ships an
-  # older version than Nautilus 50 requires (>= 0.19.0).
+  # --wrap-mode=default overrides arch-meson's --wrap-mode=nodownload: Nautilus
+  # builds libgxdp, its portal helper, from a subproject that has no package,
+  # and blueprint-compiler comes the same way when the chroot ships one older
+  # than required (>= 0.19.0). The build needs network for both.
   arch-meson big-nautilus build "${meson_options[@]}" --wrap-mode=default
   meson compile -C build
 }
