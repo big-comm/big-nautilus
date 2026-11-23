@@ -70,6 +70,8 @@ libnautilus_sources = [
   'nautilus-bookmark-list.h',
   'nautilus-clipboard.c',
   'nautilus-clipboard.h',
+  'nautilus-collection-directory.c',
+  'nautilus-collection-directory.h',
   'nautilus-column-chooser.c',
   'nautilus-column-chooser.h',
   'nautilus-column-utilities.c',

@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "nautilus-directory.h"
+#include "nautilus-collection-directory.h"
 
 G_BEGIN_DECLS
 
@@ -26,7 +26,7 @@ G_BEGIN_DECLS
 
 #define NAUTILUS_TYPE_STARRED_DIRECTORY (nautilus_starred_directory_get_type ())
 
-G_DECLARE_FINAL_TYPE (NautilusFavoriteDirectory, nautilus_starred_directory, NAUTILUS, STARRED_DIRECTORY, NautilusDirectory);
+G_DECLARE_FINAL_TYPE (NautilusFavoriteDirectory, nautilus_starred_directory, NAUTILUS, STARRED_DIRECTORY, NautilusCollectionDirectory);
 
 NautilusFavoriteDirectory* nautilus_starred_directory_new      (void);
 

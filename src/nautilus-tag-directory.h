@@ -2,15 +2,12 @@
  *
  * Copyright (C) 2026 BigCommunity
  *
- * Modelled on nautilus-starred-directory.c, which implements the same
- * protocol for starred files.
- *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #pragma once
 
-#include "nautilus-directory.h"
+#include "nautilus-collection-directory.h"
 #include "nautilus-tag-colors.h"
 
 G_BEGIN_DECLS
@@ -19,7 +16,7 @@ G_BEGIN_DECLS
 
 #define NAUTILUS_TYPE_TAG_DIRECTORY (nautilus_tag_directory_get_type ())
 
-G_DECLARE_FINAL_TYPE (NautilusTagDirectory, nautilus_tag_directory, NAUTILUS, TAG_DIRECTORY, NautilusDirectory)
+G_DECLARE_FINAL_TYPE (NautilusTagDirectory, nautilus_tag_directory, NAUTILUS, TAG_DIRECTORY, NautilusCollectionDirectory)
 
 /**
  * nautilus_tag_directory_get_uri_for_color:
