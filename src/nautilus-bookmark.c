@@ -71,7 +71,7 @@ struct _NautilusBookmark
 
 static void nautilus_bookmark_disconnect_file (NautilusBookmark *file);
 
-G_DEFINE_TYPE (NautilusBookmark, nautilus_bookmark, G_TYPE_OBJECT);
+G_DEFINE_FINAL_TYPE (NautilusBookmark, nautilus_bookmark, G_TYPE_OBJECT);
 
 void
 nautilus_bookmark_set_name (NautilusBookmark *bookmark,
@@ -122,8 +122,7 @@ bookmark_file_changed_callback (NautilusFile     *file,
     {
         g_debug ("%s: file got moved", nautilus_bookmark_get_name (bookmark));
 
-        g_object_unref (bookmark->location);
-        bookmark->location = g_object_ref (location);
+        g_set_object (&bookmark->location, location);
 
         g_object_notify_by_pspec (G_OBJECT (bookmark), properties[PROP_LOCATION]);
         g_signal_emit (bookmark, signals[CONTENTS_CHANGED], 0);
@@ -285,7 +284,8 @@ nautilus_bookmark_connect_file (NautilusBookmark *bookmark)
         else
         {
             g_signal_connect_object (bookmark->file, "changed",
-                                     G_CALLBACK (bookmark_file_changed_callback), bookmark, 0);
+                                     G_CALLBACK (bookmark_file_changed_callback), bookmark,
+                                     G_CONNECT_DEFAULT);
         }
     }
 
@@ -296,7 +296,7 @@ nautilus_bookmark_connect_file (NautilusBookmark *bookmark)
     }
 
     if (bookmark->file != NULL &&
-        nautilus_file_check_if_ready (bookmark->file, NAUTILUS_FILE_ATTRIBUTE_INFO))
+        nautilus_file_check_if_ready (bookmark->file, NAUTILUS_ATTRIBUTE_INFO))
     {
         bookmark_set_name_from_ready_file (bookmark, bookmark->file);
     }
@@ -324,14 +324,12 @@ nautilus_bookmark_set_exists (NautilusBookmark *bookmark,
     nautilus_bookmark_set_icon_to_default (bookmark);
 }
 
-static gboolean
+static void
 exists_non_native_idle_cb (gpointer user_data)
 {
     NautilusBookmark *bookmark = user_data;
     bookmark->exists_id = 0;
     nautilus_bookmark_set_exists (bookmark, FALSE);
-
-    return FALSE;
 }
 
 static void
@@ -370,7 +368,7 @@ nautilus_bookmark_update_exists (NautilusBookmark *bookmark)
         bookmark->exists_id == 0)
     {
         bookmark->exists_id =
-            g_idle_add (exists_non_native_idle_cb, bookmark);
+            g_idle_add_once (exists_non_native_idle_cb, bookmark);
         return;
     }
 
@@ -382,9 +380,31 @@ nautilus_bookmark_update_exists (NautilusBookmark *bookmark)
     bookmark->cancellable = g_cancellable_new ();
     g_file_query_info_async (bookmark->location,
                              G_FILE_ATTRIBUTE_STANDARD_TYPE,
-                             0, G_PRIORITY_DEFAULT,
+                             G_FILE_QUERY_INFO_NONE, G_PRIORITY_DEFAULT,
                              bookmark->cancellable,
                              exists_query_info_ready_cb, bookmark);
+}
+
+static void
+nautilus_bookmark_set_icon (NautilusBookmark *self,
+                            GIcon            *new_icon)
+{
+    if (new_icon != NULL && !g_icon_equal (self->icon, new_icon))
+    {
+        g_set_object (&self->icon, new_icon);
+        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_ICON]);
+    }
+}
+
+static void
+nautilus_bookmark_set_symbolic_icon (NautilusBookmark *self,
+                                     GIcon            *new_icon)
+{
+    if (new_icon != NULL && !g_icon_equal (self->symbolic_icon, new_icon))
+    {
+        g_set_object (&self->symbolic_icon, new_icon);
+        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_SYMBOLIC_ICON]);
+    }
 }
 
 /* GObject methods */
@@ -396,31 +416,18 @@ nautilus_bookmark_set_property (GObject      *object,
                                 GParamSpec   *pspec)
 {
     NautilusBookmark *self = NAUTILUS_BOOKMARK (object);
-    GIcon *new_icon;
 
     switch (property_id)
     {
         case PROP_ICON:
         {
-            new_icon = g_value_get_object (value);
-
-            if (new_icon != NULL && !g_icon_equal (self->icon, new_icon))
-            {
-                g_clear_object (&self->icon);
-                self->icon = g_object_ref (new_icon);
-            }
+            nautilus_bookmark_set_icon (self, g_value_get_object (value));
         }
         break;
 
         case PROP_SYMBOLIC_ICON:
         {
-            new_icon = g_value_get_object (value);
-
-            if (new_icon != NULL && !g_icon_equal (self->symbolic_icon, new_icon))
-            {
-                g_clear_object (&self->symbolic_icon);
-                self->symbolic_icon = g_object_ref (new_icon);
-            }
+            nautilus_bookmark_set_symbolic_icon (self, g_value_get_object (value));
         }
         break;
 
@@ -512,6 +519,8 @@ nautilus_bookmark_constructed (GObject *obj)
 {
     NautilusBookmark *self = NAUTILUS_BOOKMARK (obj);
 
+    G_OBJECT_CLASS (nautilus_bookmark_parent_class)->constructed (obj);
+
     nautilus_bookmark_connect_file (self);
     nautilus_bookmark_update_exists (self);
 }
@@ -554,14 +563,14 @@ nautilus_bookmark_class_init (NautilusBookmarkClass *class)
                              "Bookmark's icon",
                              "The icon of this bookmark",
                              G_TYPE_ICON,
-                             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+                             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
     properties[PROP_SYMBOLIC_ICON] =
         g_param_spec_object ("symbolic-icon",
                              "Bookmark's symbolic icon",
                              "The symbolic icon of this bookmark",
                              G_TYPE_ICON,
-                             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+                             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
     g_object_class_install_properties (oclass, NUM_PROPERTIES, properties);
 }
@@ -637,10 +646,11 @@ nautilus_bookmark_new (GFile       *location,
                        const gchar *custom_name)
 {
     NautilusBookmark *new_bookmark;
+    const char *name = (custom_name != NULL && *custom_name != '\0') ? custom_name : NULL;
 
     new_bookmark = NAUTILUS_BOOKMARK (g_object_new (NAUTILUS_TYPE_BOOKMARK,
                                                     "location", location,
-                                                    "name", custom_name,
+                                                    "name", name,
                                                     NULL));
 
     return new_bookmark;

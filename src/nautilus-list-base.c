@@ -371,15 +371,15 @@ on_view_click_pressed (GtkGestureClick *gesture,
     gtk_widget_grab_focus (GTK_WIDGET (self));
 
     /* Don't interfere with GtkListBase default selection handling when
-     * holding Ctrl and Shift. */
+     * holding Ctrl and Shift. Also, don't unselect when right clicking. */
     modifiers = gtk_event_controller_get_current_event_state (GTK_EVENT_CONTROLLER (gesture));
+    button = gtk_gesture_single_get_current_button (GTK_GESTURE_SINGLE (gesture));
     selection_mode = (modifiers & (GDK_CONTROL_MASK | GDK_SHIFT_MASK));
-    if (!selection_mode)
+    if (!selection_mode && button != GDK_BUTTON_SECONDARY)
     {
         gtk_selection_model_unselect_all (GTK_SELECTION_MODEL (priv->model));
     }
 
-    button = gtk_gesture_single_get_current_button (GTK_GESTURE_SINGLE (gesture));
     if (button == GDK_BUTTON_SECONDARY)
     {
         g_signal_emit (self, signals[POPUP_BACKGROUND_CONTEXT_MENU], 0, x, y);
@@ -463,7 +463,9 @@ on_item_drag_prepare (GtkDragSource *source,
     gtk_drag_source_set_actions (source, actions);
 
     scale_factor = gtk_widget_get_scale_factor (GTK_WIDGET (self));
-    paintable = get_paintable_for_drag_selection (selected_files, scale_factor);
+    paintable = get_paintable_for_drag_selection (selected_files,
+                                                  GTK_WIDGET (self),
+                                                  scale_factor);
 
     gtk_drag_source_set_icon (source, paintable, 0, 0);
 
@@ -1051,10 +1053,12 @@ teardown_cell_links (GObject *listitem)
  * setup_cell_controllers:
  *
  * The part of setting a cell up that is the cell's own, and done once in its
- * life: how it answers to clicks, drags and drops.
+ * life: how it answers to clicks, drags and drops. A drag resting on
+ * @hover_target opens the folder the cell shows.
  */
 void
-setup_cell_controllers (NautilusViewCell *cell)
+setup_cell_controllers (NautilusViewCell *cell,
+                        GtkWidget        *hover_target)
 {
     GtkEventController *controller;
     GtkDropTarget *drop_target;
@@ -1089,40 +1093,21 @@ setup_cell_controllers (NautilusViewCell *cell)
     g_signal_connect (drop_target, "motion", G_CALLBACK (on_item_drag_motion), cell);
     g_signal_connect (drop_target, "drop", G_CALLBACK (on_item_drop), cell);
     gtk_widget_add_controller (GTK_WIDGET (cell), GTK_EVENT_CONTROLLER (drop_target));
-}
 
-void
-setup_cell_common (GObject          *listitem,
-                   NautilusViewCell *cell)
-{
-    setup_cell_links (listitem, cell);
-    setup_cell_controllers (cell);
-}
-
-static void
-real_setup_cell_hover (NautilusViewCell *cell,
-                       GtkWidget        *target)
-{
-    GtkEventController *controller = gtk_drop_controller_motion_new ();
-    gtk_widget_add_controller (target, controller);
+    controller = gtk_drop_controller_motion_new ();
+    gtk_widget_add_controller (hover_target, controller);
     g_signal_connect (controller, "enter", G_CALLBACK (on_item_drag_hover_enter), cell);
     g_signal_connect (controller, "leave", G_CALLBACK (on_item_drag_hover_leave), cell);
     g_signal_connect (controller, "motion", G_CALLBACK (on_item_drag_hover_motion), cell);
 }
 
 void
-setup_cell_hover_inner_target (NautilusViewCell *cell,
-                               GtkWidget        *target)
+setup_cell_common (GObject          *listitem,
+                   NautilusViewCell *cell,
+                   GtkWidget        *hover_target)
 {
-    g_return_if_fail (gtk_widget_is_ancestor (target, GTK_WIDGET (cell)));
-
-    real_setup_cell_hover (cell, target);
-}
-
-void
-setup_cell_hover (NautilusViewCell *cell)
-{
-    real_setup_cell_hover (cell, GTK_WIDGET (cell));
+    setup_cell_links (listitem, cell);
+    setup_cell_controllers (cell, hover_target);
 }
 
 static void

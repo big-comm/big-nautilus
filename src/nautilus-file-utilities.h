@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include "nautilus-enums.h"
+
 #include <gio/gio.h>
 #include <gtk/gtk.h>
 
@@ -29,6 +31,7 @@
 
 #define NAUTILUS_DESKTOP_ID APPLICATION_ID ".desktop"
 
+#define IS_ATTRIBUTE_SET(attribute,mask) (attribute & mask) == mask
 
 typedef void (* EmptyCheckCallback) (gpointer callback_data,
                                      gboolean is_empty);
@@ -143,3 +146,20 @@ GList *
 nautilus_location_list_from_file_list (GList *files);
 
 gboolean nautilus_location_is_autofs_mountpoint (GFile *location);
+
+gboolean
+selection_source_is_intentional (NautilusSelectionSource selection_source);
+
+/* Note: Also called for directories */
+typedef void (*IterationFileCallback) (GFileInfo *info,
+                                       GFile     *location,
+                                       gpointer   user_data);
+gboolean
+nautilus_iterate_directory_recursive (GFile                *directory,
+                                      guint                 max_depth,
+                                      const char           *attributes,
+                                      gboolean              local_only,
+                                      GCancellable         *cancellable,
+                                      IterationFileCallback file_callback,
+                                      GAsyncReadyCallback   done_callback,
+                                      gpointer              user_data);

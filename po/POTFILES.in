@@ -11,6 +11,7 @@ extensions/image-properties/nautilus-image-properties-model-provider.c
 libnautilus-extension/nautilus-column.c
 libnautilus-extension/nautilus-menu-item.c
 src/nautilus-app-chooser.c
+src/nautilus-app-chooser-widget.c
 src/nautilus-application.c
 src/nautilus-autorun-software.c
 src/nautilus-batch-rename-dialog.c
@@ -72,6 +73,7 @@ src/nautilus-terminal-widget.c
 src/nautilus-toolbar.c
 src/nautilus-ui-utilities.c
 src/nautilus-vfs-file.c
+src/nautilus-view-controls.c
 src/nautilus-window.c
 src/nautilus-window-slot.c
 src/nautilus-x-content-bar.c

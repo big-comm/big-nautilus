@@ -39,7 +39,7 @@ struct _NautilusFreedesktopDBus
     NautilusFreedesktopFileManager1 *skeleton;
 };
 
-G_DEFINE_TYPE (NautilusFreedesktopDBus, nautilus_freedesktop_dbus, G_TYPE_OBJECT);
+G_DEFINE_FINAL_TYPE (NautilusFreedesktopDBus, nautilus_freedesktop_dbus, G_TYPE_OBJECT);
 
 static gboolean
 skeleton_handle_show_items_cb (NautilusFreedesktopFileManager1 *object,
@@ -108,15 +108,7 @@ skeleton_handle_show_item_properties_cb (NautilusFreedesktopFileManager1 *object
                                          gpointer                         data)
 {
     GApplication *application = g_application_get_default ();
-    g_autolist (NautilusFile) files = NULL;
-
-    for (uint i = 0; uris[i] != NULL; i++)
-    {
-        files = g_list_prepend (files, nautilus_file_get_by_uri (uris[i]));
-    }
-
-    files = g_list_reverse (files);
-
+    g_autolist (NautilusFile) files = nautilus_file_list_from_uris ((GStrv) uris);
     GtkWindow *window = nautilus_properties_present_window (files, startup_id);
 
     if (window != NULL)

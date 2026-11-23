@@ -103,7 +103,7 @@ typedef struct
 static void     update_display_text (NautilusBatchRenameDialog *dialog);
 static void     cancel_conflict_check (NautilusBatchRenameDialog *self);
 
-G_DEFINE_TYPE (NautilusBatchRenameDialog, nautilus_batch_rename_dialog, ADW_TYPE_DIALOG);
+G_DEFINE_FINAL_TYPE (NautilusBatchRenameDialog, nautilus_batch_rename_dialog, ADW_TYPE_DIALOG);
 
 static void
 change_numbering_order (GSimpleAction *action,
@@ -319,7 +319,7 @@ split_entry_text (NautilusBatchRenameDialog *self,
         normal_text = g_string_new (substring);
         g_free (substring);
 
-        if (g_strcmp0 (normal_text->str, ""))
+        if (g_strcmp0 (normal_text->str, "") != 0)
         {
             result = g_list_prepend (result, normal_text);
         }
@@ -882,8 +882,7 @@ file_names_list_has_duplicates_async (NautilusBatchRenameDialog *self)
     for (l = self->distinct_parent_directories; l != NULL; l = l->next)
     {
         nautilus_directory_call_when_ready (l->data,
-                                            NAUTILUS_FILE_ATTRIBUTE_INFO,
-                                            TRUE,
+                                            NAUTILUS_ATTRIBUTE_INFO | NAUTILUS_ATTRIBUTE_FILE_LIST,
                                             on_directory_attributes_ready_for_conflicts_check,
                                             self);
     }
@@ -1680,9 +1679,9 @@ nautilus_batch_rename_dialog_init (NautilusBatchRenameDialog *self)
     self->row_height = -1;
 
     g_signal_connect_object (gtk_editable_get_delegate (GTK_EDITABLE (self->name_entry)),
-                             "delete-text", G_CALLBACK (on_delete_text), self, 0);
+                             "delete-text", G_CALLBACK (on_delete_text), self, G_CONNECT_DEFAULT);
     g_signal_connect_object (gtk_editable_get_delegate (GTK_EDITABLE (self->name_entry)),
-                             "insert-text", G_CALLBACK (on_insert_text), self, 0);
+                             "insert-text", G_CALLBACK (on_insert_text), self, G_CONNECT_DEFAULT);
 
     self->metadata_cancellable = g_cancellable_new ();
 }

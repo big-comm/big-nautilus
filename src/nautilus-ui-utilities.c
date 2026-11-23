@@ -111,7 +111,7 @@ nautilus_gmenu_set_from_model (GMenu      *target_menu,
  *
  * Returns: The index of the first match in the model, or -1 if no item matches.
  */
-gint
+static gint
 nautilus_g_menu_model_find_by_string (GMenuModel  *model,
                                       const gchar *attribute,
                                       const gchar *string)
@@ -212,8 +212,8 @@ nautilus_g_menu_model_set_for_view (GMenuModel *model,
 
 /**
  * nautilus_g_menu_replace_string_in_item:
- * @menu: the #GMenu to modify
- * @i: the position of the item to change
+ * @model: the #GMenuModel whic contains the item
+ * @item_name: the menu item whose attribute to change
  * @attribute: the menu item attribute to change
  * @string: the string to change the value of @attribute to
  *
@@ -228,12 +228,13 @@ nautilus_g_menu_model_set_for_view (GMenuModel *model,
  * It is assumed that @attribute has the a GVariant format string "s".
  */
 void
-nautilus_g_menu_replace_string_in_item (GMenu       *menu,
-                                        gint         i,
-                                        const gchar *attribute,
-                                        const gchar *string)
+nautilus_menu_item_change_attribute (GMenuModel  *menu_model,
+                                     const gchar *item_name,
+                                     const gchar *attribute,
+                                     const gchar *string)
 {
-    GMenuModel *menu_model = G_MENU_MODEL (menu);
+    int i = nautilus_g_menu_model_find_by_string (menu_model, "nautilus-menu-item", item_name);
+
     g_return_if_fail (i > -1 && i < g_menu_model_get_n_items (menu_model));
 
     g_autofree gchar *old_string = NULL;
@@ -257,27 +258,21 @@ nautilus_g_menu_replace_string_in_item (GMenu       *menu,
         g_menu_item_set_attribute (item, attribute, NULL);
     }
 
-    g_menu_remove (menu, i);
-    g_menu_insert_item (menu, i, item);
+    g_menu_remove (G_MENU (menu_model), i);
+    g_menu_insert_item (G_MENU (menu_model), i, item);
 }
 
-static GdkPixbuf *filmholes_left = NULL;
-static GdkPixbuf *filmholes_right = NULL;
+static GdkTexture *filmholes_left = NULL;
 
 static gboolean
 ensure_filmholes (void)
 {
     if (filmholes_left == NULL)
     {
-        filmholes_left = gdk_pixbuf_new_from_resource ("/org/gnome/nautilus/image/filmholes.png", NULL);
-    }
-    if (filmholes_right == NULL &&
-        filmholes_left != NULL)
-    {
-        filmholes_right = gdk_pixbuf_flip (filmholes_left, TRUE);
+        filmholes_left = gdk_texture_new_from_resource ("/org/gnome/nautilus/image/filmholes.png");
     }
 
-    return (filmholes_left && filmholes_right);
+    return filmholes_left != NULL;
 }
 
 void
@@ -285,25 +280,23 @@ nautilus_ui_frame_video (GtkSnapshot *snapshot,
                          gdouble      width,
                          gdouble      height)
 {
-    g_autoptr (GdkTexture) left_texture = NULL;
-    g_autoptr (GdkTexture) right_texture = NULL;
     int holes_width, holes_height;
+    graphene_matrix_t matrix = { 0 };
 
     if (!ensure_filmholes ())
     {
         return;
     }
 
-    holes_width = gdk_pixbuf_get_width (filmholes_left);
-    holes_height = gdk_pixbuf_get_height (filmholes_left);
+    holes_width = gdk_texture_get_width (filmholes_left);
+    holes_height = gdk_texture_get_height (filmholes_left);
 
     /* Left */
     gtk_snapshot_push_repeat (snapshot,
                               &GRAPHENE_RECT_INIT (0, 0, holes_width, height),
                               NULL);
-    left_texture = gdk_texture_new_for_pixbuf (filmholes_left);
     gtk_snapshot_append_texture (snapshot,
-                                 left_texture,
+                                 filmholes_left,
                                  &GRAPHENE_RECT_INIT (0, 0, holes_width, holes_height));
     gtk_snapshot_pop (snapshot);
 
@@ -311,10 +304,14 @@ nautilus_ui_frame_video (GtkSnapshot *snapshot,
     gtk_snapshot_push_repeat (snapshot,
                               &GRAPHENE_RECT_INIT (width - holes_width, 0, holes_width, height),
                               NULL);
-    right_texture = gdk_texture_new_for_pixbuf (filmholes_right);
+    graphene_matrix_init_identity (&matrix);
+    graphene_matrix_rotate_y (&matrix, 180.0);
+    gtk_snapshot_transform_matrix (snapshot, &matrix);
     gtk_snapshot_append_texture (snapshot,
-                                 right_texture,
-                                 &GRAPHENE_RECT_INIT (width - holes_width, 0, holes_width, holes_height));
+                                 filmholes_left,
+                                 &GRAPHENE_RECT_INIT (-width, 0, holes_width, holes_height));
+    graphene_matrix_inverse (&matrix, &matrix);
+    gtk_snapshot_transform_matrix (snapshot, &matrix);
     gtk_snapshot_pop (snapshot);
 }
 
@@ -449,7 +446,7 @@ timed_wait_delayed_close_destroy_dialog_callback (AdwAlertDialog *object,
     g_source_remove (GPOINTER_TO_UINT (callback_data));
 }
 
-static gboolean
+static void
 timed_wait_delayed_close_timeout_callback (gpointer callback_data)
 {
     guint handler_id;
@@ -462,8 +459,6 @@ timed_wait_delayed_close_timeout_callback (gpointer callback_data)
                                           GUINT_TO_POINTER (handler_id));
 
     adw_dialog_close (ADW_DIALOG (callback_data));
-
-    return FALSE;
 }
 
 static void
@@ -499,9 +494,10 @@ timed_wait_free (TimedWait *wait)
 
         if (time_up < TIMED_WAIT_MIN_TIME_UP)
         {
-            delayed_close_handler_id = g_timeout_add (TIMED_WAIT_MIN_TIME_UP - time_up,
-                                                      timed_wait_delayed_close_timeout_callback,
-                                                      wait->dialog);
+            delayed_close_handler_id =
+                g_timeout_add_once (TIMED_WAIT_MIN_TIME_UP - time_up,
+                                    timed_wait_delayed_close_timeout_callback,
+                                    wait->dialog);
             g_object_set_data (G_OBJECT (wait->dialog),
                                "stock-dialogs/delayed_close_handler_timeout_id",
                                GUINT_TO_POINTER (delayed_close_handler_id));
@@ -540,7 +536,7 @@ timed_wait_dialog_destroy_callback (AdwAlertDialog *object,
     }
 }
 
-static gboolean
+static void
 timed_wait_callback (gpointer callback_data)
 {
     TimedWait *wait = callback_data;
@@ -572,8 +568,6 @@ timed_wait_callback (gpointer callback_data)
 
     wait->timeout_handler_id = 0;
     wait->dialog = dialog;
-
-    return FALSE;
 }
 
 void
@@ -601,7 +595,7 @@ nautilus_ui_timed_wait_start_full (int                      duration,
     }
 
     /* Start the timer. */
-    wait->timeout_handler_id = g_timeout_add (duration, timed_wait_callback, wait);
+    wait->timeout_handler_id = g_timeout_add_once (duration, timed_wait_callback, wait);
 
     /* Put in the hash table so we can find it later. */
     if (timed_wait_hash_table == NULL)
@@ -673,6 +667,7 @@ notify_unmount_done (GMountOperation *op,
         unplug = g_notification_new (strings[0]);
         g_notification_set_body (unplug, strings[1]);
         g_notification_set_icon (unplug, icon);
+        g_notification_set_category (unplug, XDG_NOTIFICATION_CATEGORY_DEVICE_REMOVED);
 
         nautilus_application_send_notification (application, notification_id, unplug);
         g_object_unref (unplug);
@@ -701,6 +696,7 @@ notify_unmount_show (GMountOperation *op,
     unmount = g_notification_new (strings[0]);
     g_notification_set_body (unmount, strings[1]);
     g_notification_set_icon (unmount, icon);
+    g_notification_set_category (unmount, XDG_NOTIFICATION_CATEGORY_DEVICE);
     g_notification_set_priority (unmount, G_NOTIFICATION_PRIORITY_URGENT);
 
     notification_id = g_strdup_printf ("nautilus-mount-operation-%p", op);
@@ -932,24 +928,16 @@ nautilus_ui_draw_icon_dashed_border (GtkSnapshot     *snapshot,
 }
 
 void
-nautilus_ui_draw_symbolic_icon (GtkSnapshot           *snapshot,
-                                const gchar           *icon_name,
-                                const graphene_rect_t *rect,
-                                GdkRGBA                color,
-                                int                    scale)
+nautilus_ui_draw_svg (GtkSnapshot           *snapshot,
+                      GtkSvg                *svg,
+                      const graphene_rect_t *rect,
+                      GdkRGBA                color)
 {
-    g_autoptr (GIcon) gicon = g_themed_icon_new (icon_name);
-    g_autoptr (NautilusIconInfo) icon = nautilus_icon_info_lookup (gicon,
-                                                                   2.0 * rect->size.width,
-                                                                   scale);
-    g_autoptr (GdkPaintable) paintable = nautilus_icon_info_get_paintable (icon);
     const GdkRGBA colors[] = {color};
-
-    g_assert (GTK_IS_SYMBOLIC_PAINTABLE (paintable));
 
     gtk_snapshot_save (snapshot);
     gtk_snapshot_translate (snapshot, &rect->origin);
-    gtk_symbolic_paintable_snapshot_symbolic (GTK_SYMBOLIC_PAINTABLE (paintable),
+    gtk_symbolic_paintable_snapshot_symbolic (GTK_SYMBOLIC_PAINTABLE (svg),
                                               snapshot,
                                               rect->size.width,
                                               rect->size.height,
@@ -960,9 +948,88 @@ nautilus_ui_draw_symbolic_icon (GtkSnapshot           *snapshot,
 
 #define STACK_SHADOW_RADIUS 10
 
+static GdkPaintable *
+draw_drag_count_badge (GdkPaintable *stacked_icons,
+                       GtkWidget    *widget,
+                       guint         n_items)
+{
+    if (n_items <= 1)
+    {
+        return stacked_icons;
+    }
+
+    int width = gdk_paintable_get_intrinsic_width (stacked_icons);
+    int height = gdk_paintable_get_intrinsic_height (stacked_icons);
+
+    g_autoptr (GtkSnapshot) snapshot = gtk_snapshot_new ();
+
+    gdk_paintable_snapshot (stacked_icons, GDK_SNAPSHOT (snapshot), width, height);
+    g_object_unref (stacked_icons);
+
+    /* Determine badge colors. The matching foreground for the accent is white. */
+    GdkRGBA badge_fg = { 1.f, 1.f, 1.f, 1.f };
+    AdwStyleManager *style_manager = adw_style_manager_get_default ();
+    g_autofree GdkRGBA *badge_bg = adw_style_manager_get_accent_color_rgba (style_manager);
+
+    /* Set up badge geometry constants and limits. */
+    const float badge_height = 22.f;
+    const float offset_x = 7.f;
+    const float offset_y = 11.f;
+    const guint count_limit = 9999;
+
+    /* Create the label for the item count, capping it at the limit. */
+    g_autofree gchar *count_label = (n_items > count_limit)
+                                    /* Translators: This refers to a capped amount of items */
+                                    ? g_strdup_printf (C_("badge_count", "%u+"), count_limit)
+                                    : g_strdup_printf ("%u", n_items);
+
+    g_autoptr (PangoLayout) layout = gtk_widget_create_pango_layout (widget, count_label);
+
+    g_autoptr (PangoAttrList) attrs = pango_attr_list_new ();
+    const float font_scale = 0.55f;
+
+    pango_attr_list_insert (attrs, pango_attr_weight_new (PANGO_WEIGHT_SEMIBOLD));
+    pango_attr_list_insert (attrs,
+                            pango_attr_size_new_absolute ((int) roundf (badge_height * font_scale * PANGO_SCALE)));
+    pango_layout_set_attributes (layout, attrs);
+
+    /* Measure text dimensions for centering and to determine if the badge needs to expand into a pill shape. */
+    PangoRectangle ink_rect;
+    pango_layout_get_pixel_extents (layout, &ink_rect, NULL);
+
+    const float horizontal_padding = 4.f;
+    float badge_width = MAX (badge_height, ink_rect.width + 2.0f * horizontal_padding);
+    float badge_x = width - badge_width - offset_x;
+    float badge_y = height - badge_height - offset_y;
+
+    /* Create rounded rectangle for the badge shape (circle or pill). */
+    graphene_rect_t badge_rect = GRAPHENE_RECT_INIT (badge_x, badge_y, badge_width, badge_height);
+    GskRoundedRect rounded_rect;
+
+    gsk_rounded_rect_init_from_rect (&rounded_rect, &badge_rect, badge_height / 2.0f);
+
+    /* Draw the badge background with a rounded clip. */
+    gtk_snapshot_push_rounded_clip (snapshot, &rounded_rect);
+    gtk_snapshot_append_color (snapshot, badge_bg, &badge_rect);
+    gtk_snapshot_pop (snapshot);
+
+    /* Draw the count text centered within the badge. */
+    gtk_snapshot_save (snapshot);
+    gtk_snapshot_translate (snapshot,
+                            &GRAPHENE_POINT_INIT (
+                                badge_x + (badge_width - ink_rect.width) / 2.0f - ink_rect.x,
+                                badge_y + (badge_height - ink_rect.height) / 2.0f - ink_rect.y));
+    gtk_snapshot_append_layout (snapshot, layout, &badge_fg);
+    gtk_snapshot_restore (snapshot);
+
+    return gtk_snapshot_to_paintable (snapshot, NULL);
+}
+
 GdkPaintable *
-nautilus_ui_draw_stacked_icons (GQueue *icons,
-                                uint    size)
+nautilus_ui_draw_stacked_icons (GQueue    *icons,
+                                uint       size,
+                                GtkWidget *widget,
+                                guint      n_items)
 {
     g_autoptr (GtkSnapshot) snapshot = gtk_snapshot_new ();
     /* A wide shadow for the pile of icons gives a sense of floating. */
@@ -1028,5 +1095,5 @@ nautilus_ui_draw_stacked_icons (GQueue *icons,
     }
     gtk_snapshot_pop (snapshot); /* End of stack shadow */
 
-    return gtk_snapshot_to_paintable (snapshot, NULL);
+    return draw_drag_count_badge (gtk_snapshot_to_paintable (snapshot, NULL), widget, n_items);
 }

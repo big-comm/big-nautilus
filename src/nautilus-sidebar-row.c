@@ -45,7 +45,7 @@ struct _NautilusSidebarRow
     GtkWidget *busy_spinner;
 };
 
-G_DEFINE_TYPE (NautilusSidebarRow, nautilus_sidebar_row, GTK_TYPE_LIST_BOX_ROW)
+G_DEFINE_FINAL_TYPE (NautilusSidebarRow, nautilus_sidebar_row, GTK_TYPE_LIST_BOX_ROW)
 
 enum
 {
@@ -111,7 +111,7 @@ ensure_connected_file (NautilusSidebarRow *self)
         }
 
         self->file = g_steal_pointer (&file);
-        nautilus_file_call_when_ready (self->file, NAUTILUS_FILE_ATTRIBUTE_MOUNT, dummy_callback, self);
+        nautilus_file_call_when_ready (self->file, NAUTILUS_ATTRIBUTE_MOUNT, dummy_callback, self);
         g_signal_connect_object (self->file, "changed",
                                  G_CALLBACK (on_file_changed), self, G_CONNECT_SWAPPED);
     }
@@ -338,24 +338,21 @@ nautilus_sidebar_row_set_property (GObject      *object,
 
         case PROP_LABEL:
         {
-            g_free (self->label);
-            self->label = g_strdup (g_value_get_string (value));
+            g_set_str (&self->label, g_value_get_string (value));
             gtk_label_set_text (GTK_LABEL (self->label_widget), self->label);
             break;
         }
 
         case PROP_TOOLTIP:
         {
-            g_free (self->tooltip);
-            self->tooltip = g_strdup (g_value_get_string (value));
+            g_set_str (&self->tooltip, g_value_get_string (value));
             gtk_widget_set_tooltip_text (GTK_WIDGET (self), self->tooltip);
             break;
         }
 
         case PROP_EJECT_TOOLTIP:
         {
-            g_free (self->eject_tooltip);
-            self->eject_tooltip = g_strdup (g_value_get_string (value));
+            g_set_str (&self->eject_tooltip, g_value_get_string (value));
             gtk_widget_set_tooltip_text (GTK_WIDGET (self->eject_button), self->eject_tooltip);
             break;
         }
@@ -402,8 +399,7 @@ nautilus_sidebar_row_set_property (GObject      *object,
 
         case PROP_URI:
         {
-            g_free (self->uri);
-            self->uri = g_strdup (g_value_get_string (value));
+            g_set_str (&self->uri, g_value_get_string (value));
             ensure_connected_file (self);
             break;
         }

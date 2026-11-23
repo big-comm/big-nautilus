@@ -1362,7 +1362,7 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
     g_autoptr (GHashTable) parent_directories =
         g_hash_table_new_full (NULL, NULL, (GDestroyNotify) nautilus_directory_unref, NULL);
 
-    NautilusFileAttributes cancel_attributes = nautilus_file_get_all_attributes ();
+    NautilusAttributes cancel_attributes = nautilus_file_get_all_attributes ();
 
     for (GList *p = file_pairs; p != NULL; p = p->next)
     {
@@ -1412,7 +1412,7 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
             hash_table_add_uncontained (parent_directories, old_directory);
 
             /* Cancel loading of attributes in the old directory */
-            nautilus_directory_cancel_loading_file_attributes
+            nautilus_directory_cancel_loading_attributes
                 (old_directory, from_file, cancel_attributes);
 
             /* Locate the new directory. */
@@ -1424,7 +1424,7 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
             nautilus_file_update_name_and_directory (from_file, name, new_directory);
 
             /* Update file attributes */
-            nautilus_file_invalidate_attributes (from_file, NAUTILUS_FILE_ATTRIBUTE_INFO);
+            nautilus_file_invalidate_attributes (from_file, NAUTILUS_ATTRIBUTE_INFO);
 
             if (old_directory != new_directory)
             {
@@ -1498,8 +1498,7 @@ nautilus_directory_get_file_by_name (NautilusDirectory *directory,
 
 void
 nautilus_directory_call_when_ready (NautilusDirectory         *directory,
-                                    NautilusFileAttributes     file_attributes,
-                                    gboolean                   wait_for_all_files,
+                                    NautilusAttributes         attributes,
                                     NautilusDirectoryCallback  callback,
                                     gpointer                   callback_data)
 {
@@ -1507,7 +1506,7 @@ nautilus_directory_call_when_ready (NautilusDirectory         *directory,
     g_return_if_fail (callback != NULL);
 
     NAUTILUS_DIRECTORY_CLASS (G_OBJECT_GET_CLASS (directory))->call_when_ready
-        (directory, file_attributes, wait_for_all_files,
+        (directory, attributes,
         callback, callback_data);
 }
 
@@ -1527,7 +1526,7 @@ void
 nautilus_directory_file_monitor_add (NautilusDirectory         *directory,
                                      gconstpointer              client,
                                      gboolean                   monitor_hidden_files,
-                                     NautilusFileAttributes     file_attributes,
+                                     NautilusAttributes         attributes,
                                      NautilusDirectoryCallback  callback,
                                      gpointer                   callback_data)
 {
@@ -1537,7 +1536,7 @@ nautilus_directory_file_monitor_add (NautilusDirectory         *directory,
     NAUTILUS_DIRECTORY_CLASS (G_OBJECT_GET_CLASS (directory))->file_monitor_add
         (directory, client,
         monitor_hidden_files,
-        file_attributes,
+        attributes,
         callback, callback_data);
 }
 

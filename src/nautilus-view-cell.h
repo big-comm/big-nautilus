@@ -26,6 +26,5 @@ void nautilus_view_cell_set_item (NautilusViewCell      *self,
                                   NautilusViewItem *item);
 NautilusViewItem *nautilus_view_cell_get_item (NautilusViewCell *self);
 guint nautilus_view_cell_get_position (NautilusViewCell *self);
-gboolean nautilus_view_cell_once (NautilusViewCell *self);
 
 G_END_DECLS

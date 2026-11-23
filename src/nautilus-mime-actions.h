@@ -27,7 +27,7 @@
 
 #include "nautilus-types.h"
 
-NautilusFileAttributes nautilus_mime_actions_get_required_file_attributes (void);
+NautilusAttributes     nautilus_mime_actions_get_required_attributes      (void);
 
 GAppInfo *             nautilus_mime_get_default_application_for_file     (NautilusFile            *file);
 

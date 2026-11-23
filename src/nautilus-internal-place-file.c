@@ -24,12 +24,12 @@ struct _NautilusInternalPlaceFile
     GCancellable *network_mount_cancellable;
 };
 
-G_DEFINE_TYPE (NautilusInternalPlaceFile, nautilus_internal_place_file, NAUTILUS_TYPE_FILE);
+G_DEFINE_FINAL_TYPE (NautilusInternalPlaceFile, nautilus_internal_place_file, NAUTILUS_TYPE_FILE);
 
 static void
-real_monitor_add (NautilusFile           *file,
-                  gconstpointer           client,
-                  NautilusFileAttributes  attributes)
+real_monitor_add (NautilusFile       *file,
+                  gconstpointer       client,
+                  NautilusAttributes  attributes)
 {
     /* Internal place attributes are static, so there is nothing to monitor. */
 }
@@ -80,10 +80,10 @@ network_mount_callback (GObject      *source_object,
 }
 
 static void
-real_call_when_ready (NautilusFile           *file,
-                      NautilusFileAttributes  file_attributes,
-                      NautilusFileCallback    callback,
-                      gpointer                callback_data)
+real_call_when_ready (NautilusFile         *file,
+                      NautilusAttributes    attributes,
+                      NautilusFileCallback  callback,
+                      gpointer              callback_data)
 {
     NautilusInternalPlaceFile *self = NAUTILUS_INTERNAL_PLACE_FILE (file);
 
@@ -138,8 +138,8 @@ real_cancel_call_when_ready (NautilusFile         *file,
 }
 
 static gboolean
-real_check_if_ready (NautilusFile           *file,
-                     NautilusFileAttributes  attributes)
+real_check_if_ready (NautilusFile       *file,
+                     NautilusAttributes  attributes)
 {
     /* Internal place attributes are static, so its always ready. */
     return TRUE;

@@ -496,19 +496,19 @@ application_launch_parameters_free (ApplicationLaunchParameters *parameters)
 static gboolean
 nautilus_mime_actions_check_if_required_attributes_ready (NautilusFile *file)
 {
-    NautilusFileAttributes attributes;
+    NautilusAttributes attributes;
     gboolean ready;
 
-    attributes = nautilus_mime_actions_get_required_file_attributes ();
+    attributes = nautilus_mime_actions_get_required_attributes ();
     ready = nautilus_file_check_if_ready (file, attributes);
 
     return ready;
 }
 
-NautilusFileAttributes
-nautilus_mime_actions_get_required_file_attributes (void)
+NautilusAttributes
+nautilus_mime_actions_get_required_attributes (void)
 {
-    return NAUTILUS_FILE_ATTRIBUTE_INFO;
+    return NAUTILUS_ATTRIBUTE_INFO;
 }
 
 GAppInfo *
@@ -1881,7 +1881,7 @@ activation_mount_not_mounted (ActivateParameters *parameters)
     files = get_file_list_for_launch_locations (parameters->locations);
     nautilus_file_list_call_when_ready
         (files,
-        nautilus_mime_actions_get_required_file_attributes (),
+        nautilus_mime_actions_get_required_attributes (),
         &parameters->files_handle,
         activate_callback, parameters);
     nautilus_file_list_free (files);
@@ -2012,7 +2012,7 @@ activate_activation_uris_ready_callback (GList    *files_ignore,
     files = get_file_list_for_launch_locations (parameters->locations);
     nautilus_file_list_call_when_ready
         (files,
-        nautilus_mime_actions_get_required_file_attributes (),
+        nautilus_mime_actions_get_required_attributes (),
         &parameters->files_handle,
         activate_callback, parameters);
     nautilus_file_list_free (files);
@@ -2051,7 +2051,7 @@ activate_regular_files (ActivateParameters *parameters)
 
     files = get_file_list_for_launch_locations (parameters->locations);
     nautilus_file_list_call_when_ready
-        (files, nautilus_mime_actions_get_required_file_attributes (),
+        (files, nautilus_mime_actions_get_required_attributes (),
         &parameters->files_handle,
         activate_activation_uris_ready_callback, parameters);
     nautilus_file_list_free (files);

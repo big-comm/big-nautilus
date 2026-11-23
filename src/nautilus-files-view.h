@@ -46,7 +46,8 @@ void                nautilus_files_view_change                           (Nautil
 const char *
 nautilus_files_view_get_toggle_icon_name (NautilusFilesView *self);
 const char *
-nautilus_files_view_get_toggle_tooltip (NautilusFilesView *self);
+nautilus_files_view_get_toggle_tooltip (NautilusFilesView  *self,
+                                        const char        **description);
 
 GFile *
 nautilus_files_view_get_location (NautilusFilesView *self);
@@ -62,12 +63,12 @@ nautilus_files_view_set_search_query (NautilusFilesView *self,
 
 NautilusFileList *
 nautilus_files_view_get_selection (NautilusFilesView *self);
-gboolean
-nautilus_files_view_is_selection_auto (NautilusFilesView *self);
+NautilusSelectionSource
+nautilus_files_view_get_selection_source (NautilusFilesView *self);
 void
-nautilus_files_view_set_selection (NautilusFilesView *self,
-                                   NautilusFileList  *selection,
-                                   gboolean           auto_selection);
+nautilus_files_view_set_selection (NautilusFilesView       *self,
+                                   NautilusFileList        *selection,
+                                   NautilusSelectionSource  selection_source);
 
 gboolean
 nautilus_files_view_is_loading (NautilusFilesView *self);
@@ -115,13 +116,6 @@ void              nautilus_files_view_activate_selection         (NautilusFilesV
 void              nautilus_files_view_preview_selection_event    (NautilusFilesView      *view,
                                                                   GtkDirectionType        direction);
 void              nautilus_files_view_stop_loading               (NautilusFilesView      *view);
-
-NautilusToolbarMenuSections *
-nautilus_files_view_get_toolbar_menu_sections (NautilusFilesView *self);
-
-void              nautilus_files_view_update_context_menus       (NautilusFilesView      *view);
-void              nautilus_files_view_update_toolbar_menus       (NautilusFilesView      *view);
-void              nautilus_files_view_update_actions_state       (NautilusFilesView      *view);
 
 /* testing-only */
 NautilusViewModel *

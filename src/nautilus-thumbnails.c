@@ -101,33 +101,10 @@ static guint running_threads = 0;
 /* The maximum number of threads allowed. */
 static guint max_threads = 0;
 
-static gboolean
-get_file_mtime (const char *file_uri,
-                time_t     *mtime)
-{
-    GFile *file;
-    GFileInfo *info;
-    gboolean ret;
+static void
+thumbnail_enqueue (NautilusThumbnailInfo     *info,
+                   ThumbnailCreationCallback *cb_data);
 
-    ret = FALSE;
-    *mtime = INVALID_MTIME;
-
-    file = g_file_new_for_uri (file_uri);
-    info = g_file_query_info (file, G_FILE_ATTRIBUTE_TIME_MODIFIED, 0, NULL, NULL);
-    if (info != NULL)
-    {
-        if (g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_TIME_MODIFIED))
-        {
-            *mtime = g_file_info_get_attribute_uint64 (info, G_FILE_ATTRIBUTE_TIME_MODIFIED);
-            ret = TRUE;
-        }
-
-        g_object_unref (info);
-    }
-    g_object_unref (file);
-
-    return ret;
-}
 
 static void
 free_thumbnail_callback (ThumbnailCreationCallback *cb_data)
@@ -357,6 +334,49 @@ handle_callbacks_and_free (NautilusThumbnailInfo *info)
     free_thumbnail_info (info);
 }
 
+typedef struct
+{
+    NautilusThumbnailInfo *info;
+    ThumbnailCreationCallback *cb_data;
+} ThumbnailMtimeQuery;
+
+static void
+query_file_mtime_callback (GObject      *object,
+                           GAsyncResult *source,
+                           gpointer      callback_data)
+{
+    g_autofree ThumbnailMtimeQuery *mtime_query_data = callback_data;
+    g_autoptr (NautilusThumbnailInfo) info = mtime_query_data->info;
+    g_autoptr (ThumbnailCreationCallback) cb_data = mtime_query_data->cb_data;
+    g_autoptr (GFileInfo) file_info = g_file_query_info_finish (G_FILE (object), source, NULL);
+
+
+    if (file_info != NULL &&
+        g_file_info_has_attribute (file_info, G_FILE_ATTRIBUTE_TIME_MODIFIED))
+    {
+        info->original_file_mtime =
+            g_file_info_get_attribute_uint64 (file_info, G_FILE_ATTRIBUTE_TIME_MODIFIED);
+        info->updated_file_mtime = info->original_file_mtime;
+    }
+    else
+    {
+        info->original_file_mtime = INVALID_MTIME;
+        info->updated_file_mtime = INVALID_MTIME;
+    }
+
+    if (cb_data->cancellable != NULL &&
+        g_cancellable_is_cancelled (cb_data->cancellable))
+    {
+        /* Call the callback immediately */
+        g_ptr_array_add (info->callbacks, g_steal_pointer (&cb_data));
+        handle_cancelled_callbacks (info);
+
+        return;
+    }
+
+    thumbnail_enqueue (g_steal_pointer (&info), g_steal_pointer (&cb_data));
+}
+
 void
 nautilus_create_thumbnail_async (const gchar         *uri,
                                  const gchar         *mime_type,
@@ -388,16 +408,35 @@ nautilus_create_thumbnail_async (const gchar         *uri,
         return;
     }
 
-    /* Hopefully the caller will already have the image file mtime,
-     *  so we can just use that. Otherwise we have to get it ourselves. */
-    if (modified_time == 0)
+    if (modified_time == INVALID_MTIME)
     {
-        get_file_mtime (info->image_uri, &modified_time);
+        g_autoptr (GFile) file = g_file_new_for_uri (info->image_uri);
+        g_autofree ThumbnailMtimeQuery *mtime_query_data = g_new0 (ThumbnailMtimeQuery, 1);
+
+        mtime_query_data->info = g_steal_pointer (&info);
+        mtime_query_data->cb_data = g_steal_pointer (&cb_data);
+
+        g_file_query_info_async (file,
+                                 G_FILE_ATTRIBUTE_TIME_MODIFIED,
+                                 G_FILE_QUERY_INFO_NONE,
+                                 G_PRIORITY_DEFAULT,
+                                 cancellable,
+                                 query_file_mtime_callback,
+                                 g_steal_pointer (&mtime_query_data));
+
+        return;
     }
 
     info->original_file_mtime = modified_time;
     info->updated_file_mtime = modified_time;
 
+    thumbnail_enqueue (g_steal_pointer (&info), g_steal_pointer (&cb_data));
+}
+
+static void
+thumbnail_enqueue (NautilusThumbnailInfo     *info,
+                   ThumbnailCreationCallback *cb_data)
+{
     if (G_UNLIKELY (thumbnails_to_make == NULL))
     {
         thumbnails_to_make = nautilus_hash_queue_new (g_str_hash, g_str_equal, NULL, NULL);
@@ -420,9 +459,8 @@ nautilus_create_thumbnail_async (const gchar         *uri,
         g_debug ("(Main Thread) Adding thumbnail: %s",
                  info->image_uri);
 
-        g_ptr_array_add (info->callbacks, g_steal_pointer (&cb_data));
+        g_ptr_array_add (info->callbacks, cb_data);
         nautilus_hash_queue_enqueue (thumbnails_to_make, info->image_uri, info);
-        g_steal_pointer (&info);
 
         /* If we didn't schedule the thumbnail function to start on idle, do
          *  that now. We don't want to start it until all the other work is
@@ -439,7 +477,8 @@ nautilus_create_thumbnail_async (const gchar         *uri,
 
         /* The file in the queue might need a new original mtime */
         existing_info->updated_file_mtime = info->original_file_mtime;
-        g_ptr_array_add (existing_info->callbacks, g_steal_pointer (&cb_data));
+        g_ptr_array_add (existing_info->callbacks, cb_data);
+        free_thumbnail_info (info);
     }
 }
 

@@ -48,7 +48,7 @@ struct _NautilusTagManager
     GCancellable *cancellable;
 };
 
-G_DEFINE_TYPE (NautilusTagManager, nautilus_tag_manager, G_TYPE_OBJECT);
+G_DEFINE_FINAL_TYPE (NautilusTagManager, nautilus_tag_manager, G_TYPE_OBJECT);
 
 static NautilusTagManager *tag_manager = NULL;
 
@@ -106,8 +106,6 @@ start_query_or_update (TrackerSparqlConnection *db,
                        gboolean                 is_query,
                        GCancellable            *cancellable)
 {
-    g_autoptr (GError) error = NULL;
-
     if (!db)
     {
         inform_no_localsearch_connection_once ();
@@ -406,7 +404,6 @@ nautilus_tag_manager_star_files (NautilusTagManager  *self,
                                  GCancellable        *cancellable)
 {
     GString *query;
-    g_autoptr (GError) error = NULL;
     GTask *task;
     UpdateData *update_data;
 

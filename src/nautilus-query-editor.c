@@ -79,11 +79,13 @@ enum
     LAST_PROP
 };
 
+static GParamSpec *properties[LAST_PROP];
+
 static guint signals[LAST_SIGNAL];
 
 static void nautilus_query_editor_changed (NautilusQueryEditor *editor);
 
-G_DEFINE_TYPE (NautilusQueryEditor, nautilus_query_editor, GTK_TYPE_WIDGET);
+G_DEFINE_FINAL_TYPE (NautilusQueryEditor, nautilus_query_editor, GTK_TYPE_WIDGET);
 
 static void
 update_filter_button (NautilusQueryEditor *self)
@@ -169,7 +171,7 @@ real_update_search_information (SearchInfoData *search_info_data)
     else if (nautilus_localsearch_directory_is_single (editor->location))
     {
         adw_status_page_set_title (ADW_STATUS_PAGE (editor->status_page),
-                                   _("Subfolders Not in Search Locations"));
+                                   _("Limited Search in this Folder"));
         gtk_widget_set_visible (editor->search_info_button, TRUE);
         gtk_widget_set_visible (editor->search_settings_button, TRUE);
 
@@ -473,7 +475,7 @@ nautilus_query_editor_class_init (NautilusQueryEditorClass *class)
     gtk_widget_class_add_shortcut (widget_class, shortcut);
 
     gtk_widget_class_add_binding_signal (widget_class,
-                                         GDK_KEY_Escape, 0, "cancel",
+                                         GDK_KEY_Escape, GDK_NO_MODIFIER_MASK, "cancel",
                                          NULL);
 
     /**
@@ -482,11 +484,9 @@ nautilus_query_editor_class_init (NautilusQueryEditorClass *class)
      * Binding target for the slot's location. To be applied to the existing
      * query, or when creating a new one.
      */
-    g_object_class_install_property (gobject_class,
-                                     PROP_LOCATION,
-                                     g_param_spec_object ("location", NULL, NULL,
-                                                          G_TYPE_FILE,
-                                                          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+    properties[PROP_LOCATION] = g_param_spec_object ("location", NULL, NULL,
+                                                     G_TYPE_FILE,
+                                                     G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS);
 
     /**
      * NautilusQueryEditor::query:
@@ -494,13 +494,13 @@ nautilus_query_editor_class_init (NautilusQueryEditorClass *class)
      * The current query of the query editor. It it always synchronized
      * with the filter popover's query.
      */
-    g_object_class_install_property (gobject_class,
-                                     PROP_QUERY,
-                                     g_param_spec_object ("query",
-                                                          "Query of the search",
-                                                          "The query that the editor is handling",
-                                                          NAUTILUS_TYPE_QUERY,
-                                                          G_PARAM_READWRITE));
+    properties[PROP_QUERY] = g_param_spec_object ("query",
+                                                  "Query of the search",
+                                                  "The query that the editor is handling",
+                                                  NAUTILUS_TYPE_QUERY,
+                                                  G_PARAM_READWRITE);
+
+    g_object_class_install_properties (gobject_class, G_N_ELEMENTS (properties), properties);
 
     gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BOX_LAYOUT);
     gtk_widget_class_set_css_name (widget_class, "entry");
@@ -802,7 +802,7 @@ nautilus_query_editor_set_location (NautilusQueryEditor *editor,
 
     if (should_notify)
     {
-        g_object_notify (G_OBJECT (editor), "location");
+        g_object_notify_by_pspec (G_OBJECT (editor), properties[PROP_LOCATION]);
     }
 }
 
@@ -850,7 +850,7 @@ nautilus_query_editor_set_query (NautilusQueryEditor *self,
         }
         update_fts_sensitivity (self);
 
-        g_object_notify (G_OBJECT (self), "query");
+        g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_QUERY]);
     }
 
     self->change_frozen = FALSE;
