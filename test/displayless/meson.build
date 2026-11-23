@@ -24,6 +24,7 @@ tests = {
   'test-ui-utilities': {},
   'test-search-engine-bigsearch': {},
   'test-tag-colors': {},
+  'test-tag-directory': {},
   'test-terminal-utils': {},
 }
 
