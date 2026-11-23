@@ -20,6 +20,9 @@ tests = {
   },
   'test-view-model': {},
   'test-program-choosing': {},
+  'test-window-journey': {
+    'is_parallel' : false,
+  },
 }
 
 foreach test_name, extra_args : tests
