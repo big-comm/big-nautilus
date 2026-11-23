@@ -202,9 +202,15 @@ static void update_back_forward_actions (NautilusWindowSlot *self);
 static gboolean nautilus_window_slot_ensure_terminal_state (gpointer user_data);
 
 void nautilus_window_slot_init_terminal (NautilusWindowSlot *self);
-static void on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self);
-static void on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self);
-static void on_terminal_running_command_changed(NautilusTerminalWidget *terminal, gboolean running, NautilusWindowSlot *self);
+static void on_terminal_directory_changed (NautilusTerminalWidget *terminal,
+                                           GFile                  *location,
+                                           NautilusWindowSlot     *self);
+static void on_terminal_visibility_changed (NautilusTerminalWidget *terminal,
+                                            gboolean                visible,
+                                            NautilusWindowSlot     *self);
+static void on_terminal_running_command_changed (NautilusTerminalWidget *terminal,
+                                                 gboolean                running,
+                                                 NautilusWindowSlot     *self);
 
 void
 free_navigation_state (gpointer data)
@@ -2888,9 +2894,13 @@ nautilus_window_slot_update_title (NautilusWindowSlot *self)
         const char *cmd = nautilus_terminal_widget_get_last_command_title (self->terminal_widget);
 
         if (cmd != NULL && *cmd != '\0')
+        {
             title = g_strdup_printf ("▶ %s — %s", cmd, base_title);
+        }
         else
+        {
             title = g_strdup_printf ("▶ %s", base_title);
+        }
     }
     else
     {
@@ -3161,14 +3171,15 @@ nautilus_window_slot_go_down (NautilusWindowSlot *self)
 void
 nautilus_window_slot_init_terminal (NautilusWindowSlot *self)
 {
-    if (self->terminal_widget != NULL) {
+    if (self->terminal_widget != NULL)
+    {
         return;
     }
 
-    self->terminal_widget = nautilus_terminal_widget_new_with_location(self->location);
-    gtk_paned_set_end_child(GTK_PANED(self->terminal_pane_container), GTK_WIDGET(self->terminal_widget));
-    gtk_widget_set_vexpand(GTK_WIDGET(self->terminal_widget), TRUE);
-    gtk_widget_set_hexpand(GTK_WIDGET(self->terminal_widget), TRUE);
+    self->terminal_widget = nautilus_terminal_widget_new_with_location (self->location);
+    gtk_paned_set_end_child (GTK_PANED (self->terminal_pane_container), GTK_WIDGET (self->terminal_widget));
+    gtk_widget_set_vexpand (GTK_WIDGET (self->terminal_widget), TRUE);
+    gtk_widget_set_hexpand (GTK_WIDGET (self->terminal_widget), TRUE);
 
     g_signal_connect_object (self->terminal_widget, "change-directory",
                              G_CALLBACK (on_terminal_directory_changed), self,
@@ -3180,40 +3191,47 @@ nautilus_window_slot_init_terminal (NautilusWindowSlot *self)
                              G_CALLBACK (on_terminal_running_command_changed), self,
                              G_CONNECT_DEFAULT);
 
-    nautilus_terminal_widget_set_container_paned(self->terminal_widget, self->terminal_pane_container);
+    nautilus_terminal_widget_set_container_paned (self->terminal_widget, self->terminal_pane_container);
 }
 
 void
 nautilus_window_slot_toggle_terminal (NautilusWindowSlot *self)
 {
-    if (self->terminal_widget == NULL) {
-        nautilus_window_slot_init_terminal(self);
+    if (self->terminal_widget == NULL)
+    {
+        nautilus_window_slot_init_terminal (self);
     }
 
-    if (self->terminal_widget != NULL) {
-        nautilus_terminal_widget_toggle_visible(self->terminal_widget);
+    if (self->terminal_widget != NULL)
+    {
+        nautilus_terminal_widget_toggle_visible (self->terminal_widget);
     }
 }
 
 void
 nautilus_window_slot_update_terminal_location (NautilusWindowSlot *self)
 {
-    if (self->terminal_widget != NULL && self->location != NULL) {
-        nautilus_terminal_widget_set_current_location(self->terminal_widget, self->location);
-    }
-}
-
-static void
-on_terminal_directory_changed(NautilusTerminalWidget *terminal, GFile *location, NautilusWindowSlot *self)
-{
-    if (self->pending_location == NULL && self->location != NULL && !g_file_equal(self->location, location))
+    if (self->terminal_widget != NULL && self->location != NULL)
     {
-        nautilus_window_slot_open_location_full(self, location, NULL);
+        nautilus_terminal_widget_set_current_location (self->terminal_widget, self->location);
     }
 }
 
 static void
-on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visible, NautilusWindowSlot *self)
+on_terminal_directory_changed (NautilusTerminalWidget *terminal,
+                               GFile                  *location,
+                               NautilusWindowSlot     *self)
+{
+    if (self->pending_location == NULL && self->location != NULL && !g_file_equal (self->location, location))
+    {
+        nautilus_window_slot_open_location_full (self, location, NULL);
+    }
+}
+
+static void
+on_terminal_visibility_changed (NautilusTerminalWidget *terminal,
+                                gboolean                visible,
+                                NautilusWindowSlot     *self)
 {
     /* The badge of a running command goes with the terminal. */
     if (self->location != NULL)
@@ -3223,7 +3241,9 @@ on_terminal_visibility_changed(NautilusTerminalWidget *terminal, gboolean visibl
 }
 
 static void
-on_terminal_running_command_changed(NautilusTerminalWidget *terminal, gboolean running, NautilusWindowSlot *self)
+on_terminal_running_command_changed (NautilusTerminalWidget *terminal,
+                                     gboolean                running,
+                                     NautilusWindowSlot     *self)
 {
     self->terminal_command_running = running;
     if (self->location != NULL)
@@ -3241,7 +3261,8 @@ nautilus_window_slot_ensure_terminal_state (gpointer user_data)
 
     /* A file chooser is a slot too, and has no terminal. It must not use up
      * the one restore either: the first real window still wants it. */
-    if (self->mode != NAUTILUS_MODE_BROWSE) {
+    if (self->mode != NAUTILUS_MODE_BROWSE)
+    {
         return G_SOURCE_REMOVE;
     }
 
@@ -3252,23 +3273,29 @@ nautilus_window_slot_ensure_terminal_state (gpointer user_data)
      * the GSetting happened to be, opening the terminal unexpectedly. */
     static gboolean initial_state_applied = FALSE;
 
-    if (initial_state_applied) {
+    if (initial_state_applied)
+    {
         return G_SOURCE_REMOVE;
     }
     initial_state_applied = TRUE;
 
-    g_autoptr(GSettings) settings = g_settings_new("org.gnome.nautilus.terminal");
-    gboolean terminal_should_be_visible = g_settings_get_boolean(settings, "visible");
+    g_autoptr (GSettings) settings = g_settings_new ("org.gnome.nautilus.terminal");
+    gboolean terminal_should_be_visible = g_settings_get_boolean (settings, "visible");
 
-    if (terminal_should_be_visible) {
-        if (self->terminal_widget == NULL) {
-            nautilus_window_slot_init_terminal(self);
+    if (terminal_should_be_visible)
+    {
+        if (self->terminal_widget == NULL)
+        {
+            nautilus_window_slot_init_terminal (self);
         }
-        nautilus_terminal_widget_ensure_state(self->terminal_widget);
-        nautilus_window_slot_update_terminal_location(self);
-    } else {
-        if (self->terminal_widget != NULL) {
-            nautilus_terminal_widget_ensure_state(self->terminal_widget);
+        nautilus_terminal_widget_ensure_state (self->terminal_widget);
+        nautilus_window_slot_update_terminal_location (self);
+    }
+    else
+    {
+        if (self->terminal_widget != NULL)
+        {
+            nautilus_terminal_widget_ensure_state (self->terminal_widget);
         }
     }
     return G_SOURCE_REMOVE;

@@ -66,7 +66,7 @@ enum
 static guint signals[LAST_SIGNAL] = { 0 };
 
 /* Stable on-disk names. Never reorder these against the enum. */
-static const char *const color_names[NAUTILUS_TAG_COLOR_LAST] =
+static const char * const color_names[NAUTILUS_TAG_COLOR_LAST] =
 {
     [NAUTILUS_TAG_COLOR_NONE] = "none",
     [NAUTILUS_TAG_COLOR_RED] = "red",
@@ -79,7 +79,7 @@ static const char *const color_names[NAUTILUS_TAG_COLOR_LAST] =
     [NAUTILUS_TAG_COLOR_GRAY] = "gray",
 };
 
-static const char *const css_classes[NAUTILUS_TAG_COLOR_LAST] =
+static const char * const css_classes[NAUTILUS_TAG_COLOR_LAST] =
 {
     [NAUTILUS_TAG_COLOR_NONE] = NULL,
     [NAUTILUS_TAG_COLOR_RED] = "nautilus-tag-red",
