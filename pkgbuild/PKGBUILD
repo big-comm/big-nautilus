@@ -60,26 +60,20 @@ depends=(
 makedepends=(
   appstream
   blueprint-compiler
-  vte4
   gi-docgen
   git
   glib2-devel
   gobject-introspection
   meson
 )
-checkdepends=(python-gobject)
 source=("git+${url}.git")
 b2sums=('SKIP')
 install=pkgbuild.install
 
-prepare() {
-  cd big-nautilus
-}
-
 build() {
+  # docs also installs the man pages.
   local meson_options=(
     -D docs=true
-    -D packagekit=false
     -D selinux=disabled
   )
 
@@ -91,52 +85,20 @@ build() {
   meson compile -C build
 }
 
-# check() {
-#   meson test -C build --print-errorlogs
-# }
-
-_pick() {
-  local p="$1" f d; shift
-  for f; do
-    d="$srcdir/$p/${f#$pkgdir/}"
-    mkdir -p "$(dirname "$d")"
-    mv "$f" "$d"
-    rmdir -p --ignore-fail-on-non-empty "$(dirname "$f")"
-  done
-}
-
-package_big-nautilus() {
+package() {
   depends+=(libnautilus-extension.so)
   groups=(gnome)
 
   meson install -C build --destdir "$pkgdir"
 
-  cd "$pkgdir"
-
-  _pick libne usr/include
-  _pick libne usr/lib/{girepository-1.0,libnautilus-extension*,pkgconfig}
-  _pick libne usr/share/gir-1.0
-
-  _pick ldocs usr/share/doc
-}
-
-package_libnautilus-extension() {
-  pkgdesc="Extension interface for Nautilus"
-  depends=(
-    gcc-libs
-    glib2
-    glibc
-  )
-  provides=(libnautilus-extension.so)
-
-  mv libne/* "$pkgdir"
-}
-
-package_libnautilus-extension-docs() {
-  pkgdesc="Extension interface for Nautilus (documentation)"
-  depends=()
-
-  mv ldocs/* "$pkgdir"
+  # The extension library and its API reference are the ones GNOME Files
+  # builds, unchanged, and the libnautilus-extension packages own these paths.
+  rm -r "$pkgdir"/usr/include \
+    "$pkgdir"/usr/lib/girepository-1.0 \
+    "$pkgdir"/usr/lib/libnautilus-extension.so* \
+    "$pkgdir"/usr/lib/pkgconfig \
+    "$pkgdir"/usr/share/doc \
+    "$pkgdir"/usr/share/gir-1.0
 }
 
 # vim:set sw=2 sts=-1 et:
