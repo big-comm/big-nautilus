@@ -53,6 +53,62 @@ test_file_duplicate_pointers (void)
     nautilus_file_unref (file);
 }
 
+static int
+compare_files_by_name (gconstpointer a,
+                       gconstpointer b)
+{
+    return nautilus_file_compare_for_sort (*(NautilusFile **) a, *(NautilusFile **) b,
+                                           NAUTILUS_FILE_SORT_BY_DISPLAY_NAME, FALSE, FALSE);
+}
+
+/* Names that differ in case are sorted by what follows, not by their case:
+ * the order `ls -1` gives for these in a pt_BR.UTF-8 locale. */
+static void
+test_file_sort_case_after_content (void)
+{
+    const char * const expected[] =
+    {
+        "CSI.Crime.Scene.Investigation.S06E01.1080p.WEB-DL.h264.Dual2.0-Dinho.mkv",
+        "Csi.Crime.Scene.Investigation.S06E01.1080p.WEB-DL.h264.Dual2.0-Dinho.srt",
+        "CSI.Crime.Scene.Investigation.S06E02.1080p.WEB-DL.h264.Dual2.0-Dinho.mkv",
+        "CSI.Crime.Scene.Investigation.S06E02.1080p.WEB-DL.h264.Dual2.0-Dinho.srt",
+        "CSI.Crime.Scene.Investigation.S06E03.1080p.WEB-DL.h264.Dual2.0-Dinho.mkv",
+        "Csi.Crime.Scene.Investigation.S06E21.1080p.WEB-DL.h264.Dual2.0-Dinho.mkv",
+        "Csi.Crime.Scene.Investigation.S06E21.1080p.WEB-DL.h264.Dual2.0-Dinho.srt",
+        "Csi.Crime.Scene.Investigation.S06E22.1080p.WEB-DL.h264.Dual2.0-Dinho.mkv",
+    };
+    /* The same names, in the order that used to come out of the sort. */
+    const guint shuffled[] = { 1, 5, 6, 7, 0, 2, 3, 4 };
+    g_autoptr (GPtrArray) files = g_ptr_array_new_with_free_func (g_object_unref);
+
+    for (guint i = 0; i < G_N_ELEMENTS (shuffled); i++)
+    {
+        g_autofree char *uri = g_strconcat ("file:///nautilus-sort-test/", expected[shuffled[i]], NULL);
+
+        g_ptr_array_add (files, nautilus_file_get_by_uri (uri));
+    }
+
+    g_ptr_array_sort (files, compare_files_by_name);
+
+    for (guint i = 0; i < G_N_ELEMENTS (expected); i++)
+    {
+        g_assert_cmpstr (nautilus_file_get_display_name (g_ptr_array_index (files, i)), ==, expected[i]);
+    }
+}
+
+/* Names equal but for case still sort the same way every time. */
+static void
+test_file_sort_case_breaks_ties (void)
+{
+    g_autoptr (NautilusFile) upper = nautilus_file_get_by_uri ("file:///nautilus-sort-test/README");
+    g_autoptr (NautilusFile) lower = nautilus_file_get_by_uri ("file:///nautilus-sort-test/readme");
+    NautilusFileSortType sort_type = NAUTILUS_FILE_SORT_BY_DISPLAY_NAME;
+    int order = nautilus_file_compare_for_sort (upper, lower, sort_type, FALSE, FALSE);
+
+    g_assert_cmpint (order, !=, 0);
+    g_assert_cmpint (nautilus_file_compare_for_sort (lower, upper, sort_type, FALSE, FALSE), ==, -order);
+}
+
 static void
 test_file_sort_order (void)
 {
@@ -471,6 +527,10 @@ main (int   argc,
                      test_file_sort_order);
     g_test_add_func ("/file-sort/with-self",
                      test_file_sort_with_self);
+    g_test_add_func ("/file-sort/case-after-content",
+                     test_file_sort_case_after_content);
+    g_test_add_func ("/file-sort/case-breaks-ties",
+                     test_file_sort_case_breaks_ties);
     g_test_add_func ("/file-batch-rename/cycles",
                      test_file_batch_rename_cycles);
     g_test_add_func ("/file-batch-rename/chains",

@@ -176,6 +176,17 @@ static gboolean update_info_and_name (NautilusFile *file,
                                       GFileInfo    *info);
 static const char *nautilus_file_peek_display_name (NautilusFile *file);
 static const char *nautilus_file_peek_display_name_collation_key (NautilusFile *file);
+
+/* g_utf8_collate_key_for_filename() compares a name piece by piece, split at
+ * every dot, so the case of the first piece decides before anything after it:
+ * "Csi.S06E21" came before "CSI.S06E01". Case only breaks ties, as in ls. */
+static char *
+display_name_collation_key (const char *display_name)
+{
+    g_autofree char *folded = g_utf8_casefold (display_name, -1);
+
+    return g_utf8_collate_key_for_filename (folded, -1);
+}
 static void file_mount_unmounted (GMount  *mount,
                                   gpointer data);
 static void metadata_hash_free (GHashTable *hash);
@@ -284,7 +295,7 @@ nautilus_file_set_display_name (NautilusFile *file,
         }
 
         g_free (file->details->display_name_collation_key);
-        file->details->display_name_collation_key = g_utf8_collate_key_for_filename (display_name, -1);
+        file->details->display_name_collation_key = display_name_collation_key (display_name);
 
         g_object_notify_by_pspec (G_OBJECT (file), properties[PROP_DISPLAY_NAME]);
         g_object_notify_by_pspec (G_OBJECT (file), properties[PROP_A11Y_NAME]);
@@ -3359,6 +3370,15 @@ compare_by_display_name (NautilusFile *file_1,
         key_1 = nautilus_file_peek_display_name_collation_key (file_1);
         key_2 = nautilus_file_peek_display_name_collation_key (file_2);
         compare = strcmp (key_1, key_2);
+
+        if (compare == 0)
+        {
+            /* Names that differ in case alone. */
+            g_autofree char *cased_key_1 = g_utf8_collate_key_for_filename (name_1, -1);
+            g_autofree char *cased_key_2 = g_utf8_collate_key_for_filename (name_2, -1);
+
+            compare = strcmp (cased_key_1, cased_key_2);
+        }
     }
 
     return compare;
