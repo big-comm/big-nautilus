@@ -867,11 +867,6 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
                              self,
                              0);
     g_signal_connect_object (priv->terminal,
-                             "current-directory-uri-changed",
-                             G_CALLBACK (on_terminal_directory_changed),
-                             self,
-                             0);
-    g_signal_connect_object (priv->terminal,
                              "termprop-changed",
                              G_CALLBACK (_on_termprop_changed),
                              self,
@@ -1330,6 +1325,10 @@ _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_dat
 
             change_directory_in_terminal (self, location);
         }
+    }
+    else if (g_strcmp0 (prop, VTE_TERMPROP_CURRENT_DIRECTORY_URI) == 0)
+    {
+        on_terminal_directory_changed (terminal, self);
     }
     else if (g_strcmp0 (prop, VTE_TERMPROP_XTERM_TITLE) == 0)
     {
