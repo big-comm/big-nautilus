@@ -206,7 +206,7 @@
             {
                 "type": "git",
                 "url": "https://github.com/simdutf/simdutf.git",
-                "branch": "master"
+                "tag": "v9.4.0"
             }
         ]
     },
@@ -221,7 +221,7 @@
             {
                 "type": "git",
                 "url": "https://github.com/fastfloat/fast_float.git",
-                "tag": "main"
+                "tag": "v8.4.0"
             }
         ]
     },
@@ -239,7 +239,7 @@
             {
                 "type": "git",
                 "url": "https://gitlab.gnome.org/GNOME/vte.git",
-                "branch": "master"
+                "tag": "0.84.2"
             }
         ]
     },
@@ -268,7 +268,7 @@
       "sources": [
         {
           "type": "git",
-          "url": "https://gitlab.gnome.org/GNOME/nautilus.git",
+          "url": "https://github.com/big-comm/big-nautilus.git",
           "branch": "main"
         },
         {
