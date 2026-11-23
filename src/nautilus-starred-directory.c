@@ -40,7 +40,7 @@ struct _NautilusFavoriteDirectory
 typedef struct
 {
     gboolean monitor_hidden_files;
-    NautilusFileAttributes monitor_attributes;
+    NautilusAttributes monitor_attributes;
 
     gconstpointer client;
 } FavoriteMonitor;
@@ -52,23 +52,15 @@ typedef struct
     NautilusDirectoryCallback callback;
     gpointer callback_data;
 
-    NautilusFileAttributes wait_for_attributes;
-    gboolean wait_for_file_list;
     GList *file_list;
 } FavoriteCallback;
 
-G_DEFINE_TYPE_WITH_CODE (NautilusFavoriteDirectory, nautilus_starred_directory, NAUTILUS_TYPE_DIRECTORY,
-                         nautilus_ensure_extension_points ();
-                         /* It looks like you’re implementing an extension point.
-                          * Did you modify nautilus_ensure_extension_builtins() accordingly?
-                          *
-                          * • Yes
-                          * • Doing it right now
-                          */
-                         g_io_extension_point_implement (NAUTILUS_DIRECTORY_PROVIDER_EXTENSION_POINT_NAME,
-                                                         g_define_type_id,
-                                                         NAUTILUS_STARRED_DIRECTORY_PROVIDER_NAME,
-                                                         0));
+G_DEFINE_FINAL_TYPE_WITH_CODE (NautilusFavoriteDirectory, nautilus_starred_directory, NAUTILUS_TYPE_DIRECTORY,
+                               nautilus_ensure_extension_points ();
+                               g_io_extension_point_implement (NAUTILUS_DIRECTORY_PROVIDER_EXTENSION_POINT_NAME,
+                                                               g_define_type_id,
+                                                               NAUTILUS_STARRED_DIRECTORY_PROVIDER_NAME,
+                                                               0))
 
 static void
 file_changed (NautilusFile              *file,
@@ -199,8 +191,7 @@ real_is_editable (NautilusDirectory *directory)
 
 static void
 real_call_when_ready (NautilusDirectory         *directory,
-                      NautilusFileAttributes     file_attributes,
-                      gboolean                   wait_for_file_list,
+                      NautilusAttributes         attributes,
                       NautilusDirectoryCallback  callback,
                       gpointer                   callback_data)
 {
@@ -228,7 +219,7 @@ static void
 real_file_monitor_add (NautilusDirectory         *directory,
                        gconstpointer              client,
                        gboolean                   monitor_hidden_files,
-                       NautilusFileAttributes     file_attributes,
+                       NautilusAttributes         attributes,
                        NautilusDirectoryCallback  callback,
                        gpointer                   callback_data)
 {
@@ -241,7 +232,7 @@ real_file_monitor_add (NautilusDirectory         *directory,
 
     monitor = g_new0 (FavoriteMonitor, 1);
     monitor->monitor_hidden_files = monitor_hidden_files;
-    monitor->monitor_attributes = file_attributes;
+    monitor->monitor_attributes = attributes;
     monitor->client = client;
 
     starred->monitor_list = g_list_prepend (starred->monitor_list, monitor);
@@ -256,7 +247,7 @@ real_file_monitor_add (NautilusDirectory         *directory,
         file = list->data;
 
         /* Add monitors */
-        nautilus_file_monitor_add (file, monitor, file_attributes);
+        nautilus_file_monitor_add (file, monitor, attributes);
     }
 }
 

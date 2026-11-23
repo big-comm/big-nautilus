@@ -8,7 +8,6 @@
 
 #include "nautilus-file.h"
 #include "nautilus-global-preferences.h"
-#include "nautilus-icon-info.h"
 #include "nautilus-image.h"
 #include "nautilus-tag-colors.h"
 #include "nautilus-tag-manager.h"
@@ -28,14 +27,12 @@ struct _NautilusGridCell
     GtkWidget *icon;
     GtkWidget *emblems_box;
     GtkWidget *labels_box;
-    GtkWidget *first_caption;
-    GtkWidget *second_caption;
-    GtkWidget *third_caption;
+    GtkWidget *caption_labels[NAUTILUS_GRID_CELL_N_CAPTIONS];
 
     gboolean in_file_change;
 };
 
-G_DEFINE_TYPE (NautilusGridCell, nautilus_grid_cell, NAUTILUS_TYPE_VIEW_CELL)
+G_DEFINE_FINAL_TYPE (NautilusGridCell, nautilus_grid_cell, NAUTILUS_TYPE_VIEW_CELL)
 
 static void
 update_icon (NautilusGridCell *self)
@@ -91,18 +88,45 @@ update_icon (NautilusGridCell *self)
     }
 }
 
+static GtkWidget *
+caption_widget_new (void)
+{
+    GtkWidget *caption = gtk_label_new (NULL);
+
+    gtk_widget_set_valign (caption, GTK_ALIGN_START);
+    gtk_widget_add_css_class (caption, "caption");
+    gtk_widget_add_css_class (caption, "dim-label");
+
+    gtk_label_set_ellipsize (GTK_LABEL (caption), PANGO_ELLIPSIZE_END);
+    gtk_label_set_justify (GTK_LABEL (caption), GTK_JUSTIFY_CENTER);
+    gtk_label_set_lines (GTK_LABEL (caption), 2);
+    gtk_label_set_wrap (GTK_LABEL (caption), TRUE);
+    gtk_label_set_wrap_mode (GTK_LABEL (caption), PANGO_WRAP_WORD_CHAR);
+
+    return caption;
+}
+
+static void
+ensure_captions (NautilusGridCell *self)
+{
+    if (self->caption_labels[0] != NULL)
+    {
+        return;
+    }
+
+    for (guint i = 0; i < NAUTILUS_GRID_CELL_N_CAPTIONS; i++)
+    {
+        self->caption_labels[i] = caption_widget_new ();
+
+        gtk_box_append (GTK_BOX (self->labels_box), self->caption_labels[i]);
+    }
+}
+
 static void
 update_captions (NautilusGridCell *self)
 {
     g_autoptr (NautilusViewItem) item = NULL;
     NautilusFile *file;
-    GtkWidget * const caption_labels[] =
-    {
-        self->first_caption,
-        self->second_caption,
-        self->third_caption
-    };
-    G_STATIC_ASSERT (G_N_ELEMENTS (caption_labels) == NAUTILUS_GRID_CELL_N_CAPTIONS);
 
     item = nautilus_view_cell_get_item (NAUTILUS_VIEW_CELL (self));
     if (item == NULL)
@@ -114,15 +138,23 @@ update_captions (NautilusGridCell *self)
     for (guint i = 0; i < NAUTILUS_GRID_CELL_N_CAPTIONS; i++)
     {
         GQuark attribute_q = self->caption_attributes[i];
-        gboolean show_caption;
+        gboolean show_caption = (attribute_q != 0);
 
-        show_caption = (attribute_q != 0);
-        gtk_widget_set_visible (caption_labels[i], show_caption);
+        if (!show_caption &&
+            self->caption_labels[i] == NULL)
+        {
+            /* No need to create widgets if they will not be shown. */
+            continue;
+        }
+
+        ensure_captions (self);
+
+        gtk_widget_set_visible (self->caption_labels[i], show_caption);
         if (show_caption)
         {
             g_autofree gchar *string = NULL;
             string = nautilus_file_get_string_attribute_q (file, attribute_q);
-            gtk_label_set_text (GTK_LABEL (caption_labels[i]), string);
+            gtk_label_set_text (GTK_LABEL (self->caption_labels[i]), string);
         }
     }
 }
@@ -440,6 +472,8 @@ snapshot (GtkWidget   *widget,
         GdkRGBA color, dashed_border_color, icon_color;
         const double border_opacity = is_high_contrast ? 0.5 : 0.15;
         const double dim_opacity = is_high_contrast ? 0.9 : 0.55;
+        const char *resource = "/org/gnome/nautilus/icons/scalable/actions/cut-large-symbolic.svg";
+        g_autoptr (GtkSvg) svg = gtk_svg_new_from_resource (resource);
 
         g_object_get (self, "icon-size", &icon_size, NULL);
         dash_bounds = GRAPHENE_RECT_INIT (EMBLEMS_BOX_WIDTH, 0, icon_size, icon_size);
@@ -452,11 +486,7 @@ snapshot (GtkWidget   *widget,
 
         icon_color = color;
         icon_color.alpha *= dim_opacity;
-        nautilus_ui_draw_symbolic_icon (snapshot,
-                                        "cut-large-symbolic",
-                                        &icon_bounds,
-                                        icon_color,
-                                        gtk_widget_get_scale_factor (widget));
+        nautilus_ui_draw_svg (snapshot, svg, &icon_bounds, icon_color);
     }
 
     GTK_WIDGET_CLASS (nautilus_grid_cell_parent_class)->snapshot (widget, snapshot);
@@ -482,9 +512,6 @@ nautilus_grid_cell_class_init (NautilusGridCellClass *klass)
     gtk_widget_class_bind_template_child (widget_class, NautilusGridCell, icon);
     gtk_widget_class_bind_template_child (widget_class, NautilusGridCell, emblems_box);
     gtk_widget_class_bind_template_child (widget_class, NautilusGridCell, labels_box);
-    gtk_widget_class_bind_template_child (widget_class, NautilusGridCell, first_caption);
-    gtk_widget_class_bind_template_child (widget_class, NautilusGridCell, second_caption);
-    gtk_widget_class_bind_template_child (widget_class, NautilusGridCell, third_caption);
 
     gtk_widget_class_bind_template_callback (widget_class, on_label_query_tooltip);
 
@@ -514,8 +541,6 @@ nautilus_grid_cell_init (NautilusGridCell *self)
     self->item_signal_group = g_signal_group_new (NAUTILUS_TYPE_VIEW_ITEM);
     g_signal_group_connect_swapped (self->item_signal_group, "notify::is-cut",
                                     (GCallback) update_icon, self);
-    g_signal_group_connect_swapped (self->item_signal_group, "notify::is-cut",
-                                    (GCallback) gtk_widget_queue_draw, self);
     g_signal_group_connect_swapped (self->item_signal_group, "file-changed",
                                     (GCallback) on_file_changed, self);
     g_signal_connect_object (self->item_signal_group, "bind",

@@ -35,11 +35,11 @@
 #include <glib/gi18n.h>
 #include <glib/gstdio.h>
 #include <gtk/gtk.h>
+#include <gxdp.h>
 #include <libportal/portal.h>
 #include <nautilus-extension.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <xdp-gnome/externalwindow.h>
 
 #include "nautilus-bookmark-list.h"
 #include "nautilus-clipboard.h"
@@ -95,10 +95,35 @@ struct _NautilusApplication
 
     NautilusDBusLauncher *dbus_launcher;
 
+    GCancellable *check_dirs_cancellable;
+
     guint dbus_location_update_timeout_id;
+
+    NautilusWindow *last_active_window;
 };
 
 G_DEFINE_FINAL_TYPE (NautilusApplication, nautilus_application, ADW_TYPE_APPLICATION)
+
+enum
+{
+    LAST_WINDOW_CLOSED,
+    LAST_SIGNAL
+};
+
+static guint signals[LAST_SIGNAL];
+
+static void
+on_window_is_active_changed (NautilusWindow      *window,
+                             GParamSpec          *pspec,
+                             NautilusApplication *self)
+{
+    if (!gtk_window_is_active (GTK_WINDOW (window)))
+    {
+        return;
+    }
+
+    g_set_weak_pointer (&self->last_active_window, window);
+}
 
 void
 nautilus_application_set_accelerator (GApplication *app,
@@ -140,17 +165,53 @@ nautilus_application_get_bookmarks (NautilusApplication *self)
 }
 
 static void
-check_required_directories (NautilusApplication *self)
+check_required_directories_callback (GObject      *source_object,
+                                     GAsyncResult *result,
+                                     gpointer      user_data)
 {
-    g_autofree char *user_directory = nautilus_get_user_directory ();
+    GTask *task = G_TASK (result);
 
-    if (!g_file_test (user_directory, G_FILE_TEST_IS_DIR))
+    /* Application may have been finalized. */
+    if (g_cancellable_is_cancelled (g_task_get_cancellable (task)))
+    {
+        return;
+    }
+
+    NautilusApplication *self = NAUTILUS_APPLICATION (source_object);
+
+    g_clear_object (&self->check_dirs_cancellable);
+
+    if (!g_task_propagate_boolean (task, NULL))
     {
         nautilus_show_ok_dialog (
             _("No Home Directory"),
             _("Make sure the directory exists and has correct access permissions set."),
             NULL);
     }
+}
+
+static void
+check_required_directories_thread_func (GTask        *task,
+                                        gpointer      source_object,
+                                        gpointer      task_data,
+                                        GCancellable *cancellable)
+{
+    g_autofree char *user_directory = nautilus_get_user_directory ();
+
+    g_task_return_boolean (task, g_file_test (user_directory, G_FILE_TEST_IS_DIR));
+}
+
+static void
+check_required_directories_async (NautilusApplication *self)
+{
+    g_autoptr (GTask) task = NULL;
+
+    self->check_dirs_cancellable = g_cancellable_new ();
+    task = g_task_new (self,
+                       self->check_dirs_cancellable,
+                       check_required_directories_callback,
+                       NULL);
+    g_task_run_in_thread (task, check_required_directories_thread_func);
 }
 
 static void
@@ -183,8 +244,7 @@ menu_provider_init_callback (void)
 }
 
 NautilusWindow *
-nautilus_application_create_window (NautilusApplication *self,
-                                    const char          *startup_id)
+nautilus_application_create_window (NautilusApplication *self)
 {
     NautilusWindow *window;
     gboolean maximized;
@@ -195,10 +255,6 @@ nautilus_application_create_window (NautilusApplication *self,
     g_return_val_if_fail (NAUTILUS_IS_APPLICATION (self), NULL);
 
     window = nautilus_window_new ();
-    if (startup_id)
-    {
-        gtk_window_set_startup_id (GTK_WINDOW (window), startup_id);
-    }
 
     maximized = g_settings_get_boolean
                     (nautilus_window_state, NAUTILUS_WINDOW_STATE_MAXIMIZED);
@@ -216,8 +272,8 @@ nautilus_application_create_window (NautilusApplication *self,
     g_variant_get (default_size, "(ii)", &default_width, &default_height);
 
     gtk_window_set_default_size (GTK_WINDOW (window),
-                                 MAX (NAUTILUS_WINDOW_MIN_WIDTH, default_width),
-                                 MAX (NAUTILUS_WINDOW_MIN_HEIGHT, default_height));
+                                 default_width,
+                                 default_height);
 
     if (g_strcmp0 (PROFILE, "") != 0)
     {
@@ -233,22 +289,6 @@ static NautilusWindow *
 get_window_with_location (NautilusApplication *self,
                           GFile               *location)
 {
-    g_autoptr (NautilusFile) file = nautilus_file_get_existing (location);
-    g_autoptr (GFile) searched_location = NULL;
-
-    if (file != NULL &&
-        !nautilus_file_is_directory (file) &&
-        g_file_has_parent (location, NULL))
-    {
-        searched_location = g_file_get_parent (location);
-    }
-    else
-    {
-        searched_location = g_object_ref (location);
-    }
-
-    g_return_val_if_fail (searched_location != NULL, NULL);
-
     /* Check active window as a first priority */
     NautilusWindow *active_window = NAUTILUS_WINDOW (
         gtk_application_get_active_window (GTK_APPLICATION (self)));
@@ -301,16 +341,49 @@ nautilus_application_open_location_full (NautilusApplication *self,
                     (flags & NAUTILUS_OPEN_FLAG_NEW_TAB) == 0);
 
     NautilusWindow *target_window = NULL;
+    g_autoptr (GFile) mapped_location = NULL;
+    g_autolist (NautilusFile) mapped_selection = NULL;
 
     if ((flags & NAUTILUS_OPEN_FLAG_REUSE_EXISTING) != 0)
     {
+        g_autoptr (NautilusFile) file = nautilus_file_get_existing (location);
+
+        /* Translate location to the parent if it is a known regular file.
+         * Also change the selection to the file. */
+        if (file != NULL &&
+            !nautilus_file_is_directory (file) &&
+            g_file_has_parent (location, NULL))
+        {
+            mapped_location = g_file_get_parent (location);
+            location = mapped_location;
+
+            if (selection != NULL)
+            {
+                g_critical ("Attempted to open a regular file with selection");
+            }
+
+            mapped_selection = g_list_prepend (mapped_selection, g_steal_pointer (&file));
+            selection = mapped_selection;
+        }
+
         /* Look for window that alredy shows location */
         target_window = get_window_with_location (self, location);
     }
-    else if ((flags & NAUTILUS_OPEN_FLAG_NEW_WINDOW) == 0)
+
+    if (target_window == NULL && (flags & NAUTILUS_OPEN_FLAG_NEW_WINDOW) == 0)
     {
         /* Reuse active window */
         target_window = active_window;
+
+        if (target_window == NULL)
+        {
+            target_window = self->last_active_window;
+        }
+
+        if (target_window == NULL && self->windows != NULL)
+        {
+            target_window = self->windows->data;
+        }
     }
 
     if (target_window == NULL)
@@ -319,11 +392,16 @@ nautilus_application_open_location_full (NautilusApplication *self,
                   gtk_root_get_display (GTK_ROOT (active_window)) :
                   gdk_display_get_default ();
 
-        target_window = nautilus_application_create_window (self, startup_id);
+        target_window = nautilus_application_create_window (self);
         gtk_window_set_display (GTK_WINDOW (target_window), display);
     }
 
     g_assert (target_window != NULL);
+
+    if (startup_id)
+    {
+        gtk_window_set_startup_id (GTK_WINDOW (target_window), startup_id);
+    }
 
     /* Application is the one that manages windows, so this flag shouldn't use
      * it anymore by any client */
@@ -396,6 +474,8 @@ nautilus_application_finalize (GObject *object)
     g_clear_object (&self->progress_handler);
     g_clear_object (&self->bookmark_list);
 
+    g_clear_weak_pointer (&self->last_active_window);
+
     g_list_free (self->windows);
 
     g_hash_table_destroy (self->notifications);
@@ -413,6 +493,12 @@ nautilus_application_finalize (GObject *object)
     nautilus_trash_monitor_clear ();
 
     g_clear_handle_id (&self->dbus_location_update_timeout_id, g_source_remove);
+
+    if (self->check_dirs_cancellable != NULL)
+    {
+        g_cancellable_cancel (self->check_dirs_cancellable);
+        g_clear_object (&self->check_dirs_cancellable);
+    }
 
     G_OBJECT_CLASS (nautilus_application_parent_class)->finalize (object);
 }
@@ -975,8 +1061,15 @@ nautilus_application_startup (GApplication *app)
     /* Initialize GDK display (for wayland-x11-interop protocol) before GTK does
      * it during the chain-up. */
     g_autoptr (GError) error = NULL;
-    GdkDisplay *display = init_external_window_display (&error);
-    if (display == NULL || error != NULL)
+
+    gxdp_init_gtk (GXDP_SERVICE_CLIENT_TYPE_FILE_CHOOSER,
+                   (const char *[]) { "org.freedesktop.portal.FileChooser", NULL },
+                   &error);
+    /* Remove environment variable that disables libadwaita portal use until it
+     * is fixed in libgxdp */
+    g_unsetenv ("ADW_DISABLE_PORTAL");
+
+    if (error != NULL)
     {
         g_message ("Failed to initialize display server connection: %s",
                    error->message);
@@ -986,8 +1079,6 @@ nautilus_application_startup (GApplication *app)
      * is called for us.
      */
     G_APPLICATION_CLASS (nautilus_application_parent_class)->startup (G_APPLICATION (self));
-
-    g_assert (display == NULL || gdk_display_get_default () == display);
 
     gtk_window_set_default_icon_name (APPLICATION_ID);
 
@@ -1013,7 +1104,7 @@ nautilus_application_startup (GApplication *app)
     /* Check the user's .nautilus directories and post warnings
      * if there are problems.
      */
-    check_required_directories (self);
+    check_required_directories_async (self);
 
     nautilus_init_application_actions (self);
 
@@ -1027,7 +1118,7 @@ nautilus_application_startup (GApplication *app)
     g_signal_connect_object (gtk_icon_theme_get_for_display (gdk_display_get_default ()),
                              "changed",
                              G_CALLBACK (icon_theme_changed_callback),
-                             NULL, 0);
+                             NULL, G_CONNECT_DEFAULT);
 }
 
 static gboolean
@@ -1182,6 +1273,8 @@ nautilus_application_window_added (GtkApplication *app,
         self->windows = g_list_prepend (self->windows, window);
         g_signal_connect_swapped (window, "locations-changed",
                                   G_CALLBACK (schedule_dbus_location_update), app);
+        g_signal_connect (window, "notify::is-active",
+                          G_CALLBACK (on_window_is_active_changed), self);
     }
 }
 
@@ -1199,13 +1292,14 @@ nautilus_application_window_removed (GtkApplication *app,
     {
         self->windows = g_list_remove_all (self->windows, window);
         g_signal_handlers_disconnect_by_func (window, schedule_dbus_location_update, app);
+        g_signal_handlers_disconnect_by_func (window, on_window_is_active_changed, self);
+        g_clear_weak_pointer (&self->last_active_window);
     }
 
     /* if this was the last window, close the previewer */
     if (self->windows == NULL)
     {
-        nautilus_previewer_call_close ();
-        nautilus_progress_persistence_handler_make_persistent (self->progress_handler);
+        g_signal_emit (self, signals[LAST_WINDOW_CLOSED], 0);
     }
 
     schedule_dbus_location_update (self);
@@ -1250,6 +1344,14 @@ nautilus_application_class_init (NautilusApplicationClass *class)
     gtkapp_class = GTK_APPLICATION_CLASS (class);
     gtkapp_class->window_added = nautilus_application_window_added;
     gtkapp_class->window_removed = nautilus_application_window_removed;
+
+    signals[LAST_WINDOW_CLOSED] = g_signal_new ("last-window-closed",
+                                                G_TYPE_FROM_CLASS (object_class),
+                                                G_SIGNAL_RUN_LAST,
+                                                0,
+                                                NULL, NULL,
+                                                g_cclosure_marshal_VOID__VOID,
+                                                G_TYPE_NONE, 0);
 }
 
 NautilusApplication *

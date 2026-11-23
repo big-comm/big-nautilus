@@ -86,7 +86,7 @@ struct _NautilusProgressInfo
 
 G_LOCK_DEFINE_STATIC (progress_info);
 
-G_DEFINE_TYPE (NautilusProgressInfo, nautilus_progress_info, G_TYPE_OBJECT)
+G_DEFINE_FINAL_TYPE (NautilusProgressInfo, nautilus_progress_info, G_TYPE_OBJECT)
 
 static void set_details (NautilusProgressInfo *info,
                          const char           *details);
@@ -318,7 +318,7 @@ idle_callback (gpointer data)
         g_signal_emit (info,
                        signals[PROGRESS_CHANGED],
                        0);
-        g_object_notify (G_OBJECT (info), "progress");
+        g_object_notify_by_pspec (G_OBJECT (info), properties[PROP_PROGRESS]);
     }
 
     if (status_at_idle)
@@ -328,7 +328,7 @@ idle_callback (gpointer data)
 
     if (finish_at_idle)
     {
-        g_object_notify (G_OBJECT (info), "icon-name");
+        g_object_notify_by_pspec (G_OBJECT (info), properties[PROP_ICON_NAME]);
         g_signal_emit (info,
                        signals[FINISHED],
                        0);
@@ -336,7 +336,7 @@ idle_callback (gpointer data)
 
     if (cancelled_at_idle)
     {
-        g_object_notify (G_OBJECT (info), "icon-name");
+        g_object_notify_by_pspec (G_OBJECT (info), properties[PROP_ICON_NAME]);
         g_signal_emit (info,
                        signals[CANCELLED],
                        0);
@@ -700,8 +700,7 @@ static void
 set_details (NautilusProgressInfo *info,
              const char           *details)
 {
-    g_free (info->details);
-    info->details = g_strdup (details);
+    g_set_str (&info->details, details);
 
     info->changed_at_idle = TRUE;
     queue_idle (info, FALSE);
@@ -855,8 +854,7 @@ nautilus_progress_info_set_destination (NautilusProgressInfo *info,
                                         GFile                *file)
 {
     G_LOCK (progress_info);
-    g_clear_object (&info->destination);
-    info->destination = g_object_ref (file);
+    g_set_object (&info->destination, file);
     G_UNLOCK (progress_info);
 }
 

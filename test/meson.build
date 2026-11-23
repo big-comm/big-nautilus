@@ -1,23 +1,31 @@
-# When adding new tests, it is useful to set some environment variables.
-# You can do it like so:
-#
-# test(
-#   name,
-#   executable,
-#   env: [
-#     test_env,
-#     'G_TEST_BUILDDIR=@0@'.format(meson.current_build_dir()),
-#     'G_TEST_SRCDIR=@0@'.format(meson.current_source_dir())
-#   ]
-# )
-#
-# G_TEST_BUILDDIR and G_TEST_SRCDIR cannot be preset, since
-# the test sources are scattered.
 test_env = [
   'GTK_A11Y=none',
   'GSK_DEBUG=fallback',
   'GSETTINGS_BACKEND=memory',
   'GSETTINGS_SCHEMA_DIR=@0@'.format(join_paths(meson.project_build_root(), 'data')),
+  'LSAN_OPTIONS=suppressions=@0@'.format(
+    meson.project_source_root() / 'build-aux' / 'leak-suppress.txt'
+  ),
 ]
 
-subdir('automated')
+test_utils = files('test-utilities.c')
+
+libtestutils = static_library(
+  'testutils',
+  test_utils,
+  dependencies: libnautilus_dep,
+  include_directories: include_directories('.')
+)
+
+libtestutils_dep = declare_dependency(
+  link_with: libtestutils,
+  include_directories: include_directories('.'),
+  dependencies: libnautilus_dep,
+  sources: resources_header
+)
+
+subdir('displayless')
+
+if get_option('tests') == 'all'
+  subdir('display')
+endif

@@ -48,7 +48,7 @@ struct _NautilusGridView
 /* Built ahead of need a few at a time, in between everything else. */
 #define CELL_POOL_FILL_STEP 6
 
-G_DEFINE_TYPE (NautilusGridView, nautilus_grid_view, NAUTILUS_TYPE_LIST_BASE)
+G_DEFINE_FINAL_TYPE (NautilusGridView, nautilus_grid_view, NAUTILUS_TYPE_LIST_BASE)
 
 #define get_view_item(li) \
         (NAUTILUS_VIEW_ITEM (gtk_tree_list_row_get_item (GTK_TREE_LIST_ROW (gtk_list_item_get_item (li)))))
@@ -436,8 +436,7 @@ create_cell (NautilusGridView *self)
 {
     NautilusGridCell *cell = nautilus_grid_cell_new (NAUTILUS_LIST_BASE (self));
 
-    setup_cell_controllers (NAUTILUS_VIEW_CELL (cell));
-    setup_cell_hover (NAUTILUS_VIEW_CELL (cell));
+    setup_cell_controllers (NAUTILUS_VIEW_CELL (cell), GTK_WIDGET (cell));
 
     g_object_bind_property (self, "icon-size",
                             cell, "icon-size",
@@ -453,27 +452,20 @@ bind_cell (GtkSignalListItemFactory *factory,
            GtkListItem              *listitem,
            gpointer                  user_data)
 {
-    GtkWidget *cell;
-    g_autoptr (NautilusViewItem) item = NULL;
+    g_autoptr (NautilusViewItem) item = get_view_item (listitem);
 
-    cell = gtk_list_item_get_child (listitem);
-    item = get_view_item (listitem);
     g_return_if_fail (item != NULL);
+
+    GtkWidget *cell = gtk_list_item_get_child (listitem);
+    GtkWidget *parent = gtk_widget_get_parent (cell);
 
     nautilus_view_item_set_item_ui (item, cell);
 
-    {
-        GtkWidget *parent;
-
-        /* At the time of ::setup emission, the item ui has got no parent yet,
-         * that's why we need to complete the widget setup process here, when
-         * ::bind is emitted. Every time and not just the first: a cell
-         * outlives its parent, see setup_cell(). The setters do nothing
-         * when there is nothing to change. */
-        parent = gtk_widget_get_parent (cell);
-        gtk_widget_set_halign (parent, GTK_ALIGN_CENTER);
-        gtk_widget_set_valign (parent, GTK_ALIGN_START);
-    }
+    /* At the time of ::setup emission, the item ui has got no parent yet,
+     * that's why we need to complete the widget setup process here, when
+     * ::bind is emitted. */
+    gtk_widget_set_halign (parent, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign (parent, GTK_ALIGN_START);
 }
 
 static void

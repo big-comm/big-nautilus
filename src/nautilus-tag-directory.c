@@ -40,7 +40,7 @@ struct _NautilusTagDirectory
 typedef struct
 {
     gboolean monitor_hidden_files;
-    NautilusFileAttributes monitor_attributes;
+    NautilusAttributes monitor_attributes;
 
     gconstpointer client;
 } TagMonitor;
@@ -52,7 +52,7 @@ typedef struct
     NautilusDirectoryCallback callback;
     gpointer callback_data;
 
-    NautilusFileAttributes wait_for_attributes;
+    NautilusAttributes wait_for_attributes;
     gboolean wait_for_file_list;
     GList *file_list;
 } TagCallback;
@@ -277,8 +277,7 @@ real_is_editable (NautilusDirectory *directory)
 
 static void
 real_call_when_ready (NautilusDirectory         *directory,
-                      NautilusFileAttributes     file_attributes,
-                      gboolean                   wait_for_file_list,
+                      NautilusAttributes         attributes,
                       NautilusDirectoryCallback  callback,
                       gpointer                   callback_data)
 {
@@ -306,7 +305,7 @@ static void
 real_file_monitor_add (NautilusDirectory         *directory,
                        gconstpointer              client,
                        gboolean                   monitor_hidden_files,
-                       NautilusFileAttributes     file_attributes,
+                       NautilusAttributes     file_attributes,
                        NautilusDirectoryCallback  callback,
                        gpointer                   callback_data)
 {

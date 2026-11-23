@@ -91,7 +91,7 @@ struct _NautilusSearchPopover
 
 static void          show_other_types_dialog (NautilusSearchPopover *popover);
 
-G_DEFINE_TYPE (NautilusSearchPopover, nautilus_search_popover, GTK_TYPE_POPOVER)
+G_DEFINE_FINAL_TYPE (NautilusSearchPopover, nautilus_search_popover, GTK_TYPE_POPOVER)
 
 enum
 {
@@ -429,8 +429,7 @@ show_other_types_dialog (NautilusSearchPopover *popover)
         g_autofree gchar *content_type = l->data;
         g_autofree gchar *description = g_content_type_get_description (content_type);
         g_autoptr (GIcon) icon = g_content_type_get_icon (content_type);
-        g_autoptr (NautilusIconInfo) icon_info = nautilus_icon_info_lookup (icon, 32, scale);
-        GdkPaintable *paintable = nautilus_icon_info_get_paintable (icon_info);
+        GdkPaintable *paintable = nautilus_icon_info_lookup (icon, 32, scale);
 
         g_list_store_append (file_type_list, nautilus_minimal_cell_new (description,
                                                                         content_type,
@@ -708,7 +707,9 @@ nautilus_search_popover_init (NautilusSearchPopover *self)
     g_autoptr (GSimpleAction) action = g_simple_action_new_stateful (
         "time-type-changed", G_VARIANT_TYPE_STRING, g_variant_new_string (time_type_str));
     g_simple_action_set_enabled (action, TRUE);
-    g_signal_connect_object (action, "change-state", G_CALLBACK (time_type_changed), self, 0);
+    g_signal_connect_object (action, "change-state",
+                             G_CALLBACK (time_type_changed), self,
+                             G_CONNECT_DEFAULT);
 
     GSimpleActionGroup *action_group = g_simple_action_group_new ();
     g_action_map_add_action (G_ACTION_MAP (action_group), G_ACTION (action));

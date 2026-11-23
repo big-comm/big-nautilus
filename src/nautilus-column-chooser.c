@@ -62,6 +62,8 @@ enum
     NUM_PROPERTIES
 };
 
+static GParamSpec *properties[NUM_PROPERTIES];
+
 enum
 {
     CHANGED,
@@ -69,7 +71,7 @@ enum
 };
 static guint signals[LAST_SIGNAL];
 
-G_DEFINE_TYPE (NautilusColumnChooser, nautilus_column_chooser, ADW_TYPE_DIALOG);
+G_DEFINE_FINAL_TYPE (NautilusColumnChooser, nautilus_column_chooser, ADW_TYPE_DIALOG);
 
 static GStrv
 get_column_names (NautilusColumnChooser *chooser,
@@ -534,8 +536,6 @@ nautilus_column_chooser_constructed (GObject *object)
 {
     NautilusColumnChooser *chooser;
     const char *name = NULL;
-    g_auto (GStrv) file_visible_columns = NULL;
-    g_auto (GStrv) file_column_order = NULL;
     gboolean has_custom_columns;
 
     G_OBJECT_CLASS (nautilus_column_chooser_parent_class)->constructed (object);
@@ -547,10 +547,12 @@ nautilus_column_chooser_constructed (GObject *object)
 
     populate_list (chooser);
 
-    file_visible_columns = nautilus_file_get_metadata_list (chooser->file,
-                                                            NAUTILUS_METADATA_KEY_LIST_VIEW_VISIBLE_COLUMNS);
-    file_column_order = nautilus_file_get_metadata_list (chooser->file,
-                                                         NAUTILUS_METADATA_KEY_LIST_VIEW_COLUMN_ORDER);
+    const GStrv file_visible_columns =
+        nautilus_file_get_metadata_list (chooser->file,
+                                         NAUTILUS_METADATA_KEY_LIST_VIEW_VISIBLE_COLUMNS);
+    const GStrv file_column_order =
+        nautilus_file_get_metadata_list (chooser->file,
+                                         NAUTILUS_METADATA_KEY_LIST_VIEW_COLUMN_ORDER);
 
     has_custom_columns = ((file_visible_columns != NULL && file_visible_columns[0] != NULL) ||
                           (file_column_order != NULL && file_column_order[0] != NULL) ||
@@ -615,12 +617,13 @@ nautilus_column_chooser_class_init (NautilusColumnChooserClass *chooser_class)
                            G_TYPE_NONE,
                            2, G_TYPE_STRV, G_TYPE_STRV);
 
-    g_object_class_install_property (oclass,
-                                     PROP_FILE,
-                                     g_param_spec_object ("file", NULL, NULL,
-                                                          NAUTILUS_TYPE_FILE,
-                                                          G_PARAM_CONSTRUCT_ONLY |
-                                                          G_PARAM_WRITABLE));
+    properties[PROP_FILE] =
+        g_param_spec_object ("file", NULL, NULL,
+                             NAUTILUS_TYPE_FILE,
+                             G_PARAM_CONSTRUCT_ONLY |
+                             G_PARAM_WRITABLE);
+
+    g_object_class_install_properties (oclass, G_N_ELEMENTS (properties), properties);
 }
 
 static void

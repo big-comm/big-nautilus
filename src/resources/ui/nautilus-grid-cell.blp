@@ -42,45 +42,5 @@ template $NautilusGridCell: $NautilusViewCell {
       query-tooltip => $on_label_query_tooltip();
       label: bind template.item as <$NautilusViewItem>.file as <$NautilusFile>.display-name;
     }
-
-    Label first_caption {
-      ellipsize: end;
-      justify: center;
-      lines: 2;
-      wrap: true;
-      wrap-mode: word_char;
-      valign: start;
-
-      styles [
-        "caption",
-        "dim-label",
-      ]
-    }
-
-    Label second_caption {
-      ellipsize: end;
-      justify: center;
-      lines: 2;
-      wrap: true;
-      wrap-mode: word_char;
-
-      styles [
-        "caption",
-        "dim-label",
-      ]
-    }
-
-    Label third_caption {
-      ellipsize: end;
-      justify: center;
-      lines: 2;
-      wrap: true;
-      wrap-mode: word_char;
-
-      styles [
-        "caption",
-        "dim-label",
-      ]
-    }
   }
 }

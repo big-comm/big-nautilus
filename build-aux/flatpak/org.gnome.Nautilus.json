@@ -24,7 +24,7 @@
     "--filesystem=~/.config/dconf:ro",
     "--talk-name=ca.desrt.dconf",
     "--talk-name=org.gnome.NautilusPreviewer",
-    "--talk-name=org.gnome.NautilusPreviewerDevel",
+    "--talk-name=org.gnome.NautilusPreviewer.Devel",
     "--talk-name=org.gnome.DiskUtility",
     "--talk-name=org.gnome.Settings",
     "--talk-name=org.gnome.Console",
@@ -85,7 +85,7 @@
         {
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/gexiv2.git",
-          "tag": "0.16.0"
+          "tag": "0.16.2"
         }
       ]
     },
@@ -93,12 +93,8 @@
       "name": "localsearch",
       "buildsystem": "meson",
       "cleanup": [
-        "/etc",
-        "/libexec/localsearch-3",
-        "/share/dbus-1/services/org.freedesktop.Tracker3.Miner.Files.service",
-        "/share/dbus-1/services/org.freedesktop.Tracker3.Miner.Files.Control.service",
-        "/share/dbus-1/services/org.freedesktop.LocalSearch3.service",
-        "/share/dbus-1/services/org.freedesktop.LocalSearch3.Control.service"
+        "/bin",
+        "/etc"
       ],
       "config-opts": [
         "-Dfunctional_tests=false",
@@ -122,7 +118,7 @@
         {
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/localsearch.git",
-          "branch": "localsearch-3.10"
+          "tag": "3.12.0"
         }
       ]
     },
@@ -134,13 +130,14 @@
         "-Ddesktop_docs=false",
         "-Dlegacy_library=false",
         "-Dsystemd=disabled",
-        "-Dudev=disabled"
+        "-Dudev=disabled",
+        "-Dqr=disabled"
       ],
       "sources": [
         {
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/gnome-desktop.git",
-          "tag": "44.5"
+          "tag": "51.0"
         }
       ]
     },
@@ -149,14 +146,13 @@
       "buildsystem": "meson",
       "builddir": true,
       "config-opts": [
-        "-Dgtk=false",
         "-Dintrospection=disabled"
       ],
       "sources": [
         {
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/gnome-autoar.git",
-          "tag": "0.4.5"
+          "tag": "0.5.1"
         }
       ]
     },
@@ -174,11 +170,11 @@
         "--libdir=/app/lib",
         "--buildtype=debugoptimized"
       ],
-      "sources" : [
+      "sources": [
         {
           "type": "git",
           "url": "https://github.com/flatpak/libportal.git",
-          "tag": "0.9.1"
+          "tag": "0.11.0"
         }
       ]
     },
@@ -187,14 +183,14 @@
       "buildsystem": "meson",
       "builddir": true,
       "config-opts": [
-      	"-Dintrospection=false",
-      	"-Dvapigen=false"
+        "-Dintrospection=false",
+        "-Dvapigen=false"
       ],
-      "sources" : [
+      "sources": [
         {
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/libcloudproviders.git",
-          "tag": "0.3.6"
+          "tag": "0.4.1"
         }
       ]
     },
@@ -274,6 +270,12 @@
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/nautilus.git",
           "branch": "main"
+        },
+        {
+          "type": "archive",
+          "url": "https://gitlab.gnome.org/GNOME/libgxdp/-/archive/df896e3412b749947bc6f62a91a1aac8e6b6d19b/libgxdp-df896e3412b749947bc6f62a91a1aac8e6b6d19b.tar.gz",
+          "sha256": "501f39e913c21c951ff8926f0056f846c2c738a66cce06d5b3637c9110f5a92d",
+          "dest": "subprojects/libgxdp"
         }
       ]
     }

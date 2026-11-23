@@ -43,9 +43,11 @@
 #define NAUTILUS_PREFERENCES_DIALOG_LIST_VIEW_USE_TREE_WIDGET                  \
         "use_tree_view_row"
 
+/* toggle group preferences */
+#define NAUTILUS_PREFERENCES_DIALOG_OPEN_ACTION_TOGGLE_GROUP                   \
+        "open_action_toggle_group"
+
 /* combo preferences */
-#define NAUTILUS_PREFERENCES_DIALOG_OPEN_ACTION_COMBO                          \
-        "open_action_row"
 #define NAUTILUS_PREFERENCES_DIALOG_SEARCH_RECURSIVE_ROW                       \
         "search_recursive_row"
 #define NAUTILUS_PREFERENCES_DIALOG_THUMBNAILS_ROW                       \
@@ -58,8 +60,6 @@ static const char * const speed_tradeoff_values[] =
     "local-only", "always", "never",
     NULL
 };
-
-static const char * const click_behavior_values[] = {"single", "double", NULL};
 
 static void
 bind_builder_bool (GtkBuilder *builder,
@@ -160,10 +160,21 @@ setup_combo (GtkBuilder  *builder,
 }
 
 static void
+bind_builder_toggle_group (GtkBuilder *builder,
+                           GSettings  *settings,
+                           const char *prefs,
+                           const char *group_name)
+{
+    AdwToggleGroup *group = ADW_TOGGLE_GROUP (gtk_builder_get_object (builder, group_name));
+
+    g_settings_bind (settings, prefs,
+                     G_OBJECT (group), "active-name",
+                     G_SETTINGS_BIND_DEFAULT);
+}
+
+static void
 nautilus_preferences_dialog_setup (GtkBuilder *builder)
 {
-    setup_combo (builder, NAUTILUS_PREFERENCES_DIALOG_OPEN_ACTION_COMBO,
-                 (const char *[]) { _("Single-Click"), _("Double-Click"), NULL });
     setup_combo (builder, NAUTILUS_PREFERENCES_DIALOG_SEARCH_RECURSIVE_ROW,
                  (const char *[]) { _("On This Device Only"), _("All Locations"), _("Never"), NULL });
     setup_combo (builder, NAUTILUS_PREFERENCES_DIALOG_THUMBNAILS_ROW,
@@ -187,10 +198,9 @@ nautilus_preferences_dialog_setup (GtkBuilder *builder)
 
     setup_detailed_date (builder);
 
-    bind_builder_combo_row (builder, nautilus_preferences,
-                            NAUTILUS_PREFERENCES_DIALOG_OPEN_ACTION_COMBO,
-                            NAUTILUS_PREFERENCES_CLICK_POLICY,
-                            (const char **) click_behavior_values);
+    bind_builder_toggle_group (builder, nautilus_preferences,
+                               NAUTILUS_PREFERENCES_CLICK_POLICY,
+                               NAUTILUS_PREFERENCES_DIALOG_OPEN_ACTION_TOGGLE_GROUP);
     bind_builder_combo_row (builder, nautilus_preferences,
                             NAUTILUS_PREFERENCES_DIALOG_SEARCH_RECURSIVE_ROW,
                             NAUTILUS_PREFERENCES_RECURSIVE_SEARCH,

@@ -35,9 +35,6 @@ void nautilus_view_model_remove_items (NautilusViewModel     *self,
 void nautilus_view_model_remove_all_items (NautilusViewModel *self);
 void nautilus_view_model_defer_removal (NautilusViewModel *self);
 void nautilus_view_model_finish_removal (NautilusViewModel *self);
-/* Don't use inside a loop, use nautilus_view_model_add_items instead. */
-void nautilus_view_model_add_item (NautilusViewModel     *self,
-                                   NautilusViewItem *item);
 void nautilus_view_model_add_items (NautilusViewModel *self,
                                     GList             *items);
 void nautilus_view_model_clear_subdirectory (NautilusViewModel *self,

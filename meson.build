@@ -6,7 +6,7 @@ project('nautilus', 'c',
 
   # Do not forget when releasing:
   #  * Set release date in data/org.gnome.Nautilus.metainfo.xml.in.in
-  version: '50.4',
+  version: '51.1',
 
   meson_version: '>= 0.60.0',
   license: 'GPL-3.0-or-later'
@@ -99,9 +99,16 @@ pkgconfig = import('pkgconfig')
 ################
 # Dependencies #
 ################
-glib_ver = '>= 2.84.0'
+glib_ver = '>= 2.89.0'
 
 libm = cc.find_library('m')
+
+subproject('libgxdp',
+  default_options: [
+    'tests=false',
+    'werror=false',
+  ],
+)
 
 gio = dependency('gio-2.0', version: glib_ver)
 gio_unix = dependency('gio-unix-2.0', version: glib_ver)
@@ -111,10 +118,11 @@ glycin_gtk4 = dependency('glycin-gtk4-2', version: '>= 2')
 gmodule = dependency('gmodule-no-export-2.0', version: glib_ver)
 gnome_autoar = dependency('gnome-autoar-0', version: '>= 0.4.4')
 gnome_desktop = dependency('gnome-desktop-4', version: '>= 43')
-gtk = dependency('gtk4', version: '>= 4.20.0')
+gtk = dependency('gtk4', version: '>= 4.24.0')
 json_glib = dependency('json-glib-1.0')
 libadwaita = dependency('libadwaita-1', version: '>= 1.8.alpha')
 vte = dependency('vte-2.91-gtk4', version: '>= 0.78.0')
+libgxdp = dependency('libgxdp')
 libportal = dependency('libportal', version: '>= 0.7')
 libportal_gtk4 = dependency('libportal-gtk4', version: '>= 0.5')
 tinysparql = dependency('tinysparql-3.0', version: '>= 3.8')
@@ -123,9 +131,6 @@ icu_i18n_dep = dependency('icu-i18n', version: '>=56')
 
 blueprint_cmd = find_program('blueprint-compiler', required : true, version : '>= 0.19.0')
 gi_docgen = find_program('gi-docgen', required: get_option('docs'))
-gtk_x11 = dependency('gtk4-x11', required: false)
-gtk_wayland = dependency('gtk4-wayland', required: false)
-dependency('wayland-client', required: gtk_wayland.found())
 selinux = dependency('libselinux', version: '>= 2.0', required: get_option('selinux'))
 cloudproviders = dependency('cloudproviders', version: '>= 0.3.1', required: get_option('cloudproviders'))
 if get_option('extensions')
@@ -176,13 +181,6 @@ conf.set_quoted('VERSION', version_string)
 conf.set('HAVE_SELINUX', selinux.found())
 conf.set('HAVE_CLOUDPROVIDERS', cloudproviders.found())
 
-if gtk_x11.found()
-  conf.set('HAVE_GTK_X11', 1)
-endif
-if gtk_wayland.found()
-  conf.set('HAVE_GTK_WAYLAND', 1)
-endif
-
 conf.set('HAVE_MALLOC_TRIM', cc.has_function('malloc_trim'))
 
 ######################################
@@ -222,7 +220,6 @@ nautilus_include_dirs = include_directories(
 
 subdirs = [
   'data',
-  'xdp-gnome',
   'libnautilus-extension',
   'po',
   'src',

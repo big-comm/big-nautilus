@@ -27,14 +27,6 @@
  * Most applications only need to use the latter; but you can use
  * this widget as part of a larger widget if you have special needs.
  *
- * `NautilusAppChooserWidget` offers detailed control over what applications
- * are shown, using the
- * [property@Nautilus.AppChooserWidget:show-default],
- * [property@Nautilus.AppChooserWidget:show-recommended],
- * [property@Nautilus.AppChooserWidget:show-fallback],
- * [property@Nautilus.AppChooserWidget:show-other] and
- * [property@Nautilus.AppChooserWidget:show-all] properties.
- *
  * To keep track of the selected application, use the
  * [signal@Nautilus.AppChooserWidget::application-selected] and
  * [signal@Nautilus.AppChooserWidget::application-activated] signals.
@@ -44,6 +36,7 @@
  * `NautilusAppChooserWidget` has a single CSS node with name appchooser.
  */
 
+#define NAUTILUS_TYPE_APP_ITEM (nautilus_app_item_get_type ())
 G_DECLARE_FINAL_TYPE (NautilusAppItem, nautilus_app_item, NAUTILUS, APP_ITEM, GObject)
 
 struct _NautilusAppItem
@@ -63,7 +56,7 @@ enum
 
 static GParamSpec *item_properties[NUM_ITEM_PROPS];
 
-G_DEFINE_TYPE (NautilusAppItem, nautilus_app_item, G_TYPE_OBJECT)
+G_DEFINE_FINAL_TYPE (NautilusAppItem, nautilus_app_item, G_TYPE_OBJECT)
 
 static void
 nautilus_app_item_init (NautilusAppItem *item)
@@ -125,9 +118,7 @@ nautilus_app_item_new (GAppInfo *app_info,
                        gboolean  is_recommended,
                        gboolean  is_fallback)
 {
-    NautilusAppItem *item;
-
-    item = g_object_new (nautilus_app_item_get_type (), NULL);
+    NautilusAppItem *item = g_object_new (NAUTILUS_TYPE_APP_ITEM, NULL);
 
     item->app_info = g_object_ref (app_info);
     item->is_default = is_default;
@@ -137,24 +128,15 @@ nautilus_app_item_new (GAppInfo *app_info,
     return item;
 }
 
-typedef struct _NautilusAppChooserWidgetClass NautilusAppChooserWidgetClass;
-
 struct _NautilusAppChooserWidget
 {
-    GtkWidget parent_instance;
+    AdwBin parent_instance;
 
     GAppInfo *selected_app_info;
 
-    GtkWidget *overlay;
+    GtkStack *list_stack;
 
     char *content_type;
-    char *default_text;
-
-    guint show_default     : 1;
-    guint show_recommended : 1;
-    guint show_fallback    : 1;
-    guint show_other       : 1;
-    guint show_all         : 1;
 
     GListStore *app_info_store;
     GtkListItemFactory *header_factory;
@@ -162,36 +144,19 @@ struct _NautilusAppChooserWidget
     GtkStringSorter *sorter;
     GtkWidget *program_list;
     GtkWidget *no_apps_label;
-    GtkWidget *no_apps;
 
     GAppInfoMonitor *monitor;
 
     GtkWidget *popup_menu;
 };
 
-struct _NautilusAppChooserWidgetClass
-{
-    GtkWidgetClass parent_class;
-
-    void (* application_selected)  (NautilusAppChooserWidget *self,
-                                    GAppInfo                 *app_info);
-
-    void (* application_activated) (NautilusAppChooserWidget *self,
-                                    GAppInfo                 *app_info);
-};
-
 enum
 {
     PROP_CONTENT_TYPE = 1,
-    PROP_GFILE,
-    PROP_SHOW_DEFAULT,
-    PROP_SHOW_RECOMMENDED,
-    PROP_SHOW_FALLBACK,
-    PROP_SHOW_OTHER,
-    PROP_SHOW_ALL,
-    PROP_DEFAULT_TEXT,
     N_PROPERTIES
 };
+
+static GParamSpec *widget_properties[N_PROPERTIES];
 
 enum
 {
@@ -203,23 +168,66 @@ enum
 static guint signals[N_SIGNALS];
 
 
-G_DEFINE_FINAL_TYPE (NautilusAppChooserWidget, nautilus_app_chooser_widget, GTK_TYPE_WIDGET);
+G_DEFINE_FINAL_TYPE (NautilusAppChooserWidget, nautilus_app_chooser_widget, ADW_TYPE_BIN);
+
+static guint
+app_info_hash (gconstpointer key)
+{
+    GAppInfo *app = (gpointer) key;
+    guint hash = g_str_hash (g_app_info_get_name (app));
+    const GIcon *icon = g_app_info_get_icon (app);
+    const char *executable = g_app_info_get_executable (app);
+    const char *commandline = g_app_info_get_commandline (app);
+
+    if (icon != NULL)
+    {
+        hash ^= g_icon_hash (icon);
+    }
+
+    if (executable != NULL)
+    {
+        hash ^= g_str_hash (executable);
+    }
+
+    if (commandline != NULL)
+    {
+        hash ^= g_str_hash (commandline);
+    }
+
+    return hash;
+}
 
 static gboolean
+app_info_equal (gconstpointer a,
+                gconstpointer b)
+{
+    GAppInfo *app_a = (gpointer) a;
+    GAppInfo *app_b = (gpointer) b;
+    const char *name_a = g_app_info_get_name (app_a);
+    const char *name_b = g_app_info_get_name (app_b);
+    GIcon *icon_a = g_app_info_get_icon (app_a);
+    GIcon *icon_b = g_app_info_get_icon (app_b);
+    const char *exec_a = g_app_info_get_executable (app_a);
+    const char *exec_b = g_app_info_get_executable (app_b);
+    const char *cmd_a = g_app_info_get_commandline (app_a);
+    const char *cmd_b = g_app_info_get_commandline (app_b);
+
+    return g_strcmp0 (name_a, name_b) == 0 &&
+           g_icon_equal (icon_a, icon_b) &&
+           g_strcmp0 (exec_a, exec_b) == 0 &&
+           g_strcmp0 (cmd_a, cmd_b) == 0;
+}
+
+static void
 nautilus_app_chooser_widget_add_section (NautilusAppChooserWidget *self,
                                          gboolean                  recommended,
                                          gboolean                  fallback,
                                          GList                    *applications,
-                                         GList                    *exclude_apps)
+                                         GHashTable               *seen_apps)
 {
-    gboolean retval;
-
-    retval = FALSE;
-
     for (GList *l = applications; l != NULL; l = l->next)
     {
         GAppInfo *app = l->data;
-        NautilusAppItem *item;
 
         if (self->content_type != NULL &&
             !g_app_info_supports_uris (app) &&
@@ -228,59 +236,42 @@ nautilus_app_chooser_widget_add_section (NautilusAppChooserWidget *self,
             continue;
         }
 
-        if (g_list_find (exclude_apps, app))
+        if (g_hash_table_contains (seen_apps, app))
         {
             continue;
         }
 
-        item = nautilus_app_item_new (app, FALSE, recommended, fallback);
-        g_list_store_append (self->app_info_store, item);
-        g_object_unref (item);
-        retval = TRUE;
-    }
+        g_hash_table_add (seen_apps, app);
 
-    return retval;
+        g_autoptr (NautilusAppItem) item = nautilus_app_item_new (app, FALSE, recommended, fallback);
+
+        g_list_store_append (self->app_info_store, item);
+    }
 }
 
 static void
 nautilus_app_chooser_widget_add_default (NautilusAppChooserWidget *self,
                                          GAppInfo                 *app)
 {
-    NautilusAppItem *item;
+    g_autoptr (NautilusAppItem) item = nautilus_app_item_new (app, TRUE, FALSE, FALSE);
 
-    item = nautilus_app_item_new (app, TRUE, FALSE, FALSE);
     g_list_store_append (self->app_info_store, item);
-    g_object_unref (item);
 }
 
 static void
 update_no_applications_label (NautilusAppChooserWidget *self)
 {
-    char *text = NULL, *desc = NULL;
-    const char *string;
-
-    if (self->default_text == NULL)
+    if (self->content_type != NULL)
     {
-        g_autofree char *domain = g_strdup (textdomain (NULL));
+        g_autofree char *desc = g_content_type_get_description (self->content_type);
+        g_autofree char *text = g_strdup_printf (_("No apps found for “%s”"), desc);
 
-        if (self->content_type)
-        {
-            desc = g_content_type_get_description (self->content_type);
-        }
-
-        textdomain ("gtk40");
-        string = text = g_strdup_printf (_("No apps found for “%s”."), desc);
-        textdomain (domain);
-        g_free (desc);
+        gtk_label_set_text (GTK_LABEL (self->no_apps_label), text);
     }
     else
     {
-        string = self->default_text;
+        gtk_label_set_text (GTK_LABEL (self->no_apps_label), _("No apps found"));
     }
-
-    gtk_label_set_text (GTK_LABEL (self->no_apps_label), string);
-
-    g_free (text);
 }
 
 static void
@@ -292,98 +283,54 @@ nautilus_app_chooser_widget_select_first (NautilusAppChooserWidget *self)
 static void
 nautilus_app_chooser_widget_real_add_items (NautilusAppChooserWidget *self)
 {
-    GList *all_applications = NULL;
-    GList *recommended_apps = NULL;
-    GList *fallback_apps = NULL;
-    GList *exclude_apps = NULL;
-    GAppInfo *default_app = NULL;
-    gboolean show_headings;
-    gboolean apps_added;
-
-    show_headings = TRUE;
-    apps_added = FALSE;
-
-    if (self->show_all)
-    {
-        show_headings = FALSE;
-    }
+    g_autolist (GAppInfo) all_applications = NULL;
+    g_autolist (GAppInfo) recommended_apps = NULL;
+    g_autolist (GAppInfo) fallback_apps = NULL;
+    g_autoptr (GAppInfo) default_app = NULL;
+    g_autoptr (GHashTable) seen_apps = g_hash_table_new (app_info_hash, app_info_equal);
 
     gtk_list_view_set_header_factory (GTK_LIST_VIEW (self->program_list),
-                                      show_headings ? self->header_factory : NULL);
+                                      self->header_factory);
 
-    if (self->show_default && self->content_type)
+    if (self->content_type != NULL)
     {
         default_app = g_app_info_get_default_for_type (self->content_type, FALSE);
 
         if (default_app != NULL)
         {
             nautilus_app_chooser_widget_add_default (self, default_app);
-            apps_added = TRUE;
-            exclude_apps = g_list_prepend (exclude_apps, default_app);
-        }
-    }
-
-#ifndef G_OS_WIN32
-    if ((self->content_type && self->show_recommended) || self->show_all)
-    {
-        if (self->content_type)
-        {
-            recommended_apps = g_app_info_get_recommended_for_type (self->content_type);
         }
 
-        apps_added |= nautilus_app_chooser_widget_add_section (self,
-                                                               !self->show_all, /* mark as recommended */
-                                                               FALSE, /* mark as fallback */
-                                                               recommended_apps, exclude_apps);
+        recommended_apps = g_app_info_get_recommended_for_type (self->content_type);
 
-        exclude_apps = g_list_concat (exclude_apps,
-                                      g_list_copy (recommended_apps));
+        nautilus_app_chooser_widget_add_section (self,
+                                                 TRUE, /* mark as recommended */
+                                                 FALSE, /* mark as fallback */
+                                                 recommended_apps, seen_apps);
+
+        fallback_apps = g_app_info_get_fallback_for_type (self->content_type);
+
+        nautilus_app_chooser_widget_add_section (self,
+                                                 FALSE, /* mark as recommended */
+                                                 TRUE, /* mark as fallback */
+                                                 fallback_apps, seen_apps);
     }
 
-    if ((self->content_type && self->show_fallback) || self->show_all)
-    {
-        if (self->content_type)
-        {
-            fallback_apps = g_app_info_get_fallback_for_type (self->content_type);
-        }
+    all_applications = g_app_info_get_all ();
 
-        apps_added |= nautilus_app_chooser_widget_add_section (self,
-                                                               FALSE, /* mark as recommended */
-                                                               !self->show_all, /* mark as fallback */
-                                                               fallback_apps, exclude_apps);
-        exclude_apps = g_list_concat (exclude_apps,
-                                      g_list_copy (fallback_apps));
-    }
-#endif
+    nautilus_app_chooser_widget_add_section (self,
+                                             FALSE,
+                                             FALSE,
+                                             all_applications, seen_apps);
 
-    if (self->show_other || self->show_all)
-    {
-        all_applications = g_app_info_get_all ();
-
-        apps_added |= nautilus_app_chooser_widget_add_section (self,
-                                                               FALSE,
-                                                               FALSE,
-                                                               all_applications, exclude_apps);
-    }
+    gboolean apps_added = g_hash_table_size (seen_apps) > 0;
 
     if (!apps_added)
     {
         update_no_applications_label (self);
     }
 
-    gtk_widget_set_visible (self->no_apps, !apps_added);
-
     nautilus_app_chooser_widget_select_first (self);
-
-    if (default_app != NULL)
-    {
-        g_object_unref (default_app);
-    }
-
-    g_list_free_full (all_applications, g_object_unref);
-    g_list_free_full (recommended_apps, g_object_unref);
-    g_list_free_full (fallback_apps, g_object_unref);
-    g_list_free (exclude_apps);
 }
 
 static void
@@ -399,42 +346,6 @@ nautilus_app_chooser_widget_set_property (GObject      *object,
         case PROP_CONTENT_TYPE:
         {
             self->content_type = g_value_dup_string (value);
-            break;
-        }
-
-        case PROP_SHOW_DEFAULT:
-        {
-            nautilus_app_chooser_widget_set_show_default (self, g_value_get_boolean (value));
-            break;
-        }
-
-        case PROP_SHOW_RECOMMENDED:
-        {
-            nautilus_app_chooser_widget_set_show_recommended (self, g_value_get_boolean (value));
-            break;
-        }
-
-        case PROP_SHOW_FALLBACK:
-        {
-            nautilus_app_chooser_widget_set_show_fallback (self, g_value_get_boolean (value));
-            break;
-        }
-
-        case PROP_SHOW_OTHER:
-        {
-            nautilus_app_chooser_widget_set_show_other (self, g_value_get_boolean (value));
-            break;
-        }
-
-        case PROP_SHOW_ALL:
-        {
-            nautilus_app_chooser_widget_set_show_all (self, g_value_get_boolean (value));
-            break;
-        }
-
-        case PROP_DEFAULT_TEXT:
-        {
-            nautilus_app_chooser_widget_set_default_text (self, g_value_get_string (value));
             break;
         }
 
@@ -462,42 +373,6 @@ nautilus_app_chooser_widget_get_property (GObject    *object,
             break;
         }
 
-        case PROP_SHOW_DEFAULT:
-        {
-            g_value_set_boolean (value, self->show_default);
-            break;
-        }
-
-        case PROP_SHOW_RECOMMENDED:
-        {
-            g_value_set_boolean (value, self->show_recommended);
-            break;
-        }
-
-        case PROP_SHOW_FALLBACK:
-        {
-            g_value_set_boolean (value, self->show_fallback);
-            break;
-        }
-
-        case PROP_SHOW_OTHER:
-        {
-            g_value_set_boolean (value, self->show_other);
-            break;
-        }
-
-        case PROP_SHOW_ALL:
-        {
-            g_value_set_boolean (value, self->show_all);
-            break;
-        }
-
-        case PROP_DEFAULT_TEXT:
-        {
-            g_value_set_string (value, self->default_text);
-            break;
-        }
-
         default:
         {
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -522,7 +397,6 @@ nautilus_app_chooser_widget_finalize (GObject *object)
     NautilusAppChooserWidget *self = NAUTILUS_APP_CHOOSER_WIDGET (object);
 
     g_free (self->content_type);
-    g_free (self->default_text);
     g_object_unref (self->monitor);
     g_object_unref (self->app_info_store);
     g_object_unref (self->header_factory);
@@ -539,75 +413,20 @@ nautilus_app_chooser_widget_dispose (GObject *object)
 
     g_clear_object (&self->selected_app_info);
 
-    if (self->overlay)
-    {
-        gtk_widget_unparent (self->overlay);
-        self->overlay = NULL;
-    }
-
     G_OBJECT_CLASS (nautilus_app_chooser_widget_parent_class)->dispose (object);
-}
-
-static void
-nautilus_app_chooser_widget_measure (GtkWidget      *widget,
-                                     GtkOrientation  orientation,
-                                     int             for_size,
-                                     int            *minimum,
-                                     int            *natural,
-                                     int            *minimum_baseline,
-                                     int            *natural_baseline)
-{
-    NautilusAppChooserWidget *self = NAUTILUS_APP_CHOOSER_WIDGET (widget);
-
-    gtk_widget_measure (self->overlay, orientation, for_size,
-                        minimum, natural,
-                        minimum_baseline, natural_baseline);
-}
-
-static void
-nautilus_app_chooser_widget_snapshot (GtkWidget   *widget,
-                                      GtkSnapshot *snapshot)
-{
-    NautilusAppChooserWidget *self = NAUTILUS_APP_CHOOSER_WIDGET (widget);
-
-    gtk_widget_snapshot_child (widget, self->overlay, snapshot);
-}
-
-static void
-nautilus_app_chooser_widget_size_allocate (GtkWidget *widget,
-                                           int        width,
-                                           int        height,
-                                           int        baseline)
-{
-    NautilusAppChooserWidget *self = NAUTILUS_APP_CHOOSER_WIDGET (widget);
-
-    GTK_WIDGET_CLASS (nautilus_app_chooser_widget_parent_class)->size_allocate (widget, width, height, baseline);
-
-    gtk_widget_size_allocate (self->overlay,
-                              &(GtkAllocation) {
-        0, 0,
-        width, height
-    }, baseline);
 }
 
 static void
 nautilus_app_chooser_widget_class_init (NautilusAppChooserWidgetClass *klass)
 {
-    GtkWidgetClass *widget_class;
-    GObjectClass *gobject_class;
-    GParamSpec *pspec;
+    GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+    GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
 
-    gobject_class = G_OBJECT_CLASS (klass);
     gobject_class->dispose = nautilus_app_chooser_widget_dispose;
     gobject_class->finalize = nautilus_app_chooser_widget_finalize;
     gobject_class->set_property = nautilus_app_chooser_widget_set_property;
     gobject_class->get_property = nautilus_app_chooser_widget_get_property;
     gobject_class->constructed = nautilus_app_chooser_widget_constructed;
-
-    widget_class = GTK_WIDGET_CLASS (klass);
-    widget_class->measure = nautilus_app_chooser_widget_measure;
-    widget_class->size_allocate = nautilus_app_chooser_widget_size_allocate;
-    widget_class->snapshot = nautilus_app_chooser_widget_snapshot;
 
     /**
      * NautilusAppChooserWidget:content-type:
@@ -616,87 +435,14 @@ nautilus_app_chooser_widget_class_init (NautilusAppChooserWidgetClass *klass)
      *
      * See `GContentType` for more information about content types.
      */
-    pspec = g_param_spec_string ("content-type", NULL, NULL,
-                                 NULL,
-                                 G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE |
-                                 G_PARAM_STATIC_STRINGS);
-    g_object_class_install_property (gobject_class, PROP_CONTENT_TYPE, pspec);
+    widget_properties[PROP_CONTENT_TYPE] =
+        g_param_spec_string ("content-type", NULL, NULL,
+                             NULL,
+                             G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
-    /**
-     * NautilusAppChooserWidget:show-default:
-     *
-     * Determines whether the app chooser should show the default
-     * handler for the content type in a separate section.
-     *
-     * If %FALSE, the default handler is listed among the recommended
-     * applications.
-     */
-    pspec = g_param_spec_boolean ("show-default", NULL, NULL,
-                                  FALSE,
-                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    g_object_class_install_property (gobject_class, PROP_SHOW_DEFAULT, pspec);
-
-    /**
-     * NautilusAppChooserWidget:show-recommended:
-     *
-     * Determines whether the app chooser should show a section
-     * for recommended applications.
-     *
-     * If %FALSE, the recommended applications are listed
-     * among the other applications.
-     */
-    pspec = g_param_spec_boolean ("show-recommended", NULL, NULL,
-                                  TRUE,
-                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    g_object_class_install_property (gobject_class, PROP_SHOW_RECOMMENDED, pspec);
-
-    /**
-     * NautilusAppChooserWidget:show-fallback:
-     *
-     * Determines whether the app chooser should show a section
-     * for fallback applications.
-     *
-     * If %FALSE, the fallback applications are listed among the
-     * other applications.
-     */
-    pspec = g_param_spec_boolean ("show-fallback", NULL, NULL,
-                                  FALSE,
-                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    g_object_class_install_property (gobject_class, PROP_SHOW_FALLBACK, pspec);
-
-    /**
-     * NautilusAppChooserWidget:show-other:
-     *
-     * Determines whether the app chooser should show a section
-     * for other applications.
-     */
-    pspec = g_param_spec_boolean ("show-other", NULL, NULL,
-                                  FALSE,
-                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    g_object_class_install_property (gobject_class, PROP_SHOW_OTHER, pspec);
-
-    /**
-     * NautilusAppChooserWidget:show-all:
-     *
-     * If %TRUE, the app chooser presents all applications
-     * in a single list, without subsections for default,
-     * recommended or related applications.
-     */
-    pspec = g_param_spec_boolean ("show-all", NULL, NULL,
-                                  FALSE,
-                                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    g_object_class_install_property (gobject_class, PROP_SHOW_ALL, pspec);
-
-    /**
-     * NautilusAppChooserWidget:default-text:
-     *
-     * The text that appears in the widget when there are no applications
-     * for the given content type.
-     */
-    pspec = g_param_spec_string ("default-text", NULL, NULL,
-                                 NULL,
-                                 G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    g_object_class_install_property (gobject_class, PROP_DEFAULT_TEXT, pspec);
+    g_object_class_install_properties (gobject_class,
+                                       G_N_ELEMENTS (widget_properties),
+                                       widget_properties);
 
     /**
      * NautilusAppChooserWidget::application-selected:
@@ -709,7 +455,7 @@ nautilus_app_chooser_widget_class_init (NautilusAppChooserWidgetClass *klass)
         g_signal_new ("application-selected",
                       NAUTILUS_TYPE_APP_CHOOSER_WIDGET,
                       G_SIGNAL_RUN_FIRST,
-                      G_STRUCT_OFFSET (NautilusAppChooserWidgetClass, application_selected),
+                      0,
                       NULL, NULL,
                       NULL,
                       G_TYPE_NONE,
@@ -730,7 +476,7 @@ nautilus_app_chooser_widget_class_init (NautilusAppChooserWidgetClass *klass)
         g_signal_new ("application-activated",
                       NAUTILUS_TYPE_APP_CHOOSER_WIDGET,
                       G_SIGNAL_RUN_FIRST,
-                      G_STRUCT_OFFSET (NautilusAppChooserWidgetClass, application_activated),
+                      0,
                       NULL, NULL,
                       NULL,
                       G_TYPE_NONE,
@@ -742,8 +488,7 @@ nautilus_app_chooser_widget_class_init (NautilusAppChooserWidgetClass *klass)
                                                  "/org/gnome/nautilus/ui/nautilus-app-chooser-widget.ui");
     gtk_widget_class_bind_template_child (widget_class, NautilusAppChooserWidget, program_list);
     gtk_widget_class_bind_template_child (widget_class, NautilusAppChooserWidget, no_apps_label);
-    gtk_widget_class_bind_template_child (widget_class, NautilusAppChooserWidget, no_apps);
-    gtk_widget_class_bind_template_child (widget_class, NautilusAppChooserWidget, overlay);
+    gtk_widget_class_bind_template_child (widget_class, NautilusAppChooserWidget, list_stack);
 
     gtk_widget_class_set_css_name (widget_class, "appchooser");
 }
@@ -752,19 +497,17 @@ static void
 setup_listitem_cb (GtkListItemFactory *factory,
                    GtkListItem        *list_item)
 {
-    GtkWidget *box;
-    GtkWidget *image;
-    GtkWidget *label;
+    GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
+    GtkWidget *image = gtk_image_new ();
+    GtkWidget *label = gtk_label_new ("");
 
-    box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
-    image = gtk_image_new ();
     gtk_accessible_update_property (GTK_ACCESSIBLE (image),
                                     GTK_ACCESSIBLE_PROPERTY_LABEL,
-                                    "App icon",
+                                    /* translators: This is an accessible label for a shown icon. */
+                                    _("App icon"),
                                     -1);
     gtk_image_set_icon_size (GTK_IMAGE (image), GTK_ICON_SIZE_LARGE);
     gtk_box_append (GTK_BOX (box), image);
-    label = gtk_label_new ("");
     gtk_box_append (GTK_BOX (box), label);
     gtk_list_item_set_child (list_item, box);
 }
@@ -773,13 +516,9 @@ static void
 bind_listitem_cb (GtkListItemFactory *factory,
                   GtkListItem        *list_item)
 {
-    GtkWidget *image;
-    GtkWidget *label;
-    NautilusAppItem *app_item;
-
-    image = gtk_widget_get_first_child (gtk_list_item_get_child (list_item));
-    label = gtk_widget_get_next_sibling (image);
-    app_item = gtk_list_item_get_item (list_item);
+    GtkWidget *image = gtk_widget_get_first_child (gtk_list_item_get_child (list_item));
+    GtkWidget *label = gtk_widget_get_next_sibling (image);
+    NautilusAppItem *app_item = gtk_list_item_get_item (list_item);
 
     gtk_image_set_from_gicon (GTK_IMAGE (image), g_app_info_get_icon (app_item->app_info));
     gtk_label_set_label (GTK_LABEL (label), g_app_info_get_display_name (app_item->app_info));
@@ -791,9 +530,8 @@ setup_header_cb (GtkListItemFactory *factory,
                  GtkListItem        *list_item)
 {
     GtkListHeader *header = GTK_LIST_HEADER (list_item);
-    GtkWidget *label;
+    GtkWidget *label = gtk_label_new ("");
 
-    label = gtk_label_new ("");
     gtk_label_set_xalign (GTK_LABEL (label), 0);
     gtk_widget_add_css_class (label, "heading");
     gtk_widget_set_margin_start (label, 20);
@@ -809,14 +547,8 @@ bind_header_cb (GtkListItemFactory *factory,
                 GtkListItem        *list_item)
 {
     GtkListHeader *header = GTK_LIST_HEADER (list_item);
-    GtkWidget *label;
-    NautilusAppItem *app_item;
-    g_autofree char *domain = g_strdup (textdomain (NULL));
-
-    label = gtk_list_header_get_child (header);
-    app_item = gtk_list_header_get_item (header);
-
-    textdomain ("gtk40");
+    GtkWidget *label = gtk_list_header_get_child (header);
+    NautilusAppItem *app_item = gtk_list_header_get_item (header);
 
     if (app_item->is_default)
     {
@@ -834,8 +566,6 @@ bind_header_cb (GtkListItemFactory *factory,
     {
         gtk_label_set_label (GTK_LABEL (label), _("Other Apps"));
     }
-
-    textdomain (domain);
 }
 
 static void
@@ -843,15 +573,12 @@ activate_cb (GtkListView              *list,
              guint                     position,
              NautilusAppChooserWidget *self)
 {
-    NautilusAppItem *app_item;
-
-    app_item = g_list_model_get_item (G_LIST_MODEL (gtk_list_view_get_model (list)), position);
+    g_autoptr (NautilusAppItem) app_item =
+        g_list_model_get_item (G_LIST_MODEL (gtk_list_view_get_model (list)), position);
 
     g_set_object (&self->selected_app_info, app_item->app_info);
 
     g_signal_emit (self, signals[SIGNAL_APPLICATION_ACTIVATED], 0, self->selected_app_info);
-
-    g_object_unref (app_item);
 }
 
 static void
@@ -859,9 +586,8 @@ selection_changed_cb (GListModel               *model,
                       GParamSpec               *pspec,
                       NautilusAppChooserWidget *self)
 {
-    guint position;
+    guint position = gtk_single_selection_get_selected (GTK_SINGLE_SELECTION (model));
 
-    position = gtk_single_selection_get_selected (GTK_SINGLE_SELECTION (model));
     if (position == GTK_INVALID_LIST_POSITION)
     {
         g_clear_object (&self->selected_app_info);
@@ -926,11 +652,11 @@ nautilus_app_chooser_widget_init (NautilusAppChooserWidget *self)
 
     gtk_widget_init_template (GTK_WIDGET (self));
 
-    expression = gtk_property_expression_new (nautilus_app_item_get_type (), NULL, "name");
+    expression = gtk_property_expression_new (NAUTILUS_TYPE_APP_ITEM, NULL, "name");
     self->filter = gtk_string_filter_new (gtk_expression_ref (expression));
     self->sorter = gtk_string_sorter_new (expression);
 
-    self->app_info_store = g_list_store_new (nautilus_app_item_get_type ());
+    self->app_info_store = g_list_store_new (NAUTILUS_TYPE_APP_ITEM);
     filter = gtk_filter_list_model_new (G_LIST_MODEL (g_object_ref (self->app_info_store)), GTK_FILTER (g_object_ref (self->filter)));
     sort = gtk_sort_list_model_new (G_LIST_MODEL (filter), GTK_SORTER (g_object_ref (self->sorter)));
 
@@ -1003,253 +729,6 @@ nautilus_app_chooser_widget_new (const char *content_type)
                          NULL);
 }
 
-/**
- * nautilus_app_chooser_widget_set_show_default:
- * @self: a `NautilusAppChooserWidget`
- * @setting: the new value for [property@Nautilus.AppChooserWidget:show-default]
- *
- * Sets whether the app chooser should show the default handler
- * for the content type in a separate section.
- */
-void
-nautilus_app_chooser_widget_set_show_default (NautilusAppChooserWidget *self,
-                                              gboolean                  setting)
-{
-    g_return_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self));
-
-    if (self->show_default != setting)
-    {
-        self->show_default = setting;
-
-        g_object_notify (G_OBJECT (self), "show-default");
-
-        nautilus_app_chooser_widget_refresh (self);
-    }
-}
-
-/**
- * nautilus_app_chooser_widget_get_show_default:
- * @self: a `NautilusAppChooserWidget`
- *
- * Gets whether the app chooser should show the default handler
- * for the content type in a separate section.
- *
- * Returns: the value of [property@Nautilus.AppChooserWidget:show-default]
- */
-gboolean
-nautilus_app_chooser_widget_get_show_default (NautilusAppChooserWidget *self)
-{
-    g_return_val_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self), FALSE);
-
-    return self->show_default;
-}
-
-/**
- * nautilus_app_chooser_widget_set_show_recommended:
- * @self: a `NautilusAppChooserWidget`
- * @setting: the new value for [property@Nautilus.AppChooserWidget:show-recommended]
- *
- * Sets whether the app chooser should show recommended applications
- * for the content type in a separate section.
- */
-void
-nautilus_app_chooser_widget_set_show_recommended (NautilusAppChooserWidget *self,
-                                                  gboolean                  setting)
-{
-    g_return_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self));
-
-    if (self->show_recommended != setting)
-    {
-        self->show_recommended = setting;
-
-        g_object_notify (G_OBJECT (self), "show-recommended");
-
-        nautilus_app_chooser_widget_refresh (self);
-    }
-}
-
-/**
- * nautilus_app_chooser_widget_get_show_recommended:
- * @self: a `NautilusAppChooserWidget`
- *
- * Gets whether the app chooser should show recommended applications
- * for the content type in a separate section.
- *
- * Returns: the value of [property@Nautilus.AppChooserWidget:show-recommended]
- */
-gboolean
-nautilus_app_chooser_widget_get_show_recommended (NautilusAppChooserWidget *self)
-{
-    g_return_val_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self), FALSE);
-
-    return self->show_recommended;
-}
-
-/**
- * nautilus_app_chooser_widget_set_show_fallback:
- * @self: a `NautilusAppChooserWidget`
- * @setting: the new value for [property@Nautilus.AppChooserWidget:show-fallback]
- *
- * Sets whether the app chooser should show related applications
- * for the content type in a separate section.
- */
-void
-nautilus_app_chooser_widget_set_show_fallback (NautilusAppChooserWidget *self,
-                                               gboolean                  setting)
-{
-    g_return_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self));
-
-    if (self->show_fallback != setting)
-    {
-        self->show_fallback = setting;
-
-        g_object_notify (G_OBJECT (self), "show-fallback");
-
-        nautilus_app_chooser_widget_refresh (self);
-    }
-}
-
-/**
- * nautilus_app_chooser_widget_get_show_fallback:
- * @self: a `NautilusAppChooserWidget`
- *
- * Gets whether the app chooser should show related applications
- * for the content type in a separate section.
- *
- * Returns: the value of [property@Nautilus.AppChooserWidget:show-fallback]
- */
-gboolean
-nautilus_app_chooser_widget_get_show_fallback (NautilusAppChooserWidget *self)
-{
-    g_return_val_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self), FALSE);
-
-    return self->show_fallback;
-}
-
-/**
- * nautilus_app_chooser_widget_set_show_other:
- * @self: a `NautilusAppChooserWidget`
- * @setting: the new value for [property@Nautilus.AppChooserWidget:show-other]
- *
- * Sets whether the app chooser should show applications
- * which are unrelated to the content type.
- */
-void
-nautilus_app_chooser_widget_set_show_other (NautilusAppChooserWidget *self,
-                                            gboolean                  setting)
-{
-    g_return_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self));
-
-    if (self->show_other != setting)
-    {
-        self->show_other = setting;
-
-        g_object_notify (G_OBJECT (self), "show-other");
-
-        nautilus_app_chooser_widget_refresh (self);
-    }
-}
-
-/**
- * nautilus_app_chooser_widget_get_show_other:
- * @self: a `NautilusAppChooserWidget`
- *
- * Gets whether the app chooser should show applications
- * which are unrelated to the content type.
- *
- * Returns: the value of [property@Nautilus.AppChooserWidget:show-other]
- */
-gboolean
-nautilus_app_chooser_widget_get_show_other (NautilusAppChooserWidget *self)
-{
-    g_return_val_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self), FALSE);
-
-    return self->show_other;
-}
-
-/**
- * nautilus_app_chooser_widget_set_show_all:
- * @self: a `NautilusAppChooserWidget`
- * @setting: the new value for [property@Nautilus.AppChooserWidget:show-all]
- *
- * Sets whether the app chooser should show all applications
- * in a flat list.
- */
-void
-nautilus_app_chooser_widget_set_show_all (NautilusAppChooserWidget *self,
-                                          gboolean                  setting)
-{
-    g_return_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self));
-
-    if (self->show_all != setting)
-    {
-        self->show_all = setting;
-
-        g_object_notify (G_OBJECT (self), "show-all");
-
-        nautilus_app_chooser_widget_refresh (self);
-    }
-}
-
-/**
- * nautilus_app_chooser_widget_get_show_all:
- * @self: a `NautilusAppChooserWidget`
- *
- * Gets whether the app chooser should show all applications
- * in a flat list.
- *
- * Returns: the value of [property@Nautilus.AppChooserWidget:show-all]
- */
-gboolean
-nautilus_app_chooser_widget_get_show_all (NautilusAppChooserWidget *self)
-{
-    g_return_val_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self), FALSE);
-
-    return self->show_all;
-}
-
-/**
- * nautilus_app_chooser_widget_set_default_text:
- * @self: a `NautilusAppChooserWidget`
- * @text: the new value for [property@Nautilus.AppChooserWidget:default-text]
- *
- * Sets the text that is shown if there are not applications
- * that can handle the content type.
- */
-void
-nautilus_app_chooser_widget_set_default_text (NautilusAppChooserWidget *self,
-                                              const char               *text)
-{
-    g_return_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self));
-
-    if (g_strcmp0 (text, self->default_text) != 0)
-    {
-        g_free (self->default_text);
-        self->default_text = g_strdup (text);
-
-        g_object_notify (G_OBJECT (self), "default-text");
-
-        nautilus_app_chooser_widget_refresh (self);
-    }
-}
-
-/**
- * nautilus_app_chooser_widget_get_default_text:
- * @self: a `NautilusAppChooserWidget`
- *
- * Returns the text that is shown if there are not applications
- * that can handle the content type.
- *
- * Returns: (nullable): the value of [property@Nautilus.AppChooserWidget:default-text]
- */
-const char *
-nautilus_app_chooser_widget_get_default_text (NautilusAppChooserWidget *self)
-{
-    g_return_val_if_fail (NAUTILUS_IS_APP_CHOOSER_WIDGET (self), NULL);
-
-    return self->default_text;
-}
-
 static void
 changed_cb (GtkEditable              *editable,
             NautilusAppChooserWidget *self)
@@ -1259,6 +738,15 @@ changed_cb (GtkEditable              *editable,
 
     gtk_string_filter_set_search (self->filter, gtk_editable_get_text (editable));
 
+    if (g_list_model_get_n_items (G_LIST_MODEL (selection_model)) > 0)
+    {
+        gtk_stack_set_visible_child_name (self->list_stack, "list");
+    }
+    else
+    {
+        gtk_stack_set_visible_child_name (self->list_stack, "no-apps");
+    }
+
     /* Force selection change signal emission */
     selection_changed_cb (G_LIST_MODEL (selection_model), NULL, self);
 }
@@ -1267,9 +755,5 @@ void
 nautilus_app_chooser_widget_set_search_entry (NautilusAppChooserWidget *self,
                                               GtkEditable              *entry)
 {
-    g_object_bind_property (self->no_apps, "visible",
-                            entry, "sensitive",
-                            G_BINDING_SYNC_CREATE | G_BINDING_INVERT_BOOLEAN);
-
     g_signal_connect (entry, "changed", G_CALLBACK (changed_cb), self);
 }

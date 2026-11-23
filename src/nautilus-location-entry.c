@@ -231,8 +231,7 @@ nautilus_location_entry_set_location (NautilusLocationEntry *entry,
     if (!priv->last_location ||
         !g_file_equal (priv->last_location, location))
     {
-        g_clear_object (&priv->last_location);
-        priv->last_location = g_object_ref (location);
+        g_set_object (&priv->last_location, location);
     }
 
     nautilus_location_entry_update_action (entry);
@@ -463,7 +462,7 @@ populate_completions_model (GObject      *source_object,
 }
 
 /* Update the path completions list based on the current text of the entry. */
-static gboolean
+static void
 update_completions_store (gpointer callback_data)
 {
     NautilusLocationEntry *entry = NAUTILUS_LOCATION_ENTRY (callback_data);
@@ -476,7 +475,7 @@ update_completions_store (gpointer callback_data)
      * text. */
     if (!position_and_selection_are_at_end (editable))
     {
-        return FALSE;
+        return;
     }
 
     int start_sel;
@@ -486,7 +485,7 @@ update_completions_store (gpointer callback_data)
 
     if (typed == NULL || typed[0] == '\0')
     {
-        return FALSE;
+        return;
     }
 
     g_strstrip (typed);
@@ -506,8 +505,6 @@ update_completions_store (gpointer callback_data)
     completer_get_completions_async (completer_data,
                                      priv->completions_cancellable,
                                      populate_completions_model);
-
-    return FALSE;
 }
 
 static void
@@ -682,7 +679,7 @@ after_text_change (NautilusLocationEntry *self,
      * directory is large. */
     if (priv->completion_id == 0)
     {
-        priv->completion_id = g_idle_add (update_completions_store, self);
+        priv->completion_id = g_idle_add_once (update_completions_store, self);
     }
 }
 
@@ -882,7 +879,7 @@ nautilus_location_entry_init (NautilusLocationEntry *entry)
     g_signal_connect_object (entry, "activate",
                              G_CALLBACK (editable_activate_callback), entry, G_CONNECT_AFTER);
     g_signal_connect_object (entry, "changed",
-                             G_CALLBACK (editable_changed_callback), entry, 0);
+                             G_CALLBACK (editable_changed_callback), entry, G_CONNECT_DEFAULT);
 
     controller = gtk_event_controller_key_new ();
     gtk_widget_add_controller (GTK_WIDGET (entry), controller);

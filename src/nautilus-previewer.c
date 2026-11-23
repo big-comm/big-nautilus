@@ -25,6 +25,7 @@
 
 #include "nautilus-previewer.h"
 
+#include "nautilus-file.h"
 #include "nautilus-files-view.h"
 #include "nautilus-window.h"
 #include "nautilus-window-slot.h"
@@ -41,15 +42,29 @@
 #define PREVIEWER2_DBUS_IFACE "org.gnome.NautilusPreviewer2"
 #define PREVIEWER_DBUS_NAME "org.gnome.NautilusPreviewer"
 #define PREVIEWER_DBUS_PATH "/org/gnome/NautilusPreviewer"
+#define PREVIEWER_DBUS_NAME_DEVEL PREVIEWER_DBUS_NAME ".Devel"
+#define PREVIEWER_DBUS_PATH_DEVEL PREVIEWER_DBUS_PATH "/Devel"
 
-static const char *previewer_dbus_name = PREVIEWER_DBUS_NAME PROFILE;
-static const char *previewer_dbus_path = PREVIEWER_DBUS_PATH PROFILE;
+static const char *previewer_dbus_name = PROFILE[0] == '\0'
+                                         ? PREVIEWER_DBUS_NAME : PREVIEWER_DBUS_NAME_DEVEL;
+static const char *previewer_dbus_path = PROFILE[0] == '\0'
+                                         ? PREVIEWER_DBUS_PATH : PREVIEWER_DBUS_PATH_DEVEL;
 static gboolean tried_alternative_previewer_dbus_name = FALSE;
 
 static gboolean previewer_ready = FALSE;
 static gboolean fetching_bus = FALSE;
 static GDBusProxy *previewer_proxy = NULL;
-static guint subscription_id = 0;
+
+enum
+{
+    DBUS_SUBSCRIPTION_NAVIGATE_TO,
+    DBUS_SUBSCRIPTION_RENAME,
+    DBUS_SUBSCRIPTION_SELECTION,
+    DBUS_SUBSCRIPTION_TRASH,
+    NUM_DBUS_SUBSCRIPTIONS
+};
+
+static guint dbus_subscriptions[NUM_DBUS_SUBSCRIPTIONS];
 
 static GCancellable *cancellable = NULL;
 
@@ -61,14 +76,8 @@ static void real_call_show_file (const gchar *uri,
                                  const gchar *window_handle,
                                  gboolean     close_if_already_visible,
                                  const char  *activation_token);
+static void previewer_call_close (void);
 static void create_new_bus (void);
-static void previewer_selection_event (GDBusConnection *connection,
-                                       const gchar     *sender_name,
-                                       const gchar     *object_path,
-                                       const gchar     *interface_name,
-                                       const gchar     *signal_name,
-                                       GVariant        *parameters,
-                                       gpointer         user_data);
 
 #ifdef GDK_WINDOWING_WAYLAND
 typedef struct
@@ -127,6 +136,126 @@ clear_exported_window_handle (void)
     exported_window_handle = NULL;
 }
 
+static gboolean
+is_uri_selected (NautilusFilesView *files_view,
+                 const char        *uri)
+{
+    g_autolist (NautilusFile) selection = nautilus_files_view_get_selection (files_view);
+
+    if (g_list_length (selection) != 1)
+    {
+        return FALSE;
+    }
+
+    g_autoptr (NautilusFile) file = nautilus_file_get_by_uri (uri);
+
+    return file == selection->data;
+}
+
+typedef void (*PreviewerEventCallback) (NautilusFilesView *files_view,
+                                        GVariant          *parameters);
+
+static void
+previewer_navigate_to_event (NautilusFilesView *files_view,
+                             GVariant          *parameters)
+{
+    const char *uri;
+
+    g_variant_get (parameters, "(s)", &uri);
+
+    g_autoptr (NautilusFile) file = nautilus_file_get_by_uri (uri);
+
+    if (!nautilus_file_is_directory (file) || !is_uri_selected (files_view, uri))
+    {
+        g_warning ("Ignoring previewer NavigateTo request for uri %s", uri);
+        return;
+    }
+
+    nautilus_files_view_activate_file (files_view, file, NAUTILUS_OPEN_FLAG_NORMAL);
+}
+
+static void
+previewer_rename_event (NautilusFilesView *files_view,
+                        GVariant          *parameters)
+{
+    const char *uri;
+
+    g_variant_get (parameters, "(s)", &uri);
+
+    if (!is_uri_selected (files_view, uri))
+    {
+        g_warning ("Ignoring previewer Rename request for uri %s", uri);
+        return;
+    }
+
+    gtk_widget_activate_action (GTK_WIDGET (files_view), "view.rename", NULL);
+}
+
+static void
+previewer_selection_event (NautilusFilesView *files_view,
+                           GVariant          *parameters)
+{
+    GtkDirectionType direction;
+
+    g_variant_get (parameters, "(u)", &direction);
+    nautilus_files_view_preview_selection_event (files_view, direction);
+}
+
+static void
+previewer_trash_event (NautilusFilesView *files_view,
+                       GVariant          *parameters)
+{
+    const char *uri;
+
+    g_variant_get (parameters, "(s)", &uri);
+
+    if (!is_uri_selected (files_view, uri))
+    {
+        g_warning ("Ignoring previewer Trash request for uri %s", uri);
+        return;
+    }
+
+    gtk_widget_activate_action (GTK_WIDGET (files_view), "view.move-to-trash", NULL);
+}
+
+static void
+handle_previewer_event (GDBusConnection *connection,
+                        const gchar     *sender_name,
+                        const gchar     *object_path,
+                        const gchar     *interface_name,
+                        const gchar     *signal_name,
+                        GVariant        *parameters,
+                        gpointer         user_data)
+{
+    PreviewerEventCallback callback = user_data;
+    NautilusFilesView *files_view = (current_slot != NULL) ?
+                                    nautilus_window_slot_get_current_view (current_slot) : NULL;
+
+    if (files_view == NULL)
+    {
+        return;
+    }
+
+    callback (files_view, parameters);
+}
+
+static guint
+setup_dbus_connection (GDBusConnection        *connection,
+                       const char             *event_name,
+                       PreviewerEventCallback  callback)
+{
+    return g_dbus_connection_signal_subscribe (connection,
+                                               previewer_dbus_name,
+                                               PREVIEWER2_DBUS_IFACE,
+                                               event_name,
+                                               previewer_dbus_path,
+                                               NULL,
+                                               G_DBUS_SIGNAL_FLAGS_NONE,
+                                               handle_previewer_event,
+                                               callback,
+                                               NULL);
+}
+
 static void
 switch_to_alternative_previewer_dbus_name (void)
 {
@@ -139,8 +268,8 @@ switch_to_alternative_previewer_dbus_name (void)
     }
     else
     {
-        previewer_dbus_name = PREVIEWER_DBUS_NAME "Devel";
-        previewer_dbus_path = PREVIEWER_DBUS_PATH "Devel";
+        previewer_dbus_name = PREVIEWER_DBUS_NAME_DEVEL;
+        previewer_dbus_path = PREVIEWER_DBUS_PATH_DEVEL;
     }
 }
 
@@ -158,16 +287,15 @@ on_ping_finished (GObject      *object,
 
         previewer_ready = TRUE;
         fetching_bus = FALSE;
-        subscription_id = g_dbus_connection_signal_subscribe (connection,
-                                                              previewer_dbus_name,
-                                                              PREVIEWER2_DBUS_IFACE,
-                                                              "SelectionEvent",
-                                                              previewer_dbus_path,
-                                                              NULL,
-                                                              G_DBUS_SIGNAL_FLAGS_NONE,
-                                                              previewer_selection_event,
-                                                              NULL,
-                                                              NULL);
+
+        dbus_subscriptions[DBUS_SUBSCRIPTION_NAVIGATE_TO] =
+            setup_dbus_connection (connection, "NavigateTo", previewer_navigate_to_event);
+        dbus_subscriptions[DBUS_SUBSCRIPTION_RENAME] =
+            setup_dbus_connection (connection, "Rename", previewer_rename_event);
+        dbus_subscriptions[DBUS_SUBSCRIPTION_SELECTION] =
+            setup_dbus_connection (connection, "SelectionEvent", previewer_selection_event);
+        dbus_subscriptions[DBUS_SUBSCRIPTION_TRASH] =
+            setup_dbus_connection (connection, "Trash", previewer_trash_event);
     }
     else if (!tried_alternative_previewer_dbus_name)
     {
@@ -285,6 +413,8 @@ nautilus_previewer_call_show_file (const gchar        *uri,
     /* Otherwise, obtain a new window handle. */
     clear_exported_window_handle ();
     g_set_weak_pointer (&current_window, window);
+    g_signal_connect_object (g_application_get_default (), "last-window-closed",
+                             G_CALLBACK (previewer_call_close), window, 0);
 
     GdkSurface *gdk_surface = gtk_native_get_surface (GTK_NATIVE (window));
 #ifdef GDK_WINDOWING_X11
@@ -355,8 +485,8 @@ real_call_show_file (const gchar *uri,
                        NULL);
 }
 
-void
-nautilus_previewer_call_close (void)
+static void
+previewer_call_close (void)
 {
     if (!ensure_previewer_proxy ())
     {
@@ -374,32 +504,6 @@ nautilus_previewer_call_close (void)
                        NULL);
 }
 
-static void
-previewer_selection_event (GDBusConnection *connection,
-                           const gchar     *sender_name,
-                           const gchar     *object_path,
-                           const gchar     *interface_name,
-                           const gchar     *signal_name,
-                           GVariant        *parameters,
-                           gpointer         user_data)
-{
-    if (current_slot == NULL)
-    {
-        return;
-    }
-
-    NautilusFilesView *view = nautilus_window_slot_get_current_view (current_slot);
-    GtkDirectionType direction;
-
-    if (view == NULL)
-    {
-        return;
-    }
-
-    g_variant_get (parameters, "(u)", &direction);
-    nautilus_files_view_preview_selection_event (view, direction);
-}
-
 void
 nautilus_previewer_setup (void)
 {
@@ -409,9 +513,12 @@ nautilus_previewer_setup (void)
 void
 nautilus_previewer_teardown (GDBusConnection *connection)
 {
-    if (subscription_id != 0)
+    for (guint i = 0; i < NUM_DBUS_SUBSCRIPTIONS; i += 1)
     {
-        g_dbus_connection_signal_unsubscribe (connection, subscription_id);
+        if (dbus_subscriptions[i] != 0)
+        {
+            g_dbus_connection_signal_unsubscribe (connection, dbus_subscriptions[i]);
+        }
     }
 
     g_cancellable_cancel (cancellable);

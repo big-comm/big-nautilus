@@ -10,7 +10,6 @@
 #include "nautilus-file.h"
 #include "nautilus-file-utilities.h"
 #include "nautilus-image.h"
-#include "nautilus-icon-info.h"
 #include "nautilus-tag-colors.h"
 #include "nautilus-thumbnails.h"
 #include "nautilus-ui-utilities.h"
@@ -43,7 +42,7 @@ struct _NautilusNameCell
     guint loading_timeout_id;
 };
 
-G_DEFINE_TYPE (NautilusNameCell, nautilus_name_cell, NAUTILUS_TYPE_VIEW_CELL)
+G_DEFINE_FINAL_TYPE (NautilusNameCell, nautilus_name_cell, NAUTILUS_TYPE_VIEW_CELL)
 
 static gchar *
 get_path_text (NautilusFile *file,
@@ -441,15 +440,19 @@ snapshot (GtkWidget   *widget,
             guint icon_size;
             GdkRGBA color, dashed_border_color, icon_color;
             gboolean use_small_icon;
-            gchar *icon_name;
+            gchar *resource;
+            g_autoptr (GtkSvg) svg = NULL;
             const double border_opacity = is_high_contrast ? 0.5 : 0.15;
             const double dim_opacity = is_high_contrast ? 0.9 : 0.55;
             graphene_rect_t icon_bounds = dash_bounds;
 
             g_object_get (self, "icon-size", &icon_size, NULL);
-            gtk_widget_get_color (widget, &color);
             use_small_icon = icon_size <= NAUTILUS_LIST_ICON_SIZE_MEDIUM;
-            icon_name = use_small_icon ? "cut-symbolic" : "cut-large-symbolic";
+            resource = use_small_icon
+                        ? "/org/gnome/nautilus/icons/scalable/actions/cut-symbolic.svg"
+                        : "/org/gnome/nautilus/icons/scalable/actions/cut-large-symbolic.svg";
+            svg = gtk_svg_new_from_resource (resource);
+            gtk_widget_get_color (widget, &color);
 
             if (icon_size >= NAUTILUS_THUMBNAIL_MINIMUM_ICON_SIZE)
             {
@@ -465,11 +468,7 @@ snapshot (GtkWidget   *widget,
 
             icon_color = color;
             icon_color.alpha *= dim_opacity;
-            nautilus_ui_draw_symbolic_icon (snapshot,
-                                            icon_name,
-                                            &icon_bounds,
-                                            icon_color,
-                                            gtk_widget_get_scale_factor (widget));
+            nautilus_ui_draw_svg (snapshot, svg, &icon_bounds, icon_color);
         }
         else
         {
@@ -531,16 +530,10 @@ nautilus_name_cell_set_path (NautilusNameCell *self,
 }
 
 void
-nautilus_name_cell_show_snippet (NautilusNameCell *self)
-{
-    self->show_snippet = TRUE;
-}
-
-void
 nautilus_name_cell_set_show_snippet (NautilusNameCell *self,
-                                     gboolean          show_snippet)
+                                     gboolean          show)
 {
-    self->show_snippet = show_snippet;
+    self->show_snippet = show;
 }
 
 GtkTreeExpander *

@@ -20,9 +20,24 @@ Adw.PreferencesDialog preferences_dialog {
         use-underline: true;
       }
 
-      Adw.ComboRow open_action_row {
+      Adw.ActionRow open_action_row {
         title: _("_Action to Open Items");
         use-underline: true;
+
+        [suffix]
+        Adw.ToggleGroup open_action_toggle_group {
+          valign: center;
+
+          Adw.Toggle single_click_toggle {
+            label: _("Single-Click");
+            name: "single";
+          }
+
+          Adw.Toggle double_click_toggle {
+            label: _("Double-Click");
+            name: "double";
+          }
+        }
       }
     }
 

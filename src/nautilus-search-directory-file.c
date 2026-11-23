@@ -42,13 +42,13 @@ struct _NautilusSearchDirectoryFile
     gchar *metadata_filename;
 };
 
-G_DEFINE_TYPE (NautilusSearchDirectoryFile, nautilus_search_directory_file, NAUTILUS_TYPE_FILE);
+G_DEFINE_FINAL_TYPE (NautilusSearchDirectoryFile, nautilus_search_directory_file, NAUTILUS_TYPE_FILE);
 
 
 static void
-search_directory_file_monitor_add (NautilusFile           *file,
-                                   gconstpointer           client,
-                                   NautilusFileAttributes  attributes)
+search_directory_file_monitor_add (NautilusFile       *file,
+                                   gconstpointer       client,
+                                   NautilusAttributes  attributes)
 {
     /* No need for monitoring, we always emit changed when files
      *  are added/removed, and no other metadata changes */
@@ -65,10 +65,10 @@ search_directory_file_monitor_remove (NautilusFile  *file,
 }
 
 static void
-search_directory_file_call_when_ready (NautilusFile           *file,
-                                       NautilusFileAttributes  file_attributes,
-                                       NautilusFileCallback    callback,
-                                       gpointer                callback_data)
+search_directory_file_call_when_ready (NautilusFile         *file,
+                                       NautilusAttributes    attributes,
+                                       NautilusFileCallback  callback,
+                                       gpointer              callback_data)
 {
     /* Update display name, in case this didn't happen yet */
     nautilus_search_directory_file_update_display_name (NAUTILUS_SEARCH_DIRECTORY_FILE (file));
@@ -89,8 +89,8 @@ search_directory_file_cancel_call_when_ready (NautilusFile         *file,
 }
 
 static gboolean
-search_directory_file_check_if_ready (NautilusFile           *file,
-                                      NautilusFileAttributes  attributes)
+search_directory_file_check_if_ready (NautilusFile       *file,
+                                      NautilusAttributes  attributes)
 {
     return TRUE;
 }

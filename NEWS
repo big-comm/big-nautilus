@@ -1,34 +1,135 @@
-Major Changes in 50.4
+Major Changes in 51.1
 =====================
 * Bugfixes:
+- Fix reusing tabs when opening locations from shell (Khalid Abu Shawarib)
 - Fix unwritable file indicator (Peter Eisenmann)
 - Focus Replace button by default in conflict dialog (Ivan)
 - Disable markup syntax on property extension rows (Peter Eisenmann)
 - Fix leak in audio/video extension (Peter Eisenmann)
+- Fix setting custom icons in properties (Peter Eisenmann)
+- Assure thumbnails in properties are fitted into a square (Khalid Abu Shawarib)
+- Fix properties window not showing checker background (Peter Eisenmann)
 - Fix various leaks and errors without reports (Khalid Abu Shawarib)
 - Don't abort on invalid boolean metadata (Rohit Solanki)
+- Respect GTK4 file chooser's folder sorting default settings (Peter Eisenmann)
 - Fix properties dialog sometimes opening too small (Peter Eisenmann)
+
+* Cleanups:
+- Require GTK 4.24 (Jeremy Bícha)
+- Prevent unnecessary relinking on every build caused by Blueprint files (Khalid Abu Shawarib)
 
 * Translation updates (GNOME Translation Project contributors)
 
-Major Changes in 50.3.1
+Major Changes in 51.0.1
 =======================
+* Bugfixes:
+- Fix metainfo release description syntax (Peter Eisenmann)
+
+Major Changes in 51.0
+=====================
 * Bugfixes:
 - Fix a possible crash when changing app defaults after closing the app chooser (Khalid Abu Shawarib)
 
 * Cleanups:
+- Adjust to renamed sushi devel name (Peter Eisenmann)
+
+* Translation updates (GNOME Translation Project contributors)
+
+Major Changes in 51.rc
+======================
+* Enhancements:
+- Add Santali translation (Prasanta Hembram)
+- Add tests for image, files-view, properties (Khalid Abu Shawarib)
+- Add shortcut to focus file chooser filename entry (Peter Eisenmann)
+- Delay clearing of the view for smoother navigation (Peter Eisenmann)
+- Add rename, trash and folder opening functionality to previewer (Peter Eisenmann)
+- Use type-to-search pattern in app-chooser (Peter Eisenmann)
+- Mark network address entry invalid on the a11y layer when appropriate (Lukáš Tyrychtr)
+- Announce feedback text to screen readers in filename entries (Felipe Borges)
+
+* Bugfixes:
+- Fix tab overview behavior with single tab (Khalid Abu Shawarib)
+- Fix empty list state in app-chooser (Peter Eisenmann)
+- Only show apps in one section in app-chooser (Peter Eisenmann)
+- Show parent folder row when properties dialog is detached (Hanzala Sohrab)
+- Fix memory trimming on window closure (Peter Eisenmann)
+- Correctly fix non-keypad shortcuts in menus (Peter Eisenmann)
+- Close app when only property windows are left (Peter Eisenmann)
+- Restore focus and selection if a file gets removed (Lukáš Tyrychtr)
+
+* Cleanups:
+- Drop view-related context menu entries (Peter Eisenmann)
+- Add and use recursive directory iterator helper (Peter Eisenmann)
 - Attempt using any sushi version (Peter Eisenmann)
 
-Major Changes in 50.3
-=====================
+* Translation updates (GNOME Translation Project contributors)
+
+Major Changes in 51.beta
+========================
+* Enhancements:
+- Use AdwTabOverview in narrow mode (Automeris naranja)
+- Open locations from other apps in new tabs (Corey Berla)
+- Add an empty document menu entry in case of empty templates directory (Khalid Abu Shawarib)
+- Ignore most duplicate app entries in the app chooser (Khalid Abu Shawarib)
+- Add gobject-linter CI job (Khalid Abu Shawarib)
+- Move search focus to higher relevance result (pagarao)
+- Use AdwComboRow for open action preference (Khalid Abu Shawarib)
+- Hide redundant 'Open Parent Folder' properties row (Hanzala Sohrab)
+- Use dedicated symbolic for Projects bookmark icon (Lorenzo Ubaldi)
+- Adjust sidebar width limit (Programejt)
+- Don't duplicate loading locations (Peter Eisenmann)
+
 * Bugfixes:
-- Mark network address entry invalid on the a11y layer when appropriate (Lukáš Tyrychtr)
+- Show non-keypad shortcuts in menus (Peter Eisenmann)
+- Handle timed dialogs being destroyed before their timeout (Khalid Abu Shawarib)
+- Put g_set_date_time behind a guard (Maximiliano Sandoval)
+- Fix memory leak in action_create_links_in_place (Programejt)
 - Correctly position related apps in the app chooser (Peter Eisenmann)
-- Fix thumbnail not being updated while loading is some cases (Khalid Abu Shawarib)
+
+* Cleanups:
+- Apply gobject-linter fixes (Khalid Abu Shawarib)
+- Clean up NautilusWindowSlot internals (Peter Eisenmann)
+
+* Translation updates (GNOME Translation Project contributors)
+
+Major Changes in 51.alpha
+=========================
+* Enhancements:
+- Show selected items count badge while dragging multiple files (Aaryan Dadu)
+- Combine '.' and '..' name errors in validators (pagarao)
+- Hide parent folder for mount root children (Krish)
+- Don't show placeholder trashed info for multiple files or the Trash in properties (Khalid Abu Shawarib)
+- Add a tooltip to properties detach window button (Lukáš Tyrychtr)
+- Show either an unreadable or read-only emblem (Peter Eisenmann)
+- Show symbolic link emblem before read-only/unreadable  (Peter Eisenmann)
+- Adjust non-indexed search description in info popover (parzival)
+- Advertise notification categories for file and mount/unmount operations (Khalid Abu Shawarib)
+- Slightly enhance view reloading performance  (Khalid Abu Shawarib)
+- Add more tests for bookmarks list, icon-info, image widget, file creation, and thumbnailing (Khalid Abu Shawarib)
+
+* Bugfixes:
 - Show the correct starred status and normal features of properties in Recents (Khalid Abu Shawarib)
-- Fix Escape not closing the app chooser dialog when the entry is focused (Peter Eisenmann)
+- Don't unselect when right clicking the view's background (Khalid Abu Shawarib)
+- Don't override manual selection with file operation results (Khalid Abu Shawarib)
 - Fix a bug where copied files are not selected after the operation has ended (Khalid Abu Shawarib)
-- Fix memory trimming on window closure (Peter Eisenmann)
+- Removed several usages of blocking IO in the main thread (Khalid Abu Shawarib)
+- Fixed "Window is ready" notification when other apps call "Open location" instead of raising the window (Khalid Abu Shawarib)
+- Fix Escape not closing the app chooser dialog when the entry is focused (Peter Eisenmann)
+- Fix accessibility label and description of view mode button (Sergio Costas)
+- Fix thumbnail not being updated while loading is some cases (Khalid Abu Shawarib)
+- Fixed leaks (Khalid Abu Shawarib)
+- Remove redundant bookmark list updates signals (Khalid Abu Shawarib)
+- Fix loading getting stuck while thumbnailing in flatpak (Khalid Abu Shawarib)
+- CI fixes (Khalid Abu Shawarib, Peter Eisenmann)
+
+* Cleanups:
+- Various dead code removals and simplifications (Peter Eisenmann, Khalid Abu Shawarib)
+- Reduce the usage of deprecated APIs (Khalid Abu Shawarib, Peter Eisenmann)
+- Fix gdbus commands in CONTRIBUTING.md (Lynn)
+- Renable compilation of localsearch test but keeep skipping them (Khalid Abu Shawarib)
+- Use newer image widget for previews in properties and conflict dialog (Khalid Abu Shawarib)
+- Use libgxdp for the file chooser window attachment and remove the local copy (Khalid Abu Shawarib, Peter Eisenmann)
+- Moved thumbnails test to display suite (Khalid Abu Shawarib)
 
 * Translation updates (GNOME Translation Project contributors)
 

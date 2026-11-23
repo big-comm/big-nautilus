@@ -68,7 +68,7 @@ struct _NautilusShellSearchProvider
     GHashTable *metas_cache;
 };
 
-G_DEFINE_TYPE (NautilusShellSearchProvider, nautilus_shell_search_provider, G_TYPE_OBJECT)
+G_DEFINE_FINAL_TYPE (NautilusShellSearchProvider, nautilus_shell_search_provider, G_TYPE_OBJECT)
 
 static void
 pending_search_free (PendingSearch *search)
@@ -651,7 +651,7 @@ handle_get_result_metas (NautilusShellSearchProvider2  *skeleton,
      * never prepend a pointer that has just been freed. */
     self->metas_requests = g_list_prepend (self->metas_requests, data);
     nautilus_file_list_call_when_ready (missing_files,
-                                        NAUTILUS_FILE_ATTRIBUTES_FOR_ICON,
+                                        NAUTILUS_ATTRIBUTE_THUMBNAIL_BUFFER,
                                         &data->handle,
                                         result_list_attributes_ready_cb,
                                         data);

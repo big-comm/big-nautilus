@@ -54,13 +54,13 @@ struct _NautilusQuery
     GPtrArray *prepared_words;
 };
 
-G_DEFINE_TYPE (NautilusQuery, nautilus_query, G_TYPE_OBJECT);
+G_DEFINE_FINAL_TYPE (NautilusQuery, nautilus_query, G_TYPE_OBJECT);
 
 static NautilusSpeedTradeoffValue
 get_recursion_tradeoff (GFile *location)
 {
-    NautilusSpeedTradeoffValue tradeoff = g_settings_get_enum (
-        nautilus_preferences, "recursive-search");
+    NautilusSpeedTradeoffValue tradeoff =
+        g_settings_get_enum (nautilus_preferences, NAUTILUS_PREFERENCES_RECURSIVE_SEARCH);
 
     if (tradeoff != NAUTILUS_SPEED_TRADEOFF_LOCAL_ONLY)
     {
