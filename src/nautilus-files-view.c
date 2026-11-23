@@ -4418,9 +4418,8 @@ files_view_has_focus (NautilusFilesView *self)
 static void
 display_pending_files (NautilusFilesView *view)
 {
-    /* The old contents are kept on screen until the new ones are here, which
-     * is now. Take them out and put the new ones in as one change to the
-     * model rather than two. */
+    /* The old contents stay on screen until the new ones arrive: swap them
+     * in one change to the model rather than two. */
     gboolean replacing = (view->transition_timeout_id != 0);
 
     /* Remember focus, so we can restore it if it gets lost. */

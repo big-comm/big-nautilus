@@ -77,7 +77,7 @@ test_file_sort_case_after_content (void)
         "Csi.Crime.Scene.Investigation.S06E21.1080p.WEB-DL.h264.Dual2.0-Dinho.srt",
         "Csi.Crime.Scene.Investigation.S06E22.1080p.WEB-DL.h264.Dual2.0-Dinho.mkv",
     };
-    /* The same names, in the order that used to come out of the sort. */
+    /* The same names, in the order a case-first sort gives them. */
     const guint shuffled[] = { 1, 5, 6, 7, 0, 2, 3, 4 };
     g_autoptr (GPtrArray) files = g_ptr_array_new_with_free_func (g_object_unref);
 
