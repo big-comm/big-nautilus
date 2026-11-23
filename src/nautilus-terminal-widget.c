@@ -347,7 +347,7 @@ static void on_terminal_button_pressed(GtkGestureClick *gesture, int n_press, do
 static void on_popup_menu_closed (GtkPopover *popover, gpointer user_data);
 static void on_terminal_primary_click(GtkGestureClick *gesture, int n_press, double x, double y, gpointer user_data);
 static gboolean on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint keycode, GdkModifierType state, gpointer user_data);
-static gboolean _ensure_focus_timeout(gpointer user_data);
+static gboolean ensure_focus_timeout(gpointer user_data);
 static void schedule_terminal_focus (NautilusTerminalWidget *self,
                                      VteTerminal           *terminal,
                                      guint                  delay_ms);
@@ -356,15 +356,15 @@ static void on_terminal_preference_changed(GSettings *settings, const gchar *key
 static void setup_terminal_font(VteTerminal *terminal, GSettings *settings);
 static void nautilus_terminal_widget_apply_color_scheme(NautilusTerminalWidget *self);
 static void on_system_dark_changed(AdwStyleManager *style_manager, GParamSpec *pspec, gpointer user_data);
-static void _initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port, NautilusTerminalSyncMode sync_mode);
+static void initiate_ssh_connection(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port, NautilusTerminalSyncMode sync_mode);
 static gboolean parse_gvfs_ssh_path(GFile *location, gchar **hostname, gchar **username, gchar **port);
 static void change_directory_in_terminal(NautilusTerminalWidget *self, GFile *location);
 static gchar *get_remote_path_from_sftp_gfile (GFile *location);
 static gboolean shell_has_the_terminal (NautilusTerminalWidget *self);
 static gboolean session_is_busy (NautilusTerminalWidget *self);
 static void follow_location (NautilusTerminalWidget *self, gboolean is_first_location_set);
-static void _clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv);
-static void _reset_to_local_state(NautilusTerminalWidget *self);
+static void clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv);
+static void reset_to_local_state(NautilusTerminalWidget *self);
 static void spawn_pending_ssh_connection (NautilusTerminalWidget *self);
 
 /* A host or user taken from an sftp:// URI is attacker-influenced. Anything
@@ -397,14 +397,14 @@ nautilus_terminal_ssh_field_is_safe (const char *value)
 static const gchar * nautilus_terminal_widget_get_color_scheme(NautilusTerminalWidget *self);
 static void nautilus_terminal_widget_set_color_scheme(NautilusTerminalWidget *self, const gchar *scheme);
 static void update_popup_menu_model (NautilusTerminalWidget *self);
-static GtkWidget *_build_search_bar (NautilusTerminalWidget *self);
-static void _install_drop_target (NautilusTerminalWidget *self,
+static GtkWidget *build_search_bar (NautilusTerminalWidget *self);
+static void install_drop_target (NautilusTerminalWidget *self,
                                   VteTerminal           *terminal);
-static void _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data);
+static void on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data);
 static void action_split_horizontal (GSimpleAction *action, GVariant *parameter, gpointer user_data);
 static void action_split_vertical   (GSimpleAction *action, GVariant *parameter, gpointer user_data);
 static void action_close_pane       (GSimpleAction *action, GVariant *parameter, gpointer user_data);
-static void _attach_focus_tracker   (NautilusTerminalWidget *self, VteTerminal *term);
+static void attach_focus_tracker   (NautilusTerminalWidget *self, VteTerminal *term);
 static void switch_to_local_terminal (NautilusTerminalWidget *self);
 
 static GParamSpec *properties[N_PROPS];
@@ -554,18 +554,18 @@ nautilus_terminal_widget_finalize(GObject *object)
     g_clear_pointer (&priv->unsynced_spawn_cwd, g_free);
     g_clear_object (&priv->pending_cd_location);
 
-    _clear_ssh_connection_data(priv);
+    clear_ssh_connection_data(priv);
 
     G_OBJECT_CLASS(nautilus_terminal_widget_parent_class)->finalize(object);
 }
 
-static VteTerminal *_active_terminal (NautilusTerminalWidget *self);
+static VteTerminal *get_active_terminal (NautilusTerminalWidget *self);
 
 static void
 action_copy (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    vte_terminal_copy_clipboard_format (_active_terminal (self), VTE_FORMAT_TEXT);
+    vte_terminal_copy_clipboard_format (get_active_terminal (self), VTE_FORMAT_TEXT);
 }
 
 static void
@@ -575,18 +575,18 @@ action_paste (GSimpleAction *action, GVariant *parameter, gpointer user_data)
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
     priv->refocus_after_paste = TRUE;
-    vte_terminal_paste_clipboard (_active_terminal (self));
+    vte_terminal_paste_clipboard (get_active_terminal (self));
 
     /* Directly schedule a focus grab after paste. The focus-leave handler
      * is unreliable because focus may not always leave during paste. */
-    schedule_terminal_focus (self, _active_terminal (self), 50);
+    schedule_terminal_focus (self, get_active_terminal (self), 50);
 }
 
 static void
 action_select_all (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    vte_terminal_select_all (_active_terminal (self));
+    vte_terminal_select_all (get_active_terminal (self));
 }
 
 static void
@@ -637,8 +637,8 @@ action_ssh_disconnect (GSimpleAction *action, GVariant *parameter, gpointer user
     switch_to_local_terminal (self);
 }
 
-static void _terminal_search_update_regex (NautilusTerminalWidget *self);
-static void _terminal_search_set_visible  (NautilusTerminalWidget *self, gboolean visible);
+static void terminal_search_update_regex (NautilusTerminalWidget *self);
+static void terminal_search_set_visible  (NautilusTerminalWidget *self, gboolean visible);
 
 static void
 action_search_toggle (GSimpleAction *action, GVariant *parameter, gpointer user_data)
@@ -646,23 +646,23 @@ action_search_toggle (GSimpleAction *action, GVariant *parameter, gpointer user_
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
     gboolean now_visible = !gtk_revealer_get_reveal_child (GTK_REVEALER (priv->search_revealer));
-    _terminal_search_set_visible (self, now_visible);
+    terminal_search_set_visible (self, now_visible);
 }
 
 static void
 action_search_next (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    _terminal_search_update_regex (self);
-    vte_terminal_search_find_next (_active_terminal (self));
+    terminal_search_update_regex (self);
+    vte_terminal_search_find_next (get_active_terminal (self));
 }
 
 static void
 action_search_prev (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    _terminal_search_update_regex (self);
-    vte_terminal_search_find_previous (_active_terminal (self));
+    terminal_search_update_regex (self);
+    vte_terminal_search_find_previous (get_active_terminal (self));
 }
 
 static void
@@ -681,7 +681,7 @@ action_manual_ssh_connect (GSimpleAction *action, GVariant *parameter, gpointer 
         return;
     }
 
-    _initiate_ssh_connection (self,
+    initiate_ssh_connection (self,
                               hostname,
                               (username != NULL && *username != '\0') ? username : NULL,
                               (port != NULL && *port != '\0') ? port : NULL,
@@ -807,7 +807,7 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_label_set_xalign(GTK_LABEL(priv->ssh_indicator), 0.5);
 
     gtk_box_append(GTK_BOX(self), priv->ssh_indicator);
-    priv->search_revealer = _build_search_bar (self);
+    priv->search_revealer = build_search_bar (self);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(priv->scrolled_window), GTK_WIDGET(priv->terminal));
 
     /* Wrap the primary pane's content (search bar + scrolled VTE) in its own
@@ -820,7 +820,7 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
     gtk_box_append (GTK_BOX (self), priv->primary_pane_box);
 
     priv->active_terminal = priv->terminal;
-    _attach_focus_tracker (self, priv->terminal);
+    attach_focus_tracker (self, priv->terminal);
     priv->secondary_pid = -1;
 
     priv->settings = g_settings_new("org.gnome.nautilus.terminal");
@@ -868,7 +868,7 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
                              0);
     g_signal_connect_object (priv->terminal,
                              "termprop-changed",
-                             G_CALLBACK (_on_termprop_changed),
+                             G_CALLBACK (on_termprop_changed),
                              self,
                              0);
 
@@ -907,7 +907,7 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
                              0);
     gtk_widget_add_controller(GTK_WIDGET(priv->terminal), focus_controller);
 
-    _install_drop_target (self, priv->terminal);
+    install_drop_target (self, priv->terminal);
 
     /* Submenus open as nested popovers rather than sliding pages so the parent
      * width is dictated by its own top-level items, not by the longest label
@@ -928,14 +928,14 @@ nautilus_terminal_widget_init(NautilusTerminalWidget *self)
 /* ---- Split panes -------------------------------------------------------- */
 
 static VteTerminal *
-_active_terminal (NautilusTerminalWidget *self)
+get_active_terminal (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     return priv->active_terminal != NULL ? priv->active_terminal : priv->terminal;
 }
 
 static void
-_on_pane_focus_enter (GtkEventControllerFocus *controller, gpointer user_data)
+on_pane_focus_enter (GtkEventControllerFocus *controller, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
     GtkWidget *w = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
@@ -944,19 +944,19 @@ _on_pane_focus_enter (GtkEventControllerFocus *controller, gpointer user_data)
 }
 
 static void
-_attach_focus_tracker (NautilusTerminalWidget *self, VteTerminal *term)
+attach_focus_tracker (NautilusTerminalWidget *self, VteTerminal *term)
 {
     GtkEventController *fc = gtk_event_controller_focus_new ();
     g_signal_connect_object (fc,
                              "enter",
-                             G_CALLBACK (_on_pane_focus_enter),
+                             G_CALLBACK (on_pane_focus_enter),
                              self,
                              0);
     gtk_widget_add_controller (GTK_WIDGET (term), fc);
 }
 
 static void
-_secondary_spawn_cb (VteTerminal *terminal, GPid pid, GError *error, gpointer user_data)
+secondary_spawn_cb (VteTerminal *terminal, GPid pid, GError *error, gpointer user_data)
 {
     NautilusTerminalSpawnData *data = user_data;
     NautilusTerminalWidget *self = g_weak_ref_get (&data->widget_ref);
@@ -1002,7 +1002,7 @@ _secondary_spawn_cb (VteTerminal *terminal, GPid pid, GError *error, gpointer us
 }
 
 static void
-_on_secondary_child_exited (VteTerminal *terminal, gint status, gpointer user_data)
+on_secondary_child_exited (VteTerminal *terminal, gint status, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
 
@@ -1018,7 +1018,7 @@ _on_secondary_child_exited (VteTerminal *terminal, gint status, gpointer user_da
 }
 
 static gchar *
-_get_local_cwd_for_split (NautilusTerminalWidget *self)
+get_local_cwd_for_split (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     if (priv->current_location != NULL && g_file_is_native (priv->current_location)) {
@@ -1029,11 +1029,11 @@ _get_local_cwd_for_split (NautilusTerminalWidget *self)
 }
 
 static GtkWidget *
-_build_secondary_pane (NautilusTerminalWidget *self)
+build_secondary_pane (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     GtkWidget *box;
-    g_autofree gchar *cwd = _get_local_cwd_for_split (self);
+    g_autofree gchar *cwd = get_local_cwd_for_split (self);
     const gchar *shell = g_getenv ("SHELL");
     if (shell == NULL || *shell == '\0') shell = "/bin/sh";
     gchar *argv[] = { (gchar *) shell, NULL };
@@ -1104,24 +1104,24 @@ _build_secondary_pane (NautilusTerminalWidget *self)
                               NULL, NULL, NULL,
                               -1,
                               priv->secondary_cancellable,
-                              _secondary_spawn_cb,
+                              secondary_spawn_cb,
                               terminal_spawn_data_new (self,
                                                        NAUTILUS_TERMINAL_SPAWN_SECONDARY,
                                                        priv->secondary_spawn_generation));
 
     g_signal_connect_object (priv->secondary_terminal,
                              "child-exited",
-                             G_CALLBACK (_on_secondary_child_exited),
+                             G_CALLBACK (on_secondary_child_exited),
                              self,
                              0);
-    _attach_focus_tracker (self, priv->secondary_terminal);
-    _install_drop_target (self, priv->secondary_terminal);
+    attach_focus_tracker (self, priv->secondary_terminal);
+    install_drop_target (self, priv->secondary_terminal);
 
     return box;
 }
 
 static void
-_split_pane (NautilusTerminalWidget *self, GtkOrientation orientation)
+split_pane (NautilusTerminalWidget *self, GtkOrientation orientation)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     GtkWidget *new_pane;
@@ -1131,7 +1131,7 @@ _split_pane (NautilusTerminalWidget *self, GtkOrientation orientation)
     if (priv->primary_pane_box == NULL) return;
     if (gtk_widget_get_parent (priv->primary_pane_box) != GTK_WIDGET (self)) return;
 
-    new_pane = _build_secondary_pane (self);
+    new_pane = build_secondary_pane (self);
 
     priv->split_paned = gtk_paned_new (orientation);
     gtk_paned_set_resize_start_child  (GTK_PANED (priv->split_paned), TRUE);
@@ -1161,7 +1161,7 @@ _split_pane (NautilusTerminalWidget *self, GtkOrientation orientation)
 }
 
 static void
-_close_secondary_pane (NautilusTerminalWidget *self)
+close_secondary_pane (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
@@ -1216,19 +1216,19 @@ _close_secondary_pane (NautilusTerminalWidget *self)
 static void
 action_split_horizontal (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
-    _split_pane (NAUTILUS_TERMINAL_WIDGET (user_data), GTK_ORIENTATION_HORIZONTAL);
+    split_pane (NAUTILUS_TERMINAL_WIDGET (user_data), GTK_ORIENTATION_HORIZONTAL);
 }
 
 static void
 action_split_vertical (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
-    _split_pane (NAUTILUS_TERMINAL_WIDGET (user_data), GTK_ORIENTATION_VERTICAL);
+    split_pane (NAUTILUS_TERMINAL_WIDGET (user_data), GTK_ORIENTATION_VERTICAL);
 }
 
 static void
 action_close_pane (GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
-    _close_secondary_pane (NAUTILUS_TERMINAL_WIDGET (user_data));
+    close_secondary_pane (NAUTILUS_TERMINAL_WIDGET (user_data));
 }
 
 /* ---- Running-command tracking (OSC 133 via VTE termprops) -------------- */
@@ -1288,7 +1288,7 @@ nautilus_terminal_sanitize_title (const char *title)
 }
 
 static void
-_emit_running_command_changed (NautilusTerminalWidget *self, gboolean running)
+emit_running_command_changed (NautilusTerminalWidget *self, gboolean running)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     if (priv->command_running == running)
@@ -1298,7 +1298,7 @@ _emit_running_command_changed (NautilusTerminalWidget *self, gboolean running)
 }
 
 static void
-_on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data)
+on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
     NautilusTerminalWidgetPrivate *priv = self->priv;
@@ -1308,11 +1308,11 @@ _on_termprop_changed (VteTerminal *terminal, const char *prop, gpointer user_dat
 
     if (g_strcmp0 (prop, VTE_TERMPROP_SHELL_PREEXEC) == 0)
     {
-        _emit_running_command_changed (self, TRUE);
+        emit_running_command_changed (self, TRUE);
     }
     else if (g_strcmp0 (prop, VTE_TERMPROP_SHELL_POSTEXEC) == 0)
     {
-        _emit_running_command_changed (self, FALSE);
+        emit_running_command_changed (self, FALSE);
 
         if (terminal == priv->terminal && priv->session_switch_deferred &&
             priv->current_location != NULL)
@@ -1533,7 +1533,7 @@ nautilus_terminal_path_from_cwd_uri (GUri  *uri,
 }
 
 static gchar *
-_path_for_drop (NautilusTerminalWidget *self, GFile *file)
+path_for_drop (NautilusTerminalWidget *self, GFile *file)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     g_autofree gchar *scheme = g_file_get_uri_scheme (file);
@@ -1570,11 +1570,11 @@ _path_for_drop (NautilusTerminalWidget *self, GFile *file)
 }
 
 static void
-_append_dropped_file (NautilusTerminalWidget *self,
+append_dropped_file (NautilusTerminalWidget *self,
                       GString                *feed,
                       GFile                  *file)
 {
-    g_autofree gchar *path = _path_for_drop (self, file);
+    g_autofree gchar *path = path_for_drop (self, file);
     g_autofree gchar *quoted = NULL;
 
     if (path == NULL)
@@ -1593,7 +1593,7 @@ _append_dropped_file (NautilusTerminalWidget *self,
 }
 
 static gboolean
-_on_terminal_drop (GtkDropTarget *target,
+on_terminal_drop (GtkDropTarget *target,
                    const GValue  *value,
                    double         x,
                    double         y,
@@ -1605,7 +1605,7 @@ _on_terminal_drop (GtkDropTarget *target,
         gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (target));
     VteTerminal *terminal = VTE_IS_TERMINAL (drop_widget)
                             ? VTE_TERMINAL (drop_widget)
-                            : _active_terminal (self);
+                            : get_active_terminal (self);
     g_autoptr (GString) feed = g_string_new (NULL);
 
     if (terminal == NULL ||
@@ -1618,12 +1618,12 @@ _on_terminal_drop (GtkDropTarget *target,
         GSList *files = g_value_get_boxed (value);
         for (GSList *l = files; l != NULL; l = l->next)
         {
-            _append_dropped_file (self, feed, l->data);
+            append_dropped_file (self, feed, l->data);
         }
     }
     else if (G_VALUE_HOLDS (value, G_TYPE_FILE))
     {
-        _append_dropped_file (self, feed, g_value_get_object (value));
+        append_dropped_file (self, feed, g_value_get_object (value));
     }
     else if (G_VALUE_HOLDS (value, G_TYPE_STRING))
     {
@@ -1643,7 +1643,7 @@ _on_terminal_drop (GtkDropTarget *target,
 }
 
 static void
-_install_drop_target (NautilusTerminalWidget *self,
+install_drop_target (NautilusTerminalWidget *self,
                       VteTerminal           *terminal)
 {
     GtkDropTarget *target;
@@ -1653,7 +1653,7 @@ _install_drop_target (NautilusTerminalWidget *self,
     gtk_drop_target_set_gtypes (target, types, G_N_ELEMENTS (types));
     g_signal_connect_object (target,
                              "drop",
-                             G_CALLBACK (_on_terminal_drop),
+                             G_CALLBACK (on_terminal_drop),
                              self,
                              0);
     gtk_widget_add_controller (GTK_WIDGET (terminal), GTK_EVENT_CONTROLLER (target));
@@ -1662,7 +1662,7 @@ _install_drop_target (NautilusTerminalWidget *self,
 /* ---- Scrollback search bar ---------------------------------------------- */
 
 static void
-_terminal_search_update_regex (NautilusTerminalWidget *self)
+terminal_search_update_regex (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     const char *text = gtk_editable_get_text (GTK_EDITABLE (priv->search_entry));
@@ -1677,7 +1677,7 @@ _terminal_search_update_regex (NautilusTerminalWidget *self)
     gboolean case_sensitive;
 
     if (text == NULL || *text == '\0') {
-        vte_terminal_search_set_regex (_active_terminal (self), NULL, 0);
+        vte_terminal_search_set_regex (get_active_terminal (self), NULL, 0);
         return;
     }
 
@@ -1703,46 +1703,46 @@ _terminal_search_update_regex (NautilusTerminalWidget *self)
     regex = vte_regex_new_for_search (pattern, -1, flags, &error);
     if (regex == NULL) {
         g_debug ("terminal search regex error: %s", error ? error->message : "(unknown)");
-        vte_terminal_search_set_regex (_active_terminal (self), NULL, 0);
+        vte_terminal_search_set_regex (get_active_terminal (self), NULL, 0);
         return;
     }
-    vte_terminal_search_set_regex (_active_terminal (self), regex, 0);
-    vte_terminal_search_set_wrap_around (_active_terminal (self), TRUE);
+    vte_terminal_search_set_regex (get_active_terminal (self), regex, 0);
+    vte_terminal_search_set_wrap_around (get_active_terminal (self), TRUE);
 }
 
 static void
-_on_search_entry_changed (GtkSearchEntry *entry, gpointer user_data)
+on_search_entry_changed (GtkSearchEntry *entry, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    _terminal_search_update_regex (self);
+    terminal_search_update_regex (self);
     /* Live-jump to the next match while typing. */
-    vte_terminal_search_find_next (_active_terminal (self));
+    vte_terminal_search_find_next (get_active_terminal (self));
 }
 
 static void
-_on_search_entry_activate (GtkSearchEntry *entry, gpointer user_data)
+on_search_entry_activate (GtkSearchEntry *entry, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    _terminal_search_update_regex (self);
-    vte_terminal_search_find_next (_active_terminal (self));
+    terminal_search_update_regex (self);
+    vte_terminal_search_find_next (get_active_terminal (self));
 }
 
 static void
-_on_search_stop (GtkSearchEntry *entry, gpointer user_data)
+on_search_stop (GtkSearchEntry *entry, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    _terminal_search_set_visible (self, FALSE);
+    terminal_search_set_visible (self, FALSE);
 }
 
 static void
-_on_search_toggle_clicked (GtkToggleButton *button, gpointer user_data)
+on_search_toggle_clicked (GtkToggleButton *button, gpointer user_data)
 {
     NautilusTerminalWidget *self = NAUTILUS_TERMINAL_WIDGET (user_data);
-    _terminal_search_update_regex (self);
+    terminal_search_update_regex (self);
 }
 
 static void
-_terminal_search_set_visible (NautilusTerminalWidget *self, gboolean visible)
+terminal_search_set_visible (NautilusTerminalWidget *self, gboolean visible)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
@@ -1752,7 +1752,7 @@ _terminal_search_set_visible (NautilusTerminalWidget *self, gboolean visible)
         gtk_widget_grab_focus (priv->search_entry);
     } else {
         /* Clear highlight and return focus to the active pane's terminal. */
-        VteTerminal *t = _active_terminal (self);
+        VteTerminal *t = get_active_terminal (self);
         if (t != NULL) {
             vte_terminal_search_set_regex (t, NULL, 0);
             vte_terminal_unselect_all (t);
@@ -1764,7 +1764,7 @@ _terminal_search_set_visible (NautilusTerminalWidget *self, gboolean visible)
 }
 
 static GtkWidget *
-_build_search_bar (NautilusTerminalWidget *self)
+build_search_bar (NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
     GtkWidget *revealer;
@@ -1790,17 +1790,17 @@ _build_search_bar (NautilusTerminalWidget *self)
     gtk_widget_set_tooltip_text (priv->search_entry, _T("Search terminal scrollback"));
     g_signal_connect_object (priv->search_entry,
                              "search-changed",
-                             G_CALLBACK (_on_search_entry_changed),
+                             G_CALLBACK (on_search_entry_changed),
                              self,
                              0);
     g_signal_connect_object (priv->search_entry,
                              "activate",
-                             G_CALLBACK (_on_search_entry_activate),
+                             G_CALLBACK (on_search_entry_activate),
                              self,
                              0);
     g_signal_connect_object (priv->search_entry,
                              "stop-search",
-                             G_CALLBACK (_on_search_stop),
+                             G_CALLBACK (on_search_stop),
                              self,
                              0);
     gtk_box_append (GTK_BOX (bar), priv->search_entry);
@@ -1819,7 +1819,7 @@ _build_search_bar (NautilusTerminalWidget *self)
     gtk_widget_set_tooltip_text (priv->search_case_toggle, _T("Match Case"));
     g_signal_connect_object (priv->search_case_toggle,
                              "toggled",
-                             G_CALLBACK (_on_search_toggle_clicked),
+                             G_CALLBACK (on_search_toggle_clicked),
                              self,
                              0);
     gtk_box_append (GTK_BOX (bar), priv->search_case_toggle);
@@ -1828,7 +1828,7 @@ _build_search_bar (NautilusTerminalWidget *self)
     gtk_widget_set_tooltip_text (priv->search_regex_toggle, _T("Regular Expression"));
     g_signal_connect_object (priv->search_regex_toggle,
                              "toggled",
-                             G_CALLBACK (_on_search_toggle_clicked),
+                             G_CALLBACK (on_search_toggle_clicked),
                              self,
                              0);
     gtk_box_append (GTK_BOX (bar), priv->search_regex_toggle);
@@ -1935,7 +1935,7 @@ spawn_async_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer us
 
             if (data->kind == NAUTILUS_TERMINAL_SPAWN_SSH)
             {
-                _reset_to_local_state (self);
+                reset_to_local_state (self);
                 if (priv->is_visible)
                 {
                     spawn_terminal_async (self);
@@ -2135,7 +2135,7 @@ clear_pending_ssh_connection_data (NautilusTerminalWidgetPrivate *priv)
 }
 
 static void
-_clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv)
+clear_ssh_connection_data(NautilusTerminalWidgetPrivate *priv)
 {
     g_clear_pointer(&priv->ssh_hostname, g_free);
     g_clear_pointer(&priv->ssh_username, g_free);
@@ -2158,11 +2158,11 @@ cancel_primary_spawn (NautilusTerminalWidget *self)
 }
 
 static void
-_reset_to_local_state(NautilusTerminalWidget *self)
+reset_to_local_state(NautilusTerminalWidget *self)
 {
     NautilusTerminalWidgetPrivate *priv = self->priv;
 
-    _clear_ssh_connection_data(priv);
+    clear_ssh_connection_data(priv);
     priv->ssh_sync_mode = NAUTILUS_TERMINAL_SYNC_NONE;
 
     priv->state = NAUTILUS_TERMINAL_STATE_LOCAL;
@@ -2186,7 +2186,7 @@ on_terminal_child_exited (VteTerminal *terminal,
 
   priv->child_pid = -1;
   priv->needs_respawn = TRUE;
-  _emit_running_command_changed (self, FALSE);
+  emit_running_command_changed (self, FALSE);
 
   if (priv->state == NAUTILUS_TERMINAL_STATE_SWITCHING_TO_SSH)
     {
@@ -2195,7 +2195,7 @@ on_terminal_child_exited (VteTerminal *terminal,
   else if (priv->state == NAUTILUS_TERMINAL_STATE_IN_SSH ||
            priv->state == NAUTILUS_TERMINAL_STATE_SWITCHING_TO_LOCAL)
     {
-      _reset_to_local_state (self);
+      reset_to_local_state (self);
       if (priv->is_visible)
         {
           spawn_terminal_async (self);
@@ -2438,7 +2438,7 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
     GtkWidget *controller_widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
     VteTerminal *terminal = VTE_IS_TERMINAL (controller_widget)
                             ? VTE_TERMINAL (controller_widget)
-                            : _active_terminal (self);
+                            : get_active_terminal (self);
 
     priv->active_terminal = terminal;
 
@@ -2490,7 +2490,7 @@ on_terminal_key_pressed(GtkEventControllerKey *controller, guint keyval, guint k
 }
 
 static GMenuModel *
-_build_color_scheme_submenu(NautilusTerminalWidget *self)
+build_color_scheme_submenu(NautilusTerminalWidget *self)
 {
     GMenu *submenu = g_menu_new();
     for (gsize i = 0; i < G_N_ELEMENTS(COLOR_SCHEME_ENTRIES); ++i)
@@ -2510,7 +2510,7 @@ get_terminal_font_size(GSettings *settings)
 }
 
 static GMenuModel *
-_build_font_size_submenu(NautilusTerminalWidget *self)
+build_font_size_submenu(NautilusTerminalWidget *self)
 {
     GMenu *submenu = g_menu_new();
 
@@ -2525,7 +2525,7 @@ _build_font_size_submenu(NautilusTerminalWidget *self)
 }
 
 static GMenuModel *
-_build_enum_pref_submenu(NautilusTerminalWidget *self, const void *entries_generic, gsize count, const gchar *action_name)
+build_enum_pref_submenu(NautilusTerminalWidget *self, const void *entries_generic, gsize count, const gchar *action_name)
 {
     GMenu *submenu = g_menu_new();
     const MenuSyncModeEntry *entries = entries_generic;
@@ -2540,19 +2540,19 @@ _build_enum_pref_submenu(NautilusTerminalWidget *self, const void *entries_gener
 }
 
 static GMenuModel *
-_build_local_sync_submenu(NautilusTerminalWidget *self)
+build_local_sync_submenu(NautilusTerminalWidget *self)
 {
-    return _build_enum_pref_submenu(self, LOCAL_SYNC_MODE_ENTRIES, G_N_ELEMENTS(LOCAL_SYNC_MODE_ENTRIES), "terminal.set-local-sync-mode");
+    return build_enum_pref_submenu(self, LOCAL_SYNC_MODE_ENTRIES, G_N_ELEMENTS(LOCAL_SYNC_MODE_ENTRIES), "terminal.set-local-sync-mode");
 }
 
 static GMenuModel *
-_build_sftp_auto_connect_submenu(NautilusTerminalWidget *self)
+build_sftp_auto_connect_submenu(NautilusTerminalWidget *self)
 {
-    return _build_enum_pref_submenu(self, SFTP_AUTO_CONNECT_ENTRIES, G_N_ELEMENTS(SFTP_AUTO_CONNECT_ENTRIES), "terminal.set-ssh-auto-connect-mode");
+    return build_enum_pref_submenu(self, SFTP_AUTO_CONNECT_ENTRIES, G_N_ELEMENTS(SFTP_AUTO_CONNECT_ENTRIES), "terminal.set-ssh-auto-connect-mode");
 }
 
 static GMenuModel *
-_build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port)
+build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hostname, const gchar *username, const gchar *port)
 {
     GMenu *submenu = g_menu_new();
     for (gsize i = 0; i < G_N_ELEMENTS(MANUAL_SSH_SYNC_ENTRIES); ++i)
@@ -2573,7 +2573,7 @@ _build_manual_ssh_connect_submenu(NautilusTerminalWidget *self, const gchar *hos
 }
 
 static GMenuItem *
-_menu_item_with_accel (const gchar *label, const gchar *action, const gchar *accel)
+menu_item_with_accel (const gchar *label, const gchar *action, const gchar *accel)
 {
     GMenuItem *item = g_menu_item_new (label, action);
     if (accel != NULL)
@@ -2594,24 +2594,24 @@ update_popup_menu_model (NautilusTerminalWidget *self)
     /* Section 1 — clipboard, with accelerator labels shown on the right. */
     {
         g_autoptr (GMenuItem) item = NULL;
-        item = _menu_item_with_accel (_T("Copy"), "terminal.copy", "<Ctrl><Shift>c");
+        item = menu_item_with_accel (_T("Copy"), "terminal.copy", "<Ctrl><Shift>c");
         g_menu_append_item (clipboard_section, item);
         g_clear_object (&item);
-        item = _menu_item_with_accel (_T("Paste"), "terminal.paste", "<Ctrl><Shift>v");
+        item = menu_item_with_accel (_T("Paste"), "terminal.paste", "<Ctrl><Shift>v");
         g_menu_append_item (clipboard_section, item);
         g_clear_object (&item);
-        item = _menu_item_with_accel (_T("Select All"), "terminal.select-all", "<Ctrl><Shift>a");
+        item = menu_item_with_accel (_T("Select All"), "terminal.select-all", "<Ctrl><Shift>a");
         g_menu_append_item (clipboard_section, item);
         g_clear_object (&item);
-        item = _menu_item_with_accel (_T("Find…"), "terminal.search-toggle", "<Ctrl><Shift>f");
+        item = menu_item_with_accel (_T("Find…"), "terminal.search-toggle", "<Ctrl><Shift>f");
         g_menu_append_item (clipboard_section, item);
     }
     g_menu_append_section (menu, NULL, G_MENU_MODEL (clipboard_section));
 
     /* Section 2 — appearance. */
     {
-        g_autoptr (GMenuModel) color_scheme_submenu = _build_color_scheme_submenu (self);
-        g_autoptr (GMenuModel) font_size_submenu = _build_font_size_submenu (self);
+        g_autoptr (GMenuModel) color_scheme_submenu = build_color_scheme_submenu (self);
+        g_autoptr (GMenuModel) font_size_submenu = build_font_size_submenu (self);
 
         g_menu_append_submenu (appearance_section, _T("Color Scheme"), color_scheme_submenu);
         g_menu_append_submenu (appearance_section, _T("Font Size"), font_size_submenu);
@@ -2627,7 +2627,7 @@ update_popup_menu_model (NautilusTerminalWidget *self)
     }
 
     {
-        g_autoptr (GMenuModel) auto_connect_submenu = _build_sftp_auto_connect_submenu (self);
+        g_autoptr (GMenuModel) auto_connect_submenu = build_sftp_auto_connect_submenu (self);
 
         g_menu_append_submenu (sync_section, _T("SSH Auto-Connect"), auto_connect_submenu);
     }
@@ -2637,7 +2637,7 @@ update_popup_menu_model (NautilusTerminalWidget *self)
     }
     else
     {
-        g_autoptr (GMenuModel) local_sync_submenu = _build_local_sync_submenu (self);
+        g_autoptr (GMenuModel) local_sync_submenu = build_local_sync_submenu (self);
 
         g_menu_append_submenu (sync_section, _T("Local Folder Sync"), local_sync_submenu);
         if (is_sftp_location)
@@ -2646,7 +2646,7 @@ update_popup_menu_model (NautilusTerminalWidget *self)
             if (parse_gvfs_ssh_path (priv->current_location, &hostname, &username, &port))
             {
                 g_autofree gchar *label = g_strdup_printf (_T("SSH Connection to %s"), hostname);
-                g_autoptr (GMenuModel) connect_submenu = _build_manual_ssh_connect_submenu (self, hostname, username, port);
+                g_autoptr (GMenuModel) connect_submenu = build_manual_ssh_connect_submenu (self, hostname, username, port);
 
                 g_menu_append_submenu (sync_section, label, connect_submenu);
             }
@@ -2659,13 +2659,13 @@ update_popup_menu_model (NautilusTerminalWidget *self)
         g_autoptr (GMenu) split_section = g_menu_new ();
         if (priv->split_paned == NULL) {
             g_autoptr (GMenuItem) it = NULL;
-            it = _menu_item_with_accel (_T("Split Horizontally"), "terminal.split-horizontal", "<Ctrl><Shift>o");
+            it = menu_item_with_accel (_T("Split Horizontally"), "terminal.split-horizontal", "<Ctrl><Shift>o");
             g_menu_append_item (split_section, it);
             g_clear_object (&it);
-            it = _menu_item_with_accel (_T("Split Vertically"), "terminal.split-vertical", "<Ctrl><Shift>e");
+            it = menu_item_with_accel (_T("Split Vertically"), "terminal.split-vertical", "<Ctrl><Shift>e");
             g_menu_append_item (split_section, it);
         } else {
-            g_autoptr (GMenuItem) it = _menu_item_with_accel (_T("Close Pane"), "terminal.close-pane", "<Ctrl><Shift>w");
+            g_autoptr (GMenuItem) it = menu_item_with_accel (_T("Close Pane"), "terminal.close-pane", "<Ctrl><Shift>w");
             g_menu_append_item (split_section, it);
         }
         g_menu_append_section (menu, NULL, G_MENU_MODEL (split_section));
@@ -2983,11 +2983,11 @@ spawn_pending_ssh_connection (NautilusTerminalWidget *self)
     if (!nautilus_terminal_ssh_field_is_safe (hostname) ||
         (username != NULL && !nautilus_terminal_ssh_field_is_safe (username)))
     {
-        /* _initiate_ssh_connection() checks before it lets go of the local
+        /* initiate_ssh_connection() checks before it lets go of the local
          * shell, so this is not reached. Should it be anyway, do not leave
          * the pane without a child. */
         g_warning ("Refusing to connect: suspicious host or user in the SFTP location");
-        _reset_to_local_state (self);
+        reset_to_local_state (self);
         if (priv->is_visible)
         {
             spawn_terminal_async (self);
@@ -3042,7 +3042,7 @@ spawn_pending_ssh_connection (NautilusTerminalWidget *self)
 }
 
 static void
-_initiate_ssh_connection (NautilusTerminalWidget *self,
+initiate_ssh_connection (NautilusTerminalWidget *self,
                           const gchar            *hostname,
                           const gchar            *username,
                           const gchar            *port,
@@ -3120,7 +3120,7 @@ switch_to_local_terminal (NautilusTerminalWidget *self)
         }
     }
 
-    _reset_to_local_state (self);
+    reset_to_local_state (self);
     if (priv->is_visible)
     {
         spawn_terminal_async (self);
@@ -3393,7 +3393,7 @@ follow_location (NautilusTerminalWidget *self,
                 default: sync_mode = NAUTILUS_TERMINAL_SYNC_NONE; break;
             }
 
-            _initiate_ssh_connection (self, hostname, username, port, sync_mode);
+            initiate_ssh_connection (self, hostname, username, port, sync_mode);
         }
         else if (priv->state == NAUTILUS_TERMINAL_STATE_LOCAL &&
                  priv->is_visible && priv->needs_respawn)
@@ -3503,7 +3503,7 @@ nautilus_terminal_widget_ensure_state(NautilusTerminalWidget *self)
 }
 
 static gboolean
-_ensure_focus_timeout(gpointer user_data)
+ensure_focus_timeout(gpointer user_data)
 {
     NautilusTerminalWidget *self = user_data;
     NautilusTerminalWidgetPrivate *priv = self->priv;
@@ -3540,7 +3540,7 @@ schedule_terminal_focus (NautilusTerminalWidget *self,
     priv->focus_timeout_id =
         g_timeout_add_full (G_PRIORITY_DEFAULT,
                             delay_ms,
-                            _ensure_focus_timeout,
+                            ensure_focus_timeout,
                             g_object_ref (self),
                             g_object_unref);
 }
@@ -3550,7 +3550,7 @@ nautilus_terminal_widget_ensure_terminal_focus(NautilusTerminalWidget *self)
 {
     g_return_if_fail(NAUTILUS_IS_TERMINAL_WIDGET(self));
 
-    schedule_terminal_focus (self, _active_terminal (self), 100);
+    schedule_terminal_focus (self, get_active_terminal (self), 100);
 }
 
 gboolean
@@ -3564,7 +3564,7 @@ nautilus_terminal_widget_get_visible(NautilusTerminalWidget *self)
 #define APPLY_SIZE_MAX_RETRIES 30
 
 static gboolean
-_apply_size_retry (gpointer user_data)
+apply_size_retry (gpointer user_data)
 {
     NautilusTerminalWidget *self = user_data;
 
@@ -3591,7 +3591,7 @@ schedule_apply_size_retry (NautilusTerminalWidget *self)
     priv->apply_size_retries++;
     priv->apply_size_retry_id =
         g_idle_add_full (G_PRIORITY_DEFAULT_IDLE,
-                         _apply_size_retry,
+                         apply_size_retry,
                          g_object_ref (self),
                          g_object_unref);
 }
